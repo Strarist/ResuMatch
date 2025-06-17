@@ -53,7 +53,7 @@ export interface Resume {
   filename: string;
   upload_date: string;
   status: string;
-  analysis?: any;
+  analysis?: unknown;
   skills?: string[];
   experience?: number;
   matchScore?: number;

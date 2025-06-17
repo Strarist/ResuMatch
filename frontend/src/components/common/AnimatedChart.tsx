@@ -1,4 +1,4 @@
-import { useState, useCallback } from 'react';
+import { useCallback } from 'react';
 import {
   ResponsiveContainer,
   LineChart,
@@ -37,7 +37,13 @@ interface AnimatedChartProps {
   animationDuration?: number;
 }
 
-const CustomTooltip = ({ active, payload, label }: { active?: boolean; payload?: any[]; label?: string }) => {
+interface TooltipProps {
+  active?: boolean;
+  payload?: Array<{ name: string; value: number; color: string }>;
+  label?: string;
+}
+
+const CustomTooltip = ({ active, payload, label }: TooltipProps) => {
   if (active && payload && payload.length) {
     return (
       <motion.div
@@ -76,7 +82,7 @@ export const AnimatedChart = ({
   stacked = false,
   animationDuration = 1500,
 }: AnimatedChartProps) => {
-  const handleMouseMove = useCallback((e: unknown) => {
+  const handleMouseMove = useCallback(() => {
     // No-op or add logic if needed
   }, []);
 

@@ -5,7 +5,6 @@ import {
   Typography,
   Chip,
   IconButton,
-  Tooltip,
   Collapse,
   Button,
   useTheme

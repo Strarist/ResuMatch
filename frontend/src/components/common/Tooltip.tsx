@@ -1,4 +1,4 @@
-import React, { useState, useRef, useEffect } from 'react';
+import React, { useState, useRef, useEffect, useCallback } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { cn } from '../../utils';
 
@@ -41,7 +41,7 @@ export const Tooltip: React.FC<TooltipProps> = ({
     setIsVisible(false);
   };
 
-  const updatePosition = () => {
+  const updatePosition = useCallback(() => {
     if (!triggerRef.current || !tooltipRef.current) return;
 
     const triggerRect = triggerRef.current.getBoundingClientRect();
@@ -81,7 +81,7 @@ export const Tooltip: React.FC<TooltipProps> = ({
     if (y + tooltipRect.height > viewportHeight) y = viewportHeight - tooltipRect.height - 8;
 
     setTooltipPosition({ x, y });
-  };
+  }, [position]);
 
   useEffect(() => {
     if (isVisible) {

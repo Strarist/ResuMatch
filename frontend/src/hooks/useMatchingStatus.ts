@@ -76,7 +76,7 @@ export const useMatchingStatus = (jobId: string) => {
       }
     };
 
-    ws.onerror = (event) => {
+    ws.onerror = () => {
       setError('WebSocket connection error');
       setIsConnected(false);
       showToast('Connection error', 'error');

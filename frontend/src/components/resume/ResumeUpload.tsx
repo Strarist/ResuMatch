@@ -12,7 +12,7 @@ interface ResumeUploadProps {
 export const ResumeUpload = ({ onUploadComplete }: ResumeUploadProps) => {
   const [isUploading, setIsUploading] = useState(false);
   const { showToast } = useToast();
-  const { status, progress, error } = useResumeAnalysis();
+  const { status, progress } = useResumeAnalysis();
 
   const onDrop = useCallback(async (acceptedFiles: File[]) => {
     const file = acceptedFiles[0];
@@ -69,19 +69,6 @@ export const ResumeUpload = ({ onUploadComplete }: ResumeUploadProps) => {
 
   return (
     <div className="w-full max-w-2xl mx-auto">
-      <AnimatePresence>
-        {error && (
-          <motion.div
-            initial={{ opacity: 0, y: -20 }}
-            animate={{ opacity: 1, y: 0 }}
-            exit={{ opacity: 0, y: -20 }}
-            className="mb-4 p-4 bg-red-100 border border-red-400 text-red-700 rounded"
-          >
-            {error}
-          </motion.div>
-        )}
-      </AnimatePresence>
-
       <GlassCard
         className={`p-8 transition-colors ${
           isDragActive ? 'border-blue-500 bg-blue-50/10' : ''

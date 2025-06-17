@@ -140,7 +140,7 @@ export default function AnalyticsCharts() {
                     outerRadius={80}
                     label
                   >
-                    {data.matchDistribution.map((entry: any, index: number) => (
+                    {data.matchDistribution.map((entry: { range: string; count: number }, index: number) => (
                       <Cell
                         key={`cell-${index}`}
                         fill={COLORS[index % COLORS.length]}

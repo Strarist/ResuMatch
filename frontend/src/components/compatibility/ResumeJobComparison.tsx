@@ -12,8 +12,7 @@ import {
 } from '@mui/material';
 import {
   Download as DownloadIcon,
-  Share as ShareIcon,
-  Info as InfoIcon
+  Share as ShareIcon
 } from '@mui/icons-material';
 import { motion } from 'framer-motion';
 import { CustomRadarChart } from './CompatibilityRadar';
