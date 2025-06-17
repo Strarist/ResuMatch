@@ -2,7 +2,7 @@ import logging
 import sys
 from pathlib import Path
 from logging.handlers import RotatingFileHandler
-from typing import Dict, Any
+from typing import Dict, Any, Optional
 import json
 from datetime import datetime
 
@@ -26,7 +26,7 @@ class JSONFormatter(logging.Formatter):
             log_data.update(record.extra)
         
         # Add exception info if present
-        if record.exc_info:
+        if record.exc_info and record.exc_info[0]:
             log_data["exception"] = {
                 "type": record.exc_info[0].__name__,
                 "message": str(record.exc_info[1]),
@@ -87,7 +87,7 @@ def log_api_request(
     path: str,
     status_code: int,
     duration_ms: float,
-    user_id: str = None,
+    user_id: Optional[str] = None,
     **extra: Any
 ) -> None:
     """Log API request details"""
@@ -110,7 +110,7 @@ def log_api_error(
     status_code: int,
     error_code: str,
     error_message: str,
-    user_id: str = None,
+    user_id: Optional[str] = None,
     **extra: Any
 ) -> None:
     """Log API error details"""
@@ -133,7 +133,7 @@ def log_analysis_event(
     resource_id: str,
     resource_type: str,
     status: str,
-    user_id: str = None,
+    user_id: Optional[str] = None,
     **extra: Any
 ) -> None:
     """Log analysis-related events"""

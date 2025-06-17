@@ -1,7 +1,7 @@
 from prometheus_client import Counter, Histogram, Gauge, Summary
 from prometheus_client.openmetrics.exposition import generate_latest
 from fastapi import Response
-from typing import Dict, Any
+from typing import Dict, Any, Callable, Awaitable
 import time
 import psutil
 from functools import wraps
@@ -106,42 +106,42 @@ ANALYSIS_DURATION = Histogram(
     buckets=(1, 5, 15, 30, 60, 120, 300, 600)
 )
 
-def track_request_metrics(method: str, endpoint: str, status: int, duration: float):
+def track_request_metrics(method: str, endpoint: str, status: int, duration: float) -> None:
     """Track HTTP request metrics"""
     REQUEST_COUNT.labels(method=method, endpoint=endpoint, status=status).inc()
     REQUEST_LATENCY.labels(method=method, endpoint=endpoint).observe(duration)
 
-def track_websocket_metrics(ws_type: str, direction: str):
+def track_websocket_metrics(ws_type: str, direction: str) -> None:
     """Track WebSocket message metrics"""
     WS_MESSAGES.labels(type=ws_type, direction=direction).inc()
 
-def track_background_task(task_type: str, status: str, duration: float = None):
+def track_background_task(task_type: str, status: str, duration: Optional[float] = None) -> None:
     """Track background task metrics"""
     BACKGROUND_TASKS.labels(type=task_type, status=status).inc()
     if duration is not None:
         TASK_DURATION.labels(type=task_type).observe(duration)
 
-def track_cache_metrics(operation: str, status: str):
+def track_cache_metrics(operation: str, status: str) -> None:
     """Track cache operation metrics"""
     CACHE_OPERATIONS.labels(operation=operation, status=status).inc()
 
-def track_db_metrics(operation: str, table: str, status: str):
+def track_db_metrics(operation: str, table: str, status: str) -> None:
     """Track database operation metrics"""
     DB_OPERATIONS.labels(operation=operation, table=table, status=status).inc()
 
-def track_match_score(score: float, match_type: str):
+def track_match_score(score: float, match_type: str) -> None:
     """Track match score metrics"""
     MATCH_SCORES.labels(type=match_type).observe(score)
 
-def track_analysis_duration(duration: float, analysis_type: str):
+def track_analysis_duration(duration: float, analysis_type: str) -> None:
     """Track analysis duration metrics"""
     ANALYSIS_DURATION.labels(type=analysis_type).observe(duration)
 
-def metrics_middleware():
+def metrics_middleware() -> Callable[[Callable], Callable]:
     """Middleware to track request metrics"""
-    def decorator(func):
+    def decorator(func: Callable) -> Callable:
         @wraps(func)
-        async def wrapper(request, *args, **kwargs):
+        async def wrapper(request: Any, *args: Any, **kwargs: Any) -> Any:
             start_time = time.time()
             try:
                 response = await func(request, *args, **kwargs)
@@ -161,14 +161,14 @@ def metrics_middleware():
         return wrapper
     return decorator
 
-async def metrics_endpoint():
+async def metrics_endpoint() -> Response:
     """Endpoint to expose Prometheus metrics"""
     return Response(
         generate_latest(),
         media_type="text/plain"
     )
 
-def update_system_metrics():
+def update_system_metrics() -> None:
     """Update system metrics (memory, CPU)"""
     memory = psutil.virtual_memory()
     SYSTEM_MEMORY.labels(type='used').set(memory.used)
@@ -180,7 +180,7 @@ def update_system_metrics():
     SYSTEM_CPU.labels(type='system').set(sum(p.system for p in cpu_times))
     SYSTEM_CPU.labels(type='idle').set(sum(p.idle for p in cpu_times))
 
-def update_db_metrics(db):
+def update_db_metrics(db: Any) -> None:
     """Update database metrics"""
     pool = db.get_bind().pool
     DB_CONNECTIONS.set(pool.size())

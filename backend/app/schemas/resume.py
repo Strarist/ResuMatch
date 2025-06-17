@@ -1,25 +1,25 @@
-from pydantic import BaseModel, Field, constr
-from typing import Optional, List, Dict, Any
+from pydantic import BaseModel, Field
+from typing import List, Optional, Dict, Any
 from datetime import datetime
 from uuid import UUID
 
 class ResumeBase(BaseModel):
-    title: constr(min_length=1, max_length=200)
-    content: Optional[str] = None
-    skills: Optional[List[str]] = Field(default_factory=list)
-    experience: Optional[Dict[str, Any]] = None
-    education: Optional[List[str]] = Field(default_factory=list)
+    title: str = Field(..., min_length=1, max_length=200, description="Resume title")
+    content: str = Field(..., min_length=1, description="Resume content")
+    skills: List[str] = Field(default_factory=list, description="List of skills")
+    experience: Dict[str, Any] = Field(default_factory=dict, description="Experience information")
+    education: List[str] = Field(default_factory=list, description="Education information")
     file_path: Optional[str] = None
 
 class ResumeCreate(ResumeBase):
     pass
 
 class ResumeUpdate(BaseModel):
-    title: Optional[constr(min_length=1, max_length=200)] = None
-    content: Optional[str] = None
-    skills: Optional[List[str]] = None
-    experience: Optional[Dict[str, Any]] = None
-    education: Optional[List[str]] = None
+    title: Optional[str] = Field(None, min_length=1, max_length=200, description="Resume title")
+    content: Optional[str] = Field(None, min_length=1, description="Resume content")
+    skills: Optional[List[str]] = Field(None, description="List of skills")
+    experience: Optional[Dict[str, Any]] = Field(None, description="Experience information")
+    education: Optional[List[str]] = Field(None, description="Education information")
     file_path: Optional[str] = None
 
 class ResumeAnalysis(BaseModel):
@@ -51,8 +51,8 @@ class ResumeMatch(BaseModel):
     analysis: Dict[str, float] = Field(default_factory=dict)
 
 class ResumeInDBBase(ResumeBase):
-    id: str
-    user_id: str
+    id: UUID
+    user_id: UUID
     match_score: Optional[float] = None
     created_at: datetime
     updated_at: Optional[datetime] = None
@@ -68,4 +68,7 @@ class ResumeWithMatches(Resume):
 
 class ResumeList(BaseModel):
     items: List[ResumeResponse]
-    total: int 
+    total: int
+    page: int
+    size: int
+    pages: int 

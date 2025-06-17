@@ -11,7 +11,7 @@ class Settings(BaseSettings):
     API_V1_STR: str = "/api/v1"
     
     # CORS configuration
-    BACKEND_CORS_ORIGINS: List[AnyHttpUrl] = [
+    BACKEND_CORS_ORIGINS: List[Union[str, AnyHttpUrl]] = [
         "http://localhost:3000",  # React frontend
         "http://localhost:8000",  # Backend
         "http://localhost:8080",  # Alternative frontend port
