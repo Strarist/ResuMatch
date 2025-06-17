@@ -1,7 +1,7 @@
 from prometheus_client import Counter, Histogram, Gauge, Summary
 from prometheus_client.openmetrics.exposition import generate_latest
 from fastapi import Response
-from typing import Dict, Any, Callable, Awaitable
+from typing import Dict, Any, Callable, Awaitable, Optional
 import time
 import psutil
 from functools import wraps
