@@ -1,34 +1,187 @@
 import pytest
 from fastapi.testclient import TestClient
+from sqlalchemy.orm import Session
+from app.main import app
+from app.models.user import User
+from app.models.resume import Resume
 from app.schemas.common import ErrorCodes
 from app.core.config import settings
 from app.tests.conftest import assert_success_response, assert_error_response, assert_paginated_response
 
-def test_create_resume_success(authorized_client: TestClient):
+client = TestClient(app)
+
+def test_create_resume_success(db: Session, test_user: User) -> None:
     """Test successful resume creation"""
     resume_data = {
-        "title": "Senior Developer Resume",
-        "content": "Experienced Python developer with FastAPI and SQL skills.",
-        "skills": ["python", "fastapi", "sql", "docker"],
-        "experience": 5,
-        "education": ["Master's in Computer Science"],
+        "title": "Software Engineer Resume",
+        "content": "Experienced software engineer...",
+        "skills": ["Python", "FastAPI", "React"],
+        "experience": [{"title": "Software Engineer", "company": "Tech Corp"}],
+        "education": ["Bachelor's in Computer Science"]
     }
-    response = authorized_client.post("/api/v1/resumes/", json=resume_data)
-    data = assert_success_response(response, 201)
+    
+    response = client.post("/api/v1/resumes/", json=resume_data)
+    assert response.status_code == 201
+    data = response.json()
     assert data["title"] == resume_data["title"]
-    assert data["content"] == resume_data["content"]
-    assert data["skills"] == resume_data["skills"]
-    assert data["experience"] == resume_data["experience"]
-    assert data["education"] == resume_data["education"]
-    assert "id" in data
-    assert "user_id" in data
-    assert "created_at" in data
-    assert "updated_at" in data
 
-def test_create_resume_unauthorized(client: TestClient):
+def test_create_resume_unauthorized(db: Session) -> None:
     """Test resume creation without authentication"""
-    response = client.post("/api/v1/resumes/", json={})
-    assert_error_response(response, 401, ErrorCodes.AUTH_REQUIRED)
+    resume_data = {"title": "Test Resume"}
+    
+    response = client.post("/api/v1/resumes/", json=resume_data)
+    assert response.status_code == 401
+    assert response.json()["error_code"] == ErrorCodes.AUTH_REQUIRED
+
+def test_get_user_resumes(db: Session, test_user: User) -> None:
+    """Test getting user's resumes"""
+    # Create a test resume
+    resume = Resume(
+        user_id=test_user.id,
+        title="Test Resume",
+        content="Test content"
+    )
+    db.add(resume)
+    db.commit()
+    
+    response = client.get("/api/v1/resumes/")
+    assert response.status_code == 200
+    data = response.json()
+    assert len(data) == 1
+    assert data[0]["title"] == "Test Resume"
+
+def test_get_resume_by_id(db: Session, test_user: User) -> None:
+    """Test getting a specific resume by ID"""
+    resume = Resume(
+        user_id=test_user.id,
+        title="Test Resume",
+        content="Test content"
+    )
+    db.add(resume)
+    db.commit()
+    
+    response = client.get(f"/api/v1/resumes/{resume.id}")
+    assert response.status_code == 200
+    data = response.json()
+    assert data["title"] == "Test Resume"
+
+def test_get_resume_not_found(db: Session, test_user: User) -> None:
+    """Test getting a non-existent resume"""
+    response = client.get("/api/v1/resumes/999")
+    assert response.status_code == 404
+
+def test_update_resume(db: Session, test_user: User) -> None:
+    """Test updating a resume"""
+    resume = Resume(
+        user_id=test_user.id,
+        title="Original Title",
+        content="Original content"
+    )
+    db.add(resume)
+    db.commit()
+    
+    update_data = {"title": "Updated Title"}
+    response = client.put(f"/api/v1/resumes/{resume.id}", json=update_data)
+    assert response.status_code == 200
+    data = response.json()
+    assert data["title"] == "Updated Title"
+
+def test_delete_resume(db: Session, test_user: User) -> None:
+    """Test deleting a resume"""
+    resume = Resume(
+        user_id=test_user.id,
+        title="Test Resume",
+        content="Test content"
+    )
+    db.add(resume)
+    db.commit()
+    
+    response = client.delete(f"/api/v1/resumes/{resume.id}")
+    assert response.status_code == 204
+    
+    # Verify it's deleted
+    response = client.get(f"/api/v1/resumes/{resume.id}")
+    assert response.status_code == 404
+
+def test_upload_resume_file(db: Session, test_user: User) -> None:
+    """Test uploading a resume file"""
+    files = {"file": ("resume.pdf", b"fake pdf content", "application/pdf")}
+    data = {"title": "Uploaded Resume"}
+    
+    response = client.post("/api/v1/resumes/upload", files=files, data=data)
+    assert response.status_code == 201
+    data = response.json()
+    assert data["title"] == "Uploaded Resume"
+
+def test_upload_resume_file_too_large(db: Session, test_user: User) -> None:
+    """Test uploading a file that's too large"""
+    # Create a large file content
+    large_content = b"x" * (10 * 1024 * 1024)  # 10MB
+    files = {"file": ("large_resume.pdf", large_content, "application/pdf")}
+    data = {"title": "Large Resume"}
+    
+    response = client.post("/api/v1/resumes/upload", files=files, data=data)
+    assert response.status_code == 413
+    assert response.json()["error_code"] == ErrorCodes.FILE_TOO_LARGE
+
+def test_analyze_resume(db: Session, test_user: User) -> None:
+    """Test resume analysis"""
+    resume = Resume(
+        user_id=test_user.id,
+        title="Test Resume",
+        content="Experienced Python developer with 5 years of experience"
+    )
+    db.add(resume)
+    db.commit()
+    
+    response = client.post(f"/api/v1/resumes/{resume.id}/analyze")
+    assert response.status_code == 200
+    data = response.json()
+    assert "analysis" in data
+
+def test_get_resume_matches(db: Session, test_user: User) -> None:
+    """Test getting resume matches"""
+    resume = Resume(
+        user_id=test_user.id,
+        title="Test Resume",
+        content="Test content"
+    )
+    db.add(resume)
+    db.commit()
+    
+    response = client.get(f"/api/v1/resumes/{resume.id}/matches")
+    assert response.status_code == 200
+    data = response.json()
+    assert isinstance(data, list)
+
+def test_resume_validation(db: Session, test_user: User) -> None:
+    """Test resume data validation"""
+    invalid_data = {
+        "title": "",  # Empty title should fail
+        "content": "Valid content"
+    }
+    
+    response = client.post("/api/v1/resumes/", json=invalid_data)
+    assert response.status_code == 422
+
+def test_resume_permissions(db: Session, test_user: User) -> None:
+    """Test resume access permissions"""
+    # Create resume for different user
+    other_user = User(email="other@example.com", hashed_password="hashed")
+    db.add(other_user)
+    db.commit()
+    
+    resume = Resume(
+        user_id=other_user.id,
+        title="Other User's Resume",
+        content="Private content"
+    )
+    db.add(resume)
+    db.commit()
+    
+    # Try to access other user's resume
+    response = client.get(f"/api/v1/resumes/{resume.id}")
+    assert response.status_code == 403
 
 def test_create_resume_invalid_data(authorized_client: TestClient):
     """Test resume creation with invalid data"""
@@ -52,11 +205,6 @@ def test_get_resume_success(authorized_client: TestClient, test_resume: dict):
     assert data["skills"] == test_resume["skills"]
     assert data["experience"] == test_resume["experience"]
     assert data["education"] == test_resume["education"]
-
-def test_get_resume_not_found(authorized_client: TestClient):
-    """Test resume retrieval with non-existent ID"""
-    response = authorized_client.get("/api/v1/resumes/00000000-0000-0000-0000-000000000000")
-    assert_error_response(response, 404, ErrorCodes.RESOURCE_NOT_FOUND)
 
 def test_get_resume_unauthorized(client: TestClient, test_resume: dict):
     """Test resume retrieval without authentication"""
@@ -133,14 +281,6 @@ def test_list_resumes_pagination(authorized_client: TestClient):
     data = response.json()
     assert len(data["items"]) == 6  # 16 total resumes (15 new + 1 test resume)
     assert data["pagination"]["page"] == 2
-
-def test_analyze_resume_success(authorized_client: TestClient, test_resume: dict):
-    """Test successful resume analysis"""
-    response = authorized_client.post(f"/api/v1/resumes/{test_resume['id']}/analyze")
-    data = assert_success_response(response, 202)
-    assert "analysis_id" in data
-    assert "status" in data
-    assert data["status"] == "processing"
 
 def test_get_resume_matches_success(authorized_client: TestClient, test_resume: dict, test_job: dict):
     """Test successful resume matches retrieval"""

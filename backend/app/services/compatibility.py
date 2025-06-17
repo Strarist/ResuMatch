@@ -1,12 +1,13 @@
-from typing import List, Dict, Optional, Tuple
+from typing import List, Dict, Any, Optional
+from sqlalchemy.orm import Session
 from datetime import datetime
 import spacy
 from sentence_transformers import SentenceTransformer
 from app.models.resume import Resume
-from app.models.job import JobPost
+from app.models.job import Job
 from app.schemas.compatibility import (
     CompatibilityReport, SkillMatch, RoleMatch, ExperienceMatch,
-    MatchCategory
+    MatchCategory, SkillGap, ImprovementSuggestion
 )
 from app.services.resume_matcher import ResumeMatcher
 
@@ -165,7 +166,7 @@ class CompatibilityAnalyzer:
     async def analyze_experience(
         self,
         resume: Resume,
-        job: JobPost
+        job: Job
     ) -> ExperienceMatch:
         """Analyze experience compatibility."""
         # Calculate years match

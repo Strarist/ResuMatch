@@ -13,9 +13,11 @@ from app.models.user import User
 from app.models.resume import Resume
 from app.models.job import Job
 from app.schemas.common import ErrorResponse, ErrorCodes
-from app.core.logging import log_analysis_event
+from app.core.logging import log_analysis_event, get_logger
 from app.services.resume_matcher import ResumeMatcher
+from app.core.websocket import get_websocket_manager, RedisWebSocketManager
 
+logger = get_logger(__name__)
 router = APIRouter()
 matcher = ResumeMatcher()
 
@@ -47,64 +49,80 @@ class ConnectionManager:
 
 manager = ConnectionManager()
 
-@router.websocket("/ws/analysis/{analysis_id}")
+@router.websocket("/ws/analysis/{user_id}")
 async def websocket_analysis_endpoint(
     websocket: WebSocket,
-    analysis_id: str,
-    db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user_ws)
-):
-    """WebSocket endpoint for real-time analysis updates"""
+    user_id: int,
+    manager: RedisWebSocketManager = Depends(get_websocket_manager)
+) -> None:
+    """WebSocket endpoint for analysis updates"""
     try:
-        await manager.connect(websocket, current_user.id)
-        
-        # Send initial connection success message
-        await websocket.send_json({
-            "type": "connection_established",
-            "analysis_id": analysis_id,
-            "timestamp": datetime.utcnow().isoformat()
-        })
-        
-        # Keep connection alive and handle client messages
-        while True:
-            try:
-                data = await websocket.receive_text()
-                message = json.loads(data)
-                
-                # Handle client messages (e.g., cancel analysis)
-                if message.get("type") == "cancel_analysis":
-                    # Implement analysis cancellation logic here
-                    await websocket.send_json({
-                        "type": "analysis_cancelled",
-                        "analysis_id": analysis_id,
-                        "timestamp": datetime.utcnow().isoformat()
-                    })
-                    break
-                
-            except WebSocketDisconnect:
-                break
-            except json.JSONDecodeError:
-                await websocket.send_json({
-                    "type": "error",
-                    "error": {
-                        "code": ErrorCodes.VALIDATION_ERROR,
-                        "message": "Invalid message format"
-                    },
-                    "timestamp": datetime.utcnow().isoformat()
-                })
-    
-    except HTTPException as e:
-        if websocket.client_state != WebSocketState.DISCONNECTED:
-            await websocket.send_json({
-                "type": "error",
-                "error": {
-                    "code": e.status_code,
-                    "message": e.detail
-                },
-                "timestamp": datetime.utcnow().isoformat()
-            })
-    finally:
-        manager.disconnect(websocket, current_user.id)
+        await manager.connect(websocket, user_id)
+        await manager.handle_websocket_connection(websocket, user_id)
+    except WebSocketDisconnect:
+        await manager.disconnect(websocket, user_id)
+    except Exception as e:
+        logger.error(f"WebSocket error: {e}")
+        await manager.disconnect(websocket, user_id)
+
+@router.websocket("/ws/matches/{user_id}")
+async def websocket_matches_endpoint(
+    websocket: WebSocket,
+    user_id: int,
+    manager: RedisWebSocketManager = Depends(get_websocket_manager)
+) -> None:
+    """WebSocket endpoint for match updates"""
+    try:
+        await manager.connect(websocket, user_id)
+        await manager.handle_websocket_connection(websocket, user_id)
+    except WebSocketDisconnect:
+        await manager.disconnect(websocket, user_id)
+    except Exception as e:
+        logger.error(f"WebSocket error: {e}")
+        await manager.disconnect(websocket, user_id)
+
+@router.websocket("/ws/notifications/{user_id}")
+async def websocket_notifications_endpoint(
+    websocket: WebSocket,
+    user_id: int,
+    manager: RedisWebSocketManager = Depends(get_websocket_manager)
+) -> None:
+    """WebSocket endpoint for notifications"""
+    try:
+        await manager.connect(websocket, user_id)
+        await manager.handle_websocket_connection(websocket, user_id)
+    except WebSocketDisconnect:
+        await manager.disconnect(websocket, user_id)
+    except Exception as e:
+        logger.error(f"WebSocket error: {e}")
+        await manager.disconnect(websocket, user_id)
+
+@router.post("/ws/send-message/{user_id}")
+async def send_websocket_message(
+    user_id: int,
+    message: dict,
+    manager: RedisWebSocketManager = Depends(get_websocket_manager)
+) -> dict:
+    """Send a message to a specific user via WebSocket"""
+    try:
+        await manager.send_message(user_id, message)
+        return {"status": "success", "message": "Message sent"}
+    except Exception as e:
+        logger.error(f"Error sending message: {e}")
+        raise HTTPException(status_code=500, detail="Failed to send message")
+
+@router.post("/ws/broadcast")
+async def broadcast_websocket_message(
+    message: dict,
+    manager: RedisWebSocketManager = Depends(get_websocket_manager)
+) -> dict:
+    """Broadcast a message to all connected users"""
+    try:
+        await manager.broadcast_message(message)
+        return {"status": "success", "message": "Message broadcasted"}
+    except Exception as e:
+        logger.error(f"Error broadcasting message: {e}")
+        raise HTTPException(status_code=500, detail="Failed to broadcast message")
 
 async def broadcast_analysis_update(
     db: Session,

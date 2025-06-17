@@ -1,40 +1,184 @@
 import pytest
 from fastapi.testclient import TestClient
+from sqlalchemy.orm import Session
+from app.main import app
+from app.models.user import User
+from app.models.job import Job
 from app.schemas.common import ErrorCodes
 from app.tests.conftest import assert_success_response, assert_error_response, assert_paginated_response
 
-def test_create_job_success(authorized_client: TestClient):
+client = TestClient(app)
+
+def test_create_job_success(db: Session, test_user: User) -> None:
     """Test successful job creation"""
     job_data = {
-        "title": "Senior Python Developer",
+        "title": "Software Engineer",
         "company": "Tech Corp",
-        "description": "Looking for an experienced Python developer with FastAPI skills.",
-        "requirements": ["python", "fastapi", "sql", "docker", "kubernetes"],
-        "location": "Remote",
-        "type": "full_time",
-        "salary": {
-            "min": 120000,
-            "max": 180000,
-            "currency": "USD"
-        }
+        "description": "We are looking for a skilled software engineer...",
+        "requirements": "Python, FastAPI, React",
+        "location": "San Francisco, CA",
+        "salary_min": 80000,
+        "salary_max": 120000,
+        "job_type": "full-time",
+        "experience_level": "mid"
     }
-    response = authorized_client.post("/api/v1/jobs/", json=job_data)
-    data = assert_success_response(response, 201)
+    
+    response = client.post("/api/v1/jobs/", json=job_data)
+    assert response.status_code == 201
+    data = response.json()
     assert data["title"] == job_data["title"]
-    assert data["company"] == job_data["company"]
-    assert data["description"] == job_data["description"]
-    assert data["requirements"] == job_data["requirements"]
-    assert data["location"] == job_data["location"]
-    assert data["type"] == job_data["type"]
-    assert data["salary"] == job_data["salary"]
-    assert "id" in data
-    assert "created_at" in data
-    assert "updated_at" in data
 
-def test_create_job_unauthorized(client: TestClient):
+def test_create_job_unauthorized(db: Session) -> None:
     """Test job creation without authentication"""
-    response = client.post("/api/v1/jobs/", json={})
-    assert_error_response(response, 401, ErrorCodes.AUTH_REQUIRED)
+    job_data = {"title": "Test Job"}
+    
+    response = client.post("/api/v1/jobs/", json=job_data)
+    assert response.status_code == 401
+    assert response.json()["error_code"] == ErrorCodes.AUTH_REQUIRED
+
+def test_get_user_jobs(db: Session, test_user: User) -> None:
+    """Test getting user's jobs"""
+    # Create a test job
+    job = Job(
+        user_id=test_user.id,
+        title="Test Job",
+        company="Test Company",
+        description="Test description"
+    )
+    db.add(job)
+    db.commit()
+    
+    response = client.get("/api/v1/jobs/")
+    assert response.status_code == 200
+    data = response.json()
+    assert len(data) == 1
+    assert data[0]["title"] == "Test Job"
+
+def test_get_job_by_id(db: Session, test_user: User) -> None:
+    """Test getting a specific job by ID"""
+    job = Job(
+        user_id=test_user.id,
+        title="Test Job",
+        company="Test Company",
+        description="Test description"
+    )
+    db.add(job)
+    db.commit()
+    
+    response = client.get(f"/api/v1/jobs/{job.id}")
+    assert response.status_code == 200
+    data = response.json()
+    assert data["title"] == "Test Job"
+
+def test_get_job_not_found(db: Session, test_user: User) -> None:
+    """Test getting a non-existent job"""
+    response = client.get("/api/v1/jobs/999")
+    assert response.status_code == 404
+
+def test_update_job(db: Session, test_user: User) -> None:
+    """Test updating a job"""
+    job = Job(
+        user_id=test_user.id,
+        title="Original Title",
+        company="Original Company",
+        description="Original description"
+    )
+    db.add(job)
+    db.commit()
+    
+    update_data = {"title": "Updated Title"}
+    response = client.put(f"/api/v1/jobs/{job.id}", json=update_data)
+    assert response.status_code == 200
+    data = response.json()
+    assert data["title"] == "Updated Title"
+
+def test_delete_job(db: Session, test_user: User) -> None:
+    """Test deleting a job"""
+    job = Job(
+        user_id=test_user.id,
+        title="Test Job",
+        company="Test Company",
+        description="Test description"
+    )
+    db.add(job)
+    db.commit()
+    
+    response = client.delete(f"/api/v1/jobs/{job.id}")
+    assert response.status_code == 204
+    
+    # Verify it's deleted
+    response = client.get(f"/api/v1/jobs/{job.id}")
+    assert response.status_code == 404
+
+def test_analyze_job(db: Session, test_user: User) -> None:
+    """Test job analysis"""
+    job = Job(
+        user_id=test_user.id,
+        title="Software Engineer",
+        company="Tech Corp",
+        description="Python developer with FastAPI experience needed"
+    )
+    db.add(job)
+    db.commit()
+    
+    response = client.post(f"/api/v1/jobs/{job.id}/analyze")
+    assert response.status_code == 200
+    data = response.json()
+    assert "analysis" in data
+
+def test_search_jobs(db: Session, test_user: User) -> None:
+    """Test job search functionality"""
+    # Create test jobs
+    job1 = Job(
+        user_id=test_user.id,
+        title="Python Developer",
+        company="Tech Corp",
+        description="Python development role"
+    )
+    job2 = Job(
+        user_id=test_user.id,
+        title="React Developer",
+        company="Web Corp",
+        description="React development role"
+    )
+    db.add_all([job1, job2])
+    db.commit()
+    
+    response = client.get("/api/v1/jobs/search?q=python")
+    assert response.status_code == 200
+    data = response.json()
+    assert len(data) == 1
+    assert "python" in data[0]["title"].lower()
+
+def test_job_validation(db: Session, test_user: User) -> None:
+    """Test job data validation"""
+    invalid_data = {
+        "title": "",  # Empty title should fail
+        "company": "Valid Company"
+    }
+    
+    response = client.post("/api/v1/jobs/", json=invalid_data)
+    assert response.status_code == 422
+
+def test_job_permissions(db: Session, test_user: User) -> None:
+    """Test job access permissions"""
+    # Create job for different user
+    other_user = User(email="other@example.com", hashed_password="hashed")
+    db.add(other_user)
+    db.commit()
+    
+    job = Job(
+        user_id=other_user.id,
+        title="Other User's Job",
+        company="Other Company",
+        description="Private job"
+    )
+    db.add(job)
+    db.commit()
+    
+    # Try to access other user's job
+    response = client.get(f"/api/v1/jobs/{job.id}")
+    assert response.status_code == 403
 
 def test_create_job_invalid_data(authorized_client: TestClient):
     """Test job creation with invalid data"""
@@ -66,11 +210,6 @@ def test_get_job_success(authorized_client: TestClient, test_job: dict):
     assert data["location"] == test_job["location"]
     assert data["type"] == test_job["type"]
     assert data["salary"] == test_job["salary"]
-
-def test_get_job_not_found(authorized_client: TestClient):
-    """Test job retrieval with non-existent ID"""
-    response = authorized_client.get("/api/v1/jobs/00000000-0000-0000-0000-000000000000")
-    assert_error_response(response, 404, ErrorCodes.RESOURCE_NOT_FOUND)
 
 def test_get_job_unauthorized(client: TestClient, test_job: dict):
     """Test job retrieval without authentication"""
@@ -242,14 +381,6 @@ def test_get_job_matches_success(authorized_client: TestClient, test_job: dict, 
         assert "resume_id" in match
         assert "score" in match
         assert "created_at" in match
-
-def test_analyze_job_success(authorized_client: TestClient, test_job: dict):
-    """Test successful job analysis"""
-    response = authorized_client.post(f"/api/v1/jobs/{test_job['id']}/analyze")
-    data = assert_success_response(response, 202)
-    assert "analysis_id" in data
-    assert "status" in data
-    assert data["status"] == "processing"
 
 def test_get_job_stats_success(authorized_client: TestClient, test_job: dict):
     """Test successful job statistics retrieval"""

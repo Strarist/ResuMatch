@@ -3,7 +3,7 @@ from fastapi.testclient import TestClient
 from app.schemas.common import ErrorCodes
 from app.core.config import settings
 
-def test_login_success(client: TestClient, test_user: dict):
+def test_login_success(client: TestClient, test_user: dict) -> None:
     """Test successful login"""
     response = client.post(
         "/api/v1/auth/login",
@@ -18,7 +18,7 @@ def test_login_success(client: TestClient, test_user: dict):
     assert data["data"]["token_type"] == "bearer"
     assert "timestamp" in data
 
-def test_login_invalid_credentials(client: TestClient):
+def test_login_invalid_credentials(client: TestClient) -> None:
     """Test login with invalid credentials"""
     response = client.post(
         "/api/v1/auth/login",
@@ -31,7 +31,7 @@ def test_login_invalid_credentials(client: TestClient):
     data = response.json()
     assert data["error"]["code"] == ErrorCodes.AUTH_INVALID_CREDENTIALS
 
-def test_register_success(client: TestClient):
+def test_register_success(client: TestClient) -> None:
     """Test successful user registration"""
     response = client.post(
         "/api/v1/auth/register",
@@ -47,7 +47,7 @@ def test_register_success(client: TestClient):
     assert data["data"]["token_type"] == "bearer"
     assert "timestamp" in data
 
-def test_register_existing_email(client: TestClient, test_user: dict):
+def test_register_existing_email(client: TestClient, test_user: dict) -> None:
     """Test registration with existing email"""
     response = client.post(
         "/api/v1/auth/register",
@@ -61,7 +61,7 @@ def test_register_existing_email(client: TestClient, test_user: dict):
     data = response.json()
     assert data["error"]["code"] == ErrorCodes.VALIDATION_ERROR
 
-def test_register_invalid_email(client: TestClient):
+def test_register_invalid_email(client: TestClient) -> None:
     """Test registration with invalid email format"""
     response = client.post(
         "/api/v1/auth/register",
@@ -75,7 +75,7 @@ def test_register_invalid_email(client: TestClient):
     data = response.json()
     assert data["error"]["code"] == ErrorCodes.VALIDATION_ERROR
 
-def test_register_weak_password(client: TestClient):
+def test_register_weak_password(client: TestClient) -> None:
     """Test registration with weak password"""
     response = client.post(
         "/api/v1/auth/register",
@@ -89,14 +89,14 @@ def test_register_weak_password(client: TestClient):
     data = response.json()
     assert data["error"]["code"] == ErrorCodes.VALIDATION_ERROR
 
-def test_get_current_user_unauthorized(client: TestClient):
+def test_get_current_user_unauthorized(client: TestClient) -> None:
     """Test getting current user without authentication"""
     response = client.get("/api/v1/auth/me")
     assert response.status_code == 401
     data = response.json()
     assert data["error"]["code"] == ErrorCodes.AUTH_REQUIRED
 
-def test_get_current_user_success(authorized_client: TestClient, test_user: dict):
+def test_get_current_user_success(authorized_client: TestClient, test_user: dict) -> None:
     """Test getting current user with valid authentication"""
     response = authorized_client.get("/api/v1/auth/me")
     data = response.json()
@@ -105,7 +105,7 @@ def test_get_current_user_success(authorized_client: TestClient, test_user: dict
     assert data["data"]["full_name"] == test_user["full_name"]
     assert "timestamp" in data
 
-def test_invalid_token(client: TestClient):
+def test_invalid_token(client: TestClient) -> None:
     """Test authentication with invalid token"""
     client.headers["Authorization"] = "Bearer invalid-token"
     response = client.get("/api/v1/auth/me")
@@ -113,7 +113,7 @@ def test_invalid_token(client: TestClient):
     data = response.json()
     assert data["error"]["code"] == ErrorCodes.AUTH_INVALID_TOKEN
 
-def test_expired_token(client: TestClient, test_user: dict):
+def test_expired_token(client: TestClient, test_user: dict) -> None:
     """Test authentication with expired token"""
     # Create an expired token
     from app.core.security import create_access_token
@@ -128,7 +128,7 @@ def test_expired_token(client: TestClient, test_user: dict):
     data = response.json()
     assert data["error"]["code"] == ErrorCodes.AUTH_TOKEN_EXPIRED
 
-def test_rate_limiting(client: TestClient):
+def test_rate_limiting(client: TestClient) -> None:
     """Test rate limiting on login endpoint"""
     # Make multiple requests in quick succession
     for _ in range(settings.RATE_LIMIT_BURST_SIZE + 1):

@@ -1,5 +1,5 @@
 from fastapi import WebSocket, WebSocketDisconnect, Depends
-from typing import Dict, Set, Any, Optional, Tuple
+from typing import Dict, Set, Any, Optional, Tuple, AsyncGenerator
 import json
 import asyncio
 from redis.asyncio import Redis
@@ -12,209 +12,81 @@ from app.core.metrics import (
     WS_CONNECTION_DURATION,
     track_websocket_metrics
 )
-from app.core.logging import log_websocket_event
+from app.core.logging import log_websocket_event, get_logger
 from app.api.deps import get_current_user
 from fastapi.websockets import WebSocketState
 from app.schemas.matching import WSMessage, WSMessageType, MatchResult, MatchUpdate
 import logging
+from uuid import UUID
 
-logger = logging.getLogger(__name__)
+logger = get_logger(__name__)
 
 class RedisWebSocketManager:
-    def __init__(self) -> None:
-        self.active_connections: Dict[str, Dict[str, WebSocket]] = {
-            "analysis": {},
-            "matches": {}
-        }
-        self.redis: Optional[Redis] = None
-        self.pubsub: Optional[Any] = None
-        self.instance_id = str(uuid.uuid4())
-        
-    async def connect(self) -> None:
-        """Connect to Redis"""
-        self.redis = Redis.from_url(
-            str(settings.REDIS_URL),
-            encoding="utf-8",
-            decode_responses=True
-        )
+    def __init__(self, redis_url: str = "redis://localhost:6379"):
+        self.redis = Redis.from_url(redis_url, decode_responses=True)
+        self.connection_manager = ConnectionManager()
         self.pubsub = self.redis.pubsub()
         
-        # Subscribe to channels
-        await self.pubsub.subscribe(
-            "ws:analysis",
-            "ws:matches",
-            f"ws:instance:{self.instance_id}"
-        )
-        
-        # Start message listener
-        asyncio.create_task(self._listen_messages())
-        
-    async def disconnect(self) -> None:
-        """Disconnect from Redis"""
-        if self.pubsub:
-            await self.pubsub.unsubscribe()
-            await self.pubsub.close()
-        if self.redis:
-            await self.redis.close()
-            
-    async def _listen_messages(self) -> None:
-        """Listen for messages from Redis"""
-        while True:
-            try:
-                message = await self.pubsub.get_message(ignore_subscribe_messages=True)
-                if message:
-                    await self._handle_redis_message(message)
-            except Exception as e:
-                log_websocket_event(
-                    "error",
-                    f"Error in Redis message listener: {str(e)}",
-                    {"error": str(e)}
-                )
-                await asyncio.sleep(1)  # Prevent tight loop on error
-                
-    async def _handle_redis_message(self, message: Dict[str, Any]) -> None:
-        """Handle incoming Redis message"""
-        try:
-            data = json.loads(message["data"])
-            channel = message["channel"]
-            ws_type = channel.split(":")[1]
-            
-            # Skip messages from self
-            if data.get("instance_id") == self.instance_id:
-                return
-                
-            # Forward message to local connections
-            if ws_type in self.active_connections:
-                for connection in self.active_connections[ws_type].values():
-                    try:
-                        await connection.send_json(data["message"])
-                        track_websocket_metrics(ws_type, "sent")
-                    except Exception as e:
-                        log_websocket_event(
-                            "error",
-                            f"Error sending message to WebSocket: {str(e)}",
-                            {"error": str(e)}
-                        )
-        except Exception as e:
-            log_websocket_event(
-                "error",
-                f"Error handling Redis message: {str(e)}",
-                {"error": str(e)}
-            )
-            
-    async def connect_websocket(
-        self,
-        websocket: WebSocket,
-        ws_type: str,
-        user_id: Optional[int] = None
-    ) -> str:
-        """Connect a new WebSocket client"""
+    async def connect(self, websocket: WebSocket, user_id: UUID) -> None:
+        """Connect a websocket and subscribe to user's channel"""
         await websocket.accept()
-        client_id = str(uuid.uuid4())
+        self.connection_manager.connect(websocket, user_id)
         
-        # Store connection
-        self.active_connections[ws_type][client_id] = websocket
+        # Subscribe to user's Redis channel
+        user_channel = f"user:{user_id}"
+        self.pubsub.subscribe(user_channel)
         
-        # Update metrics
-        WS_CONNECTIONS.labels(type=ws_type).inc()
+    async def disconnect(self, websocket: WebSocket, user_id: UUID) -> None:
+        """Disconnect a websocket and unsubscribe from user's channel"""
+        self.connection_manager.disconnect(websocket, user_id)
         
-        # Log connection
-        log_websocket_event(
-            "connect",
-            f"WebSocket connected: {ws_type}",
-            {
-                "client_id": client_id,
-                "user_id": user_id,
-                "ws_type": ws_type
-            }
-        )
+        # Unsubscribe from user's Redis channel
+        user_channel = f"user:{user_id}"
+        self.pubsub.unsubscribe(user_channel)
         
-        return client_id
+    async def send_message(self, user_id: UUID, message: Dict[str, Any]) -> None:
+        """Send a message to a specific user via Redis"""
+        user_channel = f"user:{user_id}"
+        message_str = json.dumps(message)
+        self.redis.publish(user_channel, message_str)
         
-    async def disconnect_websocket(self, client_id: str, ws_type: str) -> None:
-        """Disconnect a WebSocket client"""
-        if client_id in self.active_connections[ws_type]:
-            # Update metrics
-            WS_CONNECTIONS.labels(type=ws_type).dec()
+    async def broadcast_message(self, message: Dict[str, Any]) -> None:
+        """Broadcast a message to all users via Redis"""
+        message_str = json.dumps(message)
+        self.redis.publish("broadcast", message_str)
+        
+    async def listen_for_messages(self) -> AsyncGenerator[Dict[str, Any], None]:
+        """Listen for Redis messages and yield them"""
+        try:
+            for message in self.pubsub.listen():
+                if message["type"] == "message":
+                    try:
+                        data = json.loads(message["data"])
+                        yield data
+                    except json.JSONDecodeError as e:
+                        logger.error(f"Error decoding message: {e}")
+        except Exception as e:
+            logger.error(f"Error listening for messages: {e}")
             
-            # Log disconnection
-            log_websocket_event(
-                "disconnect",
-                f"WebSocket disconnected: {ws_type}",
-                {
-                    "client_id": client_id,
-                    "ws_type": ws_type
-                }
-            )
-            
-            # Remove connection
-            del self.active_connections[ws_type][client_id]
-            
-    async def broadcast(
-        self,
-        message: Dict[str, Any],
-        ws_type: str,
-        exclude_client: Optional[str] = None
-    ) -> None:
-        """Broadcast message to all connected clients"""
-        # Add metadata
-        message_data = {
-            "message": message,
-            "timestamp": datetime.utcnow().isoformat(),
-            "instance_id": self.instance_id
-        }
+    async def handle_websocket_connection(self, websocket: WebSocket, user_id: UUID) -> None:
+        """Handle a websocket connection"""
+        await self.connect(websocket, user_id)
         
-        # Publish to Redis
-        if self.redis:
-            await self.redis.publish(
-                f"ws:{ws_type}",
-                json.dumps(message_data)
-            )
-            
-        # Send to local connections
-        for client_id, connection in self.active_connections[ws_type].items():
-            if client_id != exclude_client:
-                try:
-                    await connection.send_json(message)
-                    track_websocket_metrics(ws_type, "sent")
-                except Exception as e:
-                    log_websocket_event(
-                        "error",
-                        f"Error broadcasting message: {str(e)}",
-                        {"error": str(e)}
-                    )
-                    
-    async def send_personal_message(
-        self,
-        message: Dict[str, Any],
-        client_id: str,
-        ws_type: str
-    ) -> None:
-        """Send message to specific client"""
-        if client_id in self.active_connections[ws_type]:
-            try:
-                await self.active_connections[ws_type][client_id].send_json(message)
-                track_websocket_metrics(ws_type, "sent")
-            except Exception as e:
-                log_websocket_event(
-                    "error",
-                    f"Error sending personal message: {str(e)}",
-                    {"error": str(e)}
-                )
-                
-    def get_active_connections_count(self, ws_type: str) -> int:
-        """Get number of active connections for a type"""
-        return len(self.active_connections[ws_type])
-        
-    def get_total_connections_count(self) -> int:
-        """Get total number of active connections"""
-        return sum(len(connections) for connections in self.active_connections.values())
+        try:
+            # Start listening for Redis messages
+            async for message in self.listen_for_messages():
+                await websocket.send_text(json.dumps(message))
+        except WebSocketDisconnect:
+            await self.disconnect(websocket, user_id)
+        except Exception as e:
+            logger.error(f"WebSocket error: {e}")
+            await self.disconnect(websocket, user_id)
 
-# Global WebSocket manager instance
+# Global instance
 manager = RedisWebSocketManager()
 
 async def get_websocket_manager() -> RedisWebSocketManager:
-    """Dependency to get WebSocket manager"""
+    """Get the websocket manager instance"""
     return manager
 
 # WebSocket connection dependency

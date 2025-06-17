@@ -1,43 +1,41 @@
 from fastapi import FastAPI, Request, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.openapi.docs import get_swagger_ui_html, get_redoc_html
-from fastapi.openapi.utils import get_openapi
-from fastapi.staticfiles import StaticFiles
+from fastapi.middleware.trustedhost import TrustedHostMiddleware
 from fastapi.responses import JSONResponse
-from fastapi.exceptions import RequestValidationError
-from starlette.exceptions import HTTPException as StarletteHTTPException
-import time
-import json
-import asyncio
-from typing import Dict, Any
-
-from app.api.v1.api import api_router
+from contextlib import asynccontextmanager
+from typing import Dict, Any, Sequence
+import logging
 from app.core.config import settings
-from app.core.middleware import RateLimitMiddleware, RequestLoggingMiddleware
-from app.core.metrics import metrics_endpoint, metrics_middleware, update_system_metrics, update_db_metrics
-from app.core.websocket import manager as ws_manager
-from app.core.logging import setup_logging, log_api_request, log_api_error
-from app.db.session import SessionLocal
+from app.api.v1.api import api_router
+from app.db.init_db import init_db
 
-# Setup logging
-setup_logging(
-    log_level=settings.LOG_LEVEL,
-    log_file=settings.LOG_FILE,
-    max_file_size=settings.LOG_MAX_FILE_SIZE,
-    backup_count=settings.LOG_BACKUP_COUNT
-)
+logger = logging.getLogger(__name__)
 
-# Create FastAPI app
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    """Application lifespan manager"""
+    # Startup
+    logger.info("Starting up application...")
+    
+    # Initialize database
+    await init_db()
+    
+    logger.info("Application startup complete")
+    
+    yield
+    
+    # Shutdown
+    logger.info("Shutting down application...")
+
 app = FastAPI(
     title=settings.PROJECT_NAME,
-    description="ResuMatch AI - AI-powered resume and job matching platform",
-    version="1.0.0",
-    docs_url=None,  # Disable default docs
-    redoc_url=None,  # Disable default redoc
-    openapi_url=f"{settings.API_V1_STR}/openapi.json"
+    version=settings.VERSION,
+    description="ResuMatchAI - AI-powered resume and job matching platform",
+    openapi_url=f"{settings.API_V1_STR}/openapi.json",
+    lifespan=lifespan
 )
 
-# Add CORS middleware
+# Set up CORS
 app.add_middleware(
     CORSMiddleware,
     allow_origins=settings.BACKEND_CORS_ORIGINS,
@@ -46,154 +44,93 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# Add rate limiting middleware
+# Set up trusted hosts
 app.add_middleware(
-    RateLimitMiddleware,
-    requests_per_minute=settings.RATE_LIMIT_REQUESTS_PER_MINUTE,
-    burst_size=settings.RATE_LIMIT_BURST_SIZE
+    TrustedHostMiddleware,
+    allowed_hosts=["*"]  # Simplified for development
 )
-
-# Add request logging middleware
-app.add_middleware(RequestLoggingMiddleware)
-
-# Add metrics middleware
-app.middleware("http")(metrics_middleware())
 
 # Include API router
 app.include_router(api_router, prefix=settings.API_V1_STR)
 
-# Add metrics endpoint
-app.add_route("/metrics", metrics_endpoint)
+@app.get("/")
+async def root() -> Dict[str, str]:
+    """Root endpoint"""
+    return {"message": "Welcome to ResuMatchAI API"}
 
-# Add WebSocket manager startup/shutdown events
-@app.on_event("startup")
-async def startup_event():
-    """Initialize services on startup"""
-    # Connect WebSocket manager to Redis
-    await ws_manager.connect()
-    
-    # Start system metrics collection
-    asyncio.create_task(collect_system_metrics())
+@app.get("/health")
+async def health_check() -> Dict[str, str]:
+    """Health check endpoint"""
+    return {"status": "healthy"}
 
-@app.on_event("shutdown")
-async def shutdown_event():
-    """Cleanup on shutdown"""
-    # Disconnect WebSocket manager
-    await ws_manager.disconnect()
-
-async def collect_system_metrics():
-    """Collect system metrics periodically"""
-    while True:
-        try:
-            update_system_metrics()
-            # Update DB metrics
-            db = SessionLocal()
-            try:
-                update_db_metrics(db)
-            finally:
-                db.close()
-        except Exception as e:
-            log_api_error("error", f"Error collecting metrics: {str(e)}")
-        await asyncio.sleep(15)  # Collect every 15 seconds
-
-# Custom exception handlers
-@app.exception_handler(StarletteHTTPException)
-async def http_exception_handler(request: Request, exc: StarletteHTTPException):
+@app.exception_handler(HTTPException)
+async def http_exception_handler(request: Request, exc: HTTPException) -> JSONResponse:
     """Handle HTTP exceptions"""
-    log_api_error(
-        "error",
-        f"HTTP error: {exc.detail}",
-        {
-            "status_code": exc.status_code,
-            "path": request.url.path,
-            "method": request.method
-        }
-    )
+    logger.error(f"HTTP error: {exc.status_code} - {exc.detail}")
     return JSONResponse(
         status_code=exc.status_code,
         content={
             "error": {
-                "code": f"HTTP_{exc.status_code}",
-                "message": exc.detail,
-                "type": "http_error"
+                "code": exc.status_code,
+                "message": exc.detail
             }
         }
     )
 
-@app.exception_handler(RequestValidationError)
-async def validation_exception_handler(request: Request, exc: RequestValidationError):
-    """Handle validation errors"""
-    log_api_error(
-        "error",
-        "Validation error",
-        {
-            "errors": exc.errors(),
-            "path": request.url.path,
-            "method": request.method
-        }
-    )
+@app.exception_handler(Exception)
+async def general_exception_handler(request: Request, exc: Exception) -> JSONResponse:
+    """Handle general exceptions"""
+    logger.error(f"Unexpected error: {str(exc)}")
     return JSONResponse(
-        status_code=422,
+        status_code=500,
         content={
             "error": {
-                "code": "VALIDATION_ERROR",
-                "message": "Validation error",
-                "type": "validation_error",
-                "details": exc.errors()
+                "code": 500,
+                "message": "Internal server error"
             }
         }
     )
 
-# Custom OpenAPI schema
-def custom_openapi():
-    """Generate custom OpenAPI schema"""
-    if app.openapi_schema:
-        return app.openapi_schema
-        
-    openapi_schema = get_openapi(
-        title=app.title,
-        version=app.version,
-        description=app.description,
-        routes=app.routes,
-    )
-    
-    # Add security schemes
-    openapi_schema["components"]["securitySchemes"] = {
-        "bearerAuth": {
-            "type": "http",
-            "scheme": "bearer",
-            "bearerFormat": "JWT",
-            "description": "Enter JWT token in format: Bearer <token>"
-        }
-    }
-    
-    # Add security requirement to all operations
-    for path in openapi_schema["paths"].values():
-        for operation in path.values():
-            operation["security"] = [{"bearerAuth": []}]
-            
-    app.openapi_schema = openapi_schema
-    return app.openapi_schema
+@app.middleware("http")
+async def log_requests(request: Request, call_next) -> Any:
+    """Log all requests"""
+    logger.info(f"Request: {request.method} {request.url}")
+    response = await call_next(request)
+    logger.info(f"Response: {response.status_code}")
+    return response
 
-app.openapi = custom_openapi
+@app.middleware("http")
+async def add_security_headers(request: Request, call_next) -> Any:
+    """Add security headers to responses"""
+    response = await call_next(request)
+    response.headers["X-Content-Type-Options"] = "nosniff"
+    response.headers["X-Frame-Options"] = "DENY"
+    response.headers["X-XSS-Protection"] = "1; mode=block"
+    return response
 
-# Custom documentation endpoints
-@app.get("/docs", include_in_schema=False)
-async def custom_swagger_ui_html():
-    """Custom Swagger UI endpoint"""
-    return get_swagger_ui_html(
-        openapi_url=f"{settings.API_V1_STR}/openapi.json",
-        title=f"{app.title} - Swagger UI",
-        oauth2_redirect_url=app.swagger_ui_oauth2_redirect_url,
-        swagger_js_url="https://cdn.jsdelivr.net/npm/swagger-ui-dist@4/swagger-ui-bundle.js",
-        swagger_css_url="https://cdn.jsdelivr.net/npm/swagger-ui-dist@4/swagger-ui.css",
-    )
+@app.middleware("http")
+async def handle_validation_errors(request: Request, call_next) -> Any:
+    """Handle validation errors"""
+    try:
+        response = await call_next(request)
+        return response
+    except ValueError as e:
+        logger.error(f"Validation error: {str(e)}")
+        return JSONResponse(
+            status_code=422,
+            content={
+                "error": {
+                    "code": 422,
+                    "message": str(e)
+                }
+            }
+        )
 
-@app.get("/redoc", include_in_schema=False)
-async def custom_redoc_html():
-    """Custom ReDoc endpoint"""
-    return get_redoc_html(
-        openapi_url=f"{settings.API_V1_STR}/openapi.json",
-        title=f"{app.title} - ReDoc",
-        redoc_js_url="https://cdn.jsdelivr.net/npm/redoc@next/bundles/redoc.standalone.js",
+if __name__ == "__main__":
+    import uvicorn
+    uvicorn.run(
+        "app.main:app",
+        host="0.0.0.0",
+        port=8000,
+        reload=True
     ) 

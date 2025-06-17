@@ -13,19 +13,15 @@ from app.main import app
 from app.db.base import Base
 from app.db.base import get_db
 from app.core.config import settings
-from app.core.security import create_access_token
+from app.core.security import create_access_token, get_password_hash
 from app.models.user import User
 from app.models.resume import Resume
 from app.models.job import Job
 from app.schemas.common import ErrorCodes
 
 # Test database configuration
-SQLALCHEMY_DATABASE_URL = "sqlite:///:memory:"
-engine = create_engine(
-    SQLALCHEMY_DATABASE_URL,
-    connect_args={"check_same_thread": False},
-    poolclass=StaticPool,
-)
+SQLALCHEMY_DATABASE_URL = "sqlite:///./test.db"
+engine = create_engine(SQLALCHEMY_DATABASE_URL, connect_args={"check_same_thread": False})
 TestingSessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
 
 # Test settings
@@ -151,7 +147,7 @@ async def setup_test_env(test_env, mock_redis, mock_spacy):
 
 @pytest.fixture(scope="session")
 def db() -> Generator[Session, None, None]:
-    """Create a fresh database for each test session"""
+    """Database session fixture"""
     Base.metadata.create_all(bind=engine)
     db = TestingSessionLocal()
     try:
@@ -160,98 +156,202 @@ def db() -> Generator[Session, None, None]:
         db.close()
         Base.metadata.drop_all(bind=engine)
 
-@pytest.fixture(scope="module")
-def client(db: Session) -> Generator[TestClient, None, None]:
-    """Create a test client with a fresh database"""
+@pytest.fixture
+def client(db: Session) -> TestClient:
+    """Test client fixture"""
     def override_get_db():
         try:
             yield db
         finally:
-            db.rollback()
+            pass
     
-    app.dependency_overrides[get_db] = override_get_db
-    with TestClient(app) as test_client:
-        yield test_client
-    app.dependency_overrides.clear()
+    app.dependency_overrides = {}
+    return TestClient(app)
 
-@pytest.fixture(scope="module")
-def test_user(db: Session) -> Dict[str, Any]:
-    """Create a test user"""
+@pytest.fixture
+def test_user(db: Session) -> User:
+    """Test user fixture"""
     user = User(
         email="test@example.com",
-        hashed_password="$2b$12$EixZaYVK1fsbw1ZfbX3OXePaWxn96p36WQoeG6Lruj3vjPGga31lW",  # "password"
+        hashed_password=get_password_hash("testpassword123"),
         full_name="Test User",
-        is_active=True,
+        is_active=True
     )
     db.add(user)
     db.commit()
     db.refresh(user)
-    return {
-        "id": str(user.id),
-        "email": user.email,
-        "full_name": user.full_name,
-        "access_token": create_access_token(user.id),
-    }
+    return user
 
-@pytest.fixture(scope="module")
-def test_resume(db: Session, test_user: Dict[str, Any]) -> Dict[str, Any]:
-    """Create a test resume"""
+@pytest.fixture
+def test_resume(db: Session, test_user: User) -> Resume:
+    """Test resume fixture"""
     resume = Resume(
+        user_id=test_user.id,
         title="Test Resume",
-        content="Test resume content with Python and FastAPI experience",
-        user_id=test_user["id"],
-        skills=["python", "fastapi", "sql"],
-        experience=2,
-        education=["Bachelor's in Computer Science"],
+        content="Experienced software engineer with Python skills",
+        skills="Python, FastAPI, React",
+        experience="5 years of software development",
+        education="Bachelor's in Computer Science",
+        file_path="/tmp/test_resume.pdf"
     )
     db.add(resume)
     db.commit()
     db.refresh(resume)
-    return {
-        "id": str(resume.id),
-        "title": resume.title,
-        "content": resume.content,
-        "user_id": resume.user_id,
-        "skills": resume.skills,
-        "experience": resume.experience,
-        "education": resume.education,
-    }
+    return resume
 
-@pytest.fixture(scope="module")
-def test_job(db: Session) -> Dict[str, Any]:
-    """Create a test job posting"""
+@pytest.fixture
+def test_job(db: Session, test_user: User) -> Job:
+    """Test job fixture"""
     job = Job(
-        title="Senior Python Developer",
-        company="Test Company",
+        user_id=test_user.id,
+        title="Software Engineer",
+        company="Tech Corp",
         description="Looking for a Python developer with FastAPI experience",
-        requirements=["python", "fastapi", "sql", "docker"],
-        location="Remote",
-        type="full_time",
-        salary={"min": 100000, "max": 150000, "currency": "USD"},
+        requirements="Python, FastAPI, SQL",
+        location="San Francisco, CA",
+        salary_min=80000,
+        salary_max=120000,
+        job_type="full-time",
+        experience_level="mid"
     )
     db.add(job)
     db.commit()
     db.refresh(job)
+    return job
+
+@pytest.fixture
+def authorized_client(client: TestClient, test_user: User) -> TestClient:
+    """Authorized test client fixture"""
+    # Create access token
+    access_token = create_access_token(test_user.id)
+    client.headers["Authorization"] = f"Bearer {access_token}"
+    return client
+
+@pytest.fixture
+def test_user_data() -> Dict[str, Any]:
+    """Test user data fixture"""
     return {
-        "id": str(job.id),
-        "title": job.title,
-        "company": job.company,
-        "description": job.description,
-        "requirements": job.requirements,
-        "location": job.location,
-        "type": job.type,
-        "salary": job.salary,
+        "email": "newuser@example.com",
+        "password": "newpassword123",
+        "full_name": "New User"
     }
 
-@pytest.fixture(scope="module")
-def authorized_client(client: TestClient, test_user: Dict[str, Any]) -> TestClient:
-    """Create an authorized test client"""
-    client.headers = {
-        **client.headers,
-        "Authorization": f"Bearer {test_user['access_token']}",
-        "X-Request-ID": "test-request-id",
+@pytest.fixture
+def test_resume_data() -> Dict[str, Any]:
+    """Test resume data fixture"""
+    return {
+        "title": "Software Engineer Resume",
+        "content": "Experienced software engineer with 5 years of experience",
+        "skills": ["Python", "FastAPI", "React"],
+        "experience": [{"title": "Software Engineer", "company": "Tech Corp"}],
+        "education": ["Bachelor's in Computer Science"]
     }
-    return client
+
+@pytest.fixture
+def test_job_data() -> Dict[str, Any]:
+    """Test job data fixture"""
+    return {
+        "title": "Senior Software Engineer",
+        "company": "Tech Corp",
+        "description": "Looking for an experienced Python developer",
+        "requirements": "Python, FastAPI, SQL, Docker",
+        "location": "San Francisco, CA",
+        "salary_min": 100000,
+        "salary_max": 150000,
+        "job_type": "full-time",
+        "experience_level": "senior"
+    }
+
+# Mock fixtures for external services
+@pytest.fixture
+def mock_redis(monkeypatch):
+    """Mock Redis fixture"""
+    class MockRedis:
+        def __init__(self):
+            self.data = {}
+        
+        def get(self, key):
+            return self.data.get(key)
+        
+        def set(self, key, value, ex=None):
+            self.data[key] = value
+            return True
+        
+        def delete(self, key):
+            if key in self.data:
+                del self.data[key]
+            return True
+        
+        def exists(self, key):
+            return key in self.data
+    
+    mock_redis_instance = MockRedis()
+    monkeypatch.setattr("app.core.cache.redis", mock_redis_instance)
+    return mock_redis_instance
+
+@pytest.fixture
+def mock_websocket_manager(monkeypatch):
+    """Mock WebSocket manager fixture"""
+    class MockWebSocketManager:
+        def __init__(self):
+            self.connections = {}
+        
+        async def connect(self, websocket, user_id):
+            self.connections[user_id] = websocket
+        
+        async def disconnect(self, websocket, user_id):
+            if user_id in self.connections:
+                del self.connections[user_id]
+        
+        async def send_message(self, user_id, message):
+            if user_id in self.connections:
+                await self.connections[user_id].send_text(str(message))
+    
+    mock_manager = MockWebSocketManager()
+    monkeypatch.setattr("app.core.websocket.manager", mock_manager)
+    return mock_manager
+
+@pytest.fixture
+def mock_resume_parser(monkeypatch):
+    """Mock resume parser fixture"""
+    class MockResumeParser:
+        async def parse_resume(self, file_path):
+            return {
+                "skills": ["Python", "FastAPI"],
+                "experience": [{"title": "Software Engineer", "company": "Tech Corp"}],
+                "education": ["Bachelor's in Computer Science"],
+                "contact_info": {"email": "test@example.com"},
+                "summary": "Experienced software engineer"
+            }
+    
+    mock_parser = MockResumeParser()
+    monkeypatch.setattr("app.services.resume_parser.ResumeParser", lambda: mock_parser)
+    return mock_parser
+
+@pytest.fixture
+def mock_resume_matcher(monkeypatch):
+    """Mock resume matcher fixture"""
+    class MockResumeMatcher:
+        def extract_skills(self, text):
+            return ["Python", "FastAPI"] if "python" in text.lower() else []
+        
+        def calculate_semantic_similarity(self, text1, text2):
+            return 0.8
+        
+        def match_resume_to_job(self, resume, job):
+            from app.schemas.matching import MatchResult, SkillMatch, ExperienceMatch, MatchStrategy
+            return MatchResult(
+                job_id=str(job.id),
+                resume_id=str(resume.id),
+                skill_match=SkillMatch(matched_skills=["Python"], missing_skills=[], match_percentage=0.8),
+                experience_match=ExperienceMatch(role_similarity=0.8, experience_years=5, match_score=0.8),
+                overall_score=0.8,
+                strategy=MatchStrategy.AI_DRIVEN
+            )
+    
+    mock_matcher = MockResumeMatcher()
+    monkeypatch.setattr("app.services.resume_matcher.ResumeMatcher", lambda: mock_matcher)
+    return mock_matcher
 
 # Common test assertions
 def assert_error_response(response: Any, status_code: int, error_code: str) -> None:
@@ -310,13 +410,6 @@ def mock_huggingface_pipeline(monkeypatch):
     mock_pipeline.return_value = [{"label": "POSITIVE", "score": 0.9}]
     monkeypatch.setattr("transformers.pipeline", mock_pipeline)
     yield mock_pipeline
-
-@pytest.fixture
-def mock_redis():
-    """Mock Redis client for testing."""
-    with patch("redis.asyncio.Redis") as mock:
-        mock.return_value = MagicMock()
-        yield mock.return_value
 
 @pytest.fixture
 def mock_db():

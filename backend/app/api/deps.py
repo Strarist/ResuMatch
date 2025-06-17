@@ -1,62 +1,66 @@
 from typing import Generator, Optional, Dict, Any
 from fastapi import Depends, HTTPException, status, WebSocket, WebSocketDisconnect
-from fastapi.security import OAuth2PasswordBearer
+from fastapi.security import OAuth2PasswordBearer, HTTPBearer, HTTPAuthorizationCredentials
 from jose import jwt, JWTError
 from pydantic import ValidationError
 from sqlalchemy.orm import Session
+from passlib.context import CryptContext
 
 from app.core.config import settings
 from app.core.security import verify_password
-from app.db.base import get_db
+from app.db.session import get_db
 from app.models.user import User
 from app.schemas.user import TokenPayload
 
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl=f"{settings.API_V1_STR}/auth/login")
 
+security = HTTPBearer()
+
+pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
 
 def get_current_user(
-    db: Session = Depends(get_db), token: str = Depends(oauth2_scheme)
+    credentials: HTTPAuthorizationCredentials = Depends(security),
+    db: Session = Depends(get_db)
 ) -> User:
+    """Get current user from JWT token"""
+    credentials_exception = HTTPException(
+        status_code=status.HTTP_401_UNAUTHORIZED,
+        detail="Could not validate credentials",
+        headers={"WWW-Authenticate": "Bearer"},
+    )
+    
     try:
         payload = jwt.decode(
-            token, settings.SECRET_KEY, algorithms=["HS256"]
+            credentials.credentials, 
+            settings.SECRET_KEY, 
+            algorithms=["HS256"]
         )
-        token_data = TokenPayload(**payload)
-    except (JWTError, ValidationError):
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Could not validate credentials",
-            headers={"WWW-Authenticate": "Bearer"},
-        )
-    user = db.query(User).filter(User.id == token_data.sub).first()
-    if not user:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="User not found",
-        )
-    if not user.is_active:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Inactive user",
-        )
+        email: str = payload.get("sub")
+        if email is None:
+            raise credentials_exception
+    except JWTError:
+        raise credentials_exception
+        
+    user = db.query(User).filter(User.email == email).first()
+    if user is None:
+        raise credentials_exception
     return user
 
-
-def get_current_active_user(
-    current_user: User = Depends(get_current_user),
-) -> User:
+def get_current_active_user(current_user: User = Depends(get_current_user)) -> User:
+    """Get current active user"""
     if not current_user.is_active:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Inactive user",
-        )
+        raise HTTPException(status_code=400, detail="Inactive user")
     return current_user
 
-
-def authenticate_user(db: Session, email: str, password: str) -> Optional[User]:
+def authenticate_user(db: Session, email: str, password: str) -> User | None:
+    """Authenticate user with email and password"""
     user = db.query(User).filter(User.email == email).first()
     if not user:
         return None
-    if not verify_password(password, user.hashed_password):
+    if not verify_password(str(password), str(user.hashed_password)):
         return None
-    return user 
+    return user
+
+def verify_user_password(user: User, password: str) -> bool:
+    """Verify user password"""
+    return verify_password(str(password), str(user.hashed_password)) 

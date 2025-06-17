@@ -1,189 +1,154 @@
-from typing import Dict, List, Optional
-import spacy
-from pydantic import BaseModel
-import pdfminer.high_level
-import docx
-from pathlib import Path
 import re
-from datetime import datetime
+import logging
+from typing import Dict, List, Any, Optional
+from pathlib import Path
+try:
+    from pdfminer.high_level import extract_text
+    from docx import Document
+except ImportError:
+    # Fallback for missing dependencies
+    extract_text = None
+    Document = None
 
-class ParsedResume(BaseModel):
-    content: str
-    education: List[Dict[str, str]]
-    experience: List[Dict[str, str]]
-    current_role: Optional[str] = None
-    total_years: float = 0.0
-
-class Experience(BaseModel):
-    current_role: Optional[str]
-    total_years: float
-    roles: List[Dict[str, str]]
+logger = logging.getLogger(__name__)
 
 class ResumeParser:
-    def __init__(self):
-        self.nlp = spacy.load("en_core_web_lg")
-        # Common education keywords
-        self.education_keywords = {
-            'university', 'college', 'institute', 'school', 'bachelor', 
-            'master', 'phd', 'degree', 'diploma', 'certificate'
-        }
-        # Common date patterns
-        self.date_patterns = [
-            r'\b(?:Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)[a-z]* \d{4}\b',
-            r'\b\d{4}\b',
-            r'\b(?:January|February|March|April|May|June|July|August|September|October|November|December) \d{4}\b'
+    def __init__(self) -> None:
+        self.skill_patterns = [
+            r'\b(python|java|javascript|react|angular|vue|node\.js|fastapi|django|flask)\b',
+            r'\b(sql|postgresql|mysql|mongodb|redis)\b',
+            r'\b(docker|kubernetes|aws|azure|gcp)\b',
+            r'\b(git|jenkins|ci/cd|agile|scrum)\b'
         ]
-
-    async def parse_file(self, file_path: str) -> ParsedResume:
-        """Parse resume file (PDF or DOCX) and extract structured data."""
-        ext = Path(file_path).suffix.lower()
         
-        # Extract text based on file type
-        if ext == '.pdf':
-            text = self._extract_from_pdf(file_path)
-        elif ext in ['.docx', '.doc']:
-            text = self._extract_from_docx(file_path)
-        else:
-            raise ValueError(f"Unsupported file type: {ext}")
-            
-        # Clean and structure the text
-        cleaned_text = self._clean_text(text)
-        
-        # Extract structured data
-        education = await self._extract_education(cleaned_text)
-        experience = await self._extract_experience(cleaned_text)
-        
-        return ParsedResume(
-            content=cleaned_text,
-            education=education,
-            experience=experience.roles,
-            current_role=experience.current_role,
-            total_years=experience.total_years
-        )
-
-    def _extract_from_pdf(self, file_path: str) -> str:
-        """Extract text from PDF file."""
+    def parse_resume(self, file_path: str) -> Dict[str, Any]:
+        """Parse resume file and extract structured data"""
         try:
-            return pdfminer.high_level.extract_text(file_path)
-        except Exception as e:
-            raise ValueError(f"Error extracting text from PDF: {str(e)}")
-
-    def _extract_from_docx(self, file_path: str) -> str:
-        """Extract text from DOCX file."""
-        try:
-            doc = docx.Document(file_path)
-            return "\n".join([paragraph.text for paragraph in doc.paragraphs])
-        except Exception as e:
-            raise ValueError(f"Error extracting text from DOCX: {str(e)}")
-
-    def _clean_text(self, text: str) -> str:
-        """Clean and normalize extracted text."""
-        # Remove extra whitespace
-        text = re.sub(r'\s+', ' ', text)
-        # Remove special characters but keep periods and commas
-        text = re.sub(r'[^\w\s.,]', ' ', text)
-        # Normalize spaces
-        text = ' '.join(text.split())
-        return text
-
-    async def _extract_education(self, text: str) -> List[Dict[str, str]]:
-        """Extract education information from text."""
-        doc = self.nlp(text)
-        education_entries = []
-        
-        # Split text into lines
-        lines = text.split('\n')
-        current_entry = {}
-        
-        for line in lines:
-            # Check if line contains education keywords
-            if any(keyword in line.lower() for keyword in self.education_keywords):
-                if current_entry:
-                    education_entries.append(current_entry)
-                current_entry = {
-                    'institution': line.strip(),
-                    'degree': '',
-                    'year': ''
-                }
-            elif current_entry:
-                # Try to extract degree and year
-                if not current_entry['degree'] and any(word in line.lower() for word in ['bachelor', 'master', 'phd', 'degree']):
-                    current_entry['degree'] = line.strip()
-                elif not current_entry['year'] and re.search(r'\b\d{4}\b', line):
-                    current_entry['year'] = re.search(r'\b\d{4}\b', line).group()
-        
-        if current_entry:
-            education_entries.append(current_entry)
+            # Extract text based on file type
+            if file_path.lower().endswith('.pdf'):
+                text = self._extract_pdf_text(file_path)
+            elif file_path.lower().endswith('.docx'):
+                text = self._extract_docx_text(file_path)
+            else:
+                raise ValueError(f"Unsupported file type: {file_path}")
             
-        return education_entries
-
-    async def extract_experience(self, text: str) -> Experience:
-        """Extract work experience information from text."""
-        doc = self.nlp(text)
+            # Parse extracted text
+            parsed_data = {
+                'skills': self._extract_skills(text),
+                'experience': self._extract_experience(text),
+                'education': self._extract_education(text),
+                'contact_info': self._extract_contact_info(text),
+                'summary': self._extract_summary(text)
+            }
+            
+            return parsed_data
+            
+        except Exception as e:
+            logger.error(f"Error parsing resume {file_path}: {e}")
+            raise
+    
+    def _extract_pdf_text(self, file_path: str) -> str:
+        """Extract text from PDF file"""
+        if extract_text is None:
+            raise ImportError("pdfminer is not installed")
+        
+        try:
+            return extract_text(file_path)
+        except Exception as e:
+            logger.error(f"Error extracting PDF text: {e}")
+            return ""
+    
+    def _extract_docx_text(self, file_path: str) -> str:
+        """Extract text from DOCX file"""
+        if Document is None:
+            raise ImportError("python-docx is not installed")
+        
+        try:
+            doc = Document(file_path)
+            return " ".join([paragraph.text for paragraph in doc.paragraphs])
+        except Exception as e:
+            logger.error(f"Error extracting DOCX text: {e}")
+            return ""
+    
+    def _extract_skills(self, text: str) -> List[str]:
+        """Extract skills from text"""
+        skills = set()
+        text_lower = text.lower()
+        
+        for pattern in self.skill_patterns:
+            matches = re.findall(pattern, text_lower)
+            skills.update(matches)
+        
+        return list(skills)
+    
+    def _extract_experience(self, text: str) -> List[Dict[str, str]]:
+        """Extract work experience from text"""
         experience_entries = []
-        current_role = None
-        total_years = 0.0
         
-        # Split text into sections
-        sections = re.split(r'\n\s*\n', text)
+        # Look for experience patterns
+        experience_patterns = [
+            r'(\d{4})\s*[-–]\s*(\d{4}|present).*?(senior|junior|lead|principal)?\s*(developer|engineer|manager|analyst)',
+            r'(senior|junior|lead|principal)?\s*(developer|engineer|manager|analyst).*?(\d{4})\s*[-–]\s*(\d{4}|present)'
+        ]
         
-        for section in sections:
-            # Look for date patterns
-            dates = []
-            for pattern in self.date_patterns:
-                dates.extend(re.findall(pattern, section))
-            
-            if len(dates) >= 2:  # Potential experience entry
-                # Extract role and company
-                lines = section.split('\n')
-                role = lines[0].strip() if lines else ''
-                company = lines[1].strip() if len(lines) > 1 else ''
-                
-                # Calculate duration if we have dates
-                if len(dates) >= 2:
-                    try:
-                        start_date = self._parse_date(dates[0])
-                        end_date = self._parse_date(dates[-1])
-                        if start_date and end_date:
-                            duration = (end_date - start_date).days / 365.25
-                            total_years += duration
-                    except:
-                        pass
-                
-                entry = {
-                    'role': role,
-                    'company': company,
-                    'start_date': dates[0] if dates else '',
-                    'end_date': dates[-1] if len(dates) > 1 else 'Present'
+        for pattern in experience_patterns:
+            matches = re.finditer(pattern, text, re.IGNORECASE)
+            for match in matches:
+                current_entry: Dict[str, str] = {
+                    'title': match.group(0),
+                    'duration': f"{match.group(1)} - {match.group(2)}" if len(match.groups()) >= 2 else ""
                 }
-                experience_entries.append(entry)
-                
-                # Set current role if it's the most recent entry
-                if not current_role and 'Present' in entry.get('end_date', ''):
-                    current_role = role
+                experience_entries.append(current_entry)
         
-        return Experience(
-            current_role=current_role,
-            total_years=round(total_years, 1),
-            roles=experience_entries
-        )
-
-    def _parse_date(self, date_str: str) -> Optional[datetime]:
-        """Parse date string into datetime object."""
-        try:
-            # Try different date formats
-            formats = [
-                '%B %Y',  # January 2020
-                '%b %Y',  # Jan 2020
-                '%Y'      # 2020
-            ]
-            
-            for fmt in formats:
-                try:
-                    return datetime.strptime(date_str, fmt)
-                except ValueError:
-                    continue
-                    
-            return None
-        except:
-            return None 
+        return experience_entries
+    
+    def _extract_education(self, text: str) -> List[str]:
+        """Extract education information from text"""
+        education = []
+        
+        # Look for degree patterns
+        degree_patterns = [
+            r'(bachelor|master|phd|doctorate).*?(science|arts|engineering|technology)',
+            r'(b\.s\.|m\.s\.|ph\.d\.).*?(computer science|engineering|mathematics)'
+        ]
+        
+        for pattern in degree_patterns:
+            matches = re.finditer(pattern, text, re.IGNORECASE)
+            for match in matches:
+                education.append(match.group(0))
+        
+        return education
+    
+    def _extract_contact_info(self, text: str) -> Dict[str, str]:
+        """Extract contact information from text"""
+        contact_info = {}
+        
+        # Extract email
+        email_match = re.search(r'\b[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Z|a-z]{2,}\b', text)
+        if email_match:
+            contact_info['email'] = email_match.group(0)
+        
+        # Extract phone
+        phone_match = re.search(r'(\+\d{1,3}[-.\s]?)?\(?\d{3}\)?[-.\s]?\d{3}[-.\s]?\d{4}', text)
+        if phone_match:
+            contact_info['phone'] = phone_match.group(0)
+        
+        return contact_info
+    
+    def _extract_summary(self, text: str) -> str:
+        """Extract summary/objective from text"""
+        # Look for summary section
+        summary_patterns = [
+            r'summary[:\s]*(.*?)(?=\n\n|\n[A-Z]|$)',
+            r'objective[:\s]*(.*?)(?=\n\n|\n[A-Z]|$)',
+            r'profile[:\s]*(.*?)(?=\n\n|\n[A-Z]|$)'
+        ]
+        
+        for pattern in summary_patterns:
+            match = re.search(pattern, text, re.IGNORECASE | re.DOTALL)
+            if match:
+                return match.group(1).strip()
+        
+        # Fallback: return first few sentences
+        sentences = re.split(r'[.!?]+', text)
+        return sentences[0] if sentences else "" 
