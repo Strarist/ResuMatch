@@ -1,5 +1,5 @@
 import asyncio
-from typing import List, Dict, Optional, Tuple
+from typing import List, Dict, Optional, Tuple, Any
 import numpy as np
 from sentence_transformers import SentenceTransformer
 from app.core.cache import get_cache, Cache
@@ -7,7 +7,7 @@ from app.models.job import Job
 from app.models.resume import Resume
 
 class RoleMatcher:
-    def __init__(self):
+    def __init__(self) -> None:
         self.model = SentenceTransformer('all-MiniLM-L6-v2')
         self.cache = get_cache()
         
@@ -36,7 +36,7 @@ class RoleMatcher:
         # Pre-compute embeddings for common titles
         self._init_common_embeddings()
 
-    def _init_common_embeddings(self):
+    def _init_common_embeddings(self) -> None:
         """Pre-compute embeddings for common job titles."""
         all_titles = []
         for main_title, variations in self.title_variations.items():
@@ -55,11 +55,11 @@ class RoleMatcher:
         # Store in cache
         for title, embedding in zip(unique_titles, embeddings):
             cache_key = f"role_embedding:{title.lower()}"
-            self.cache.set(
+            asyncio.create_task(self.cache.set(
                 cache_key,
                 embedding.cpu().numpy().tobytes(),
                 expire=86400  # 24 hours
-            )
+            ))
 
     async def get_role_embedding(self, title: str) -> np.ndarray:
         """Get role embedding from cache or compute it."""

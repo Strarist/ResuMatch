@@ -36,7 +36,7 @@ class Education(BaseModel):
     is_relevant: bool = False
     
     @validator('gpa')
-    def validate_gpa(cls, v):
+    def validate_gpa(cls, v: Optional[float]) -> Optional[float]:
         if v is not None and (v < 0.0 or v > 4.0):
             raise ValueError('GPA must be between 0.0 and 4.0')
         return v
@@ -60,7 +60,7 @@ class Experience(BaseModel):
     is_current: bool = False
     
     @validator('end_date')
-    def validate_dates(cls, v, values):
+    def validate_dates(cls, v: Optional[datetime], values: Dict[str, Any]) -> Optional[datetime]:
         if v and 'start_date' in values and v < values['start_date']:
             raise ValueError('end_date must be after start_date')
         return v

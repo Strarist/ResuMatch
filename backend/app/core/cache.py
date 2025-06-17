@@ -1,4 +1,4 @@
-from typing import Any, Optional, Union
+from typing import Any, Optional, Union, AsyncGenerator
 import json
 import pickle
 from datetime import timedelta
@@ -70,11 +70,13 @@ class Cache:
 
     async def delete(self, key: str) -> bool:
         """Delete value from cache."""
-        return await self.redis.delete(key) > 0
+        result = await self.redis.delete(key)
+        return bool(result > 0)
 
     async def exists(self, key: str) -> bool:
         """Check if key exists in cache."""
-        return await self.redis.exists(key) > 0
+        result = await self.redis.exists(key)
+        return bool(result > 0)
 
     # Resume-specific methods
     async def get_resume_embedding(self, resume_id: str) -> Optional[bytes]:
@@ -247,7 +249,8 @@ class Cache:
         pattern = self._get_key('resume', resume_id, '*')
         keys = await self.redis.keys(pattern)
         if keys:
-            return await self.redis.delete(*keys) > 0
+            result = await self.redis.delete(*keys)
+            return bool(result > 0)
         return True
 
     async def clear_job_cache(self, job_id: str) -> bool:
@@ -255,7 +258,8 @@ class Cache:
         pattern = self._get_key('job', job_id, '*')
         keys = await self.redis.keys(pattern)
         if keys:
-            return await self.redis.delete(*keys) > 0
+            result = await self.redis.delete(*keys)
+            return bool(result > 0)
         return True
 
     async def clear_match_cache(self, resume_id: str, job_id: str) -> bool:
@@ -263,13 +267,14 @@ class Cache:
         pattern = self._get_key('match', resume_id, job_id, '*')
         keys = await self.redis.keys(pattern)
         if keys:
-            return await self.redis.delete(*keys) > 0
+            result = await self.redis.delete(*keys)
+            return bool(result > 0)
         return True
 
 # Dependency
-async def get_cache() -> Cache:
+async def get_cache() -> AsyncGenerator[Cache, None]:
     """Get cache instance."""
-    cache = Cache(settings.REDIS_URL)
+    cache = Cache(str(settings.REDIS_URL))
     try:
         yield cache
     finally:

@@ -1,5 +1,5 @@
 from fastapi import WebSocket, WebSocketDisconnect, Depends
-from typing import Dict, Set, Any, Optional
+from typing import Dict, Set, Any, Optional, Tuple
 import json
 import asyncio
 from redis.asyncio import Redis
@@ -13,7 +13,7 @@ from app.core.metrics import (
     track_websocket_metrics
 )
 from app.core.logging import log_websocket_event
-from app.api.deps import get_current_user_ws
+from app.api.deps import get_current_user
 from fastapi.websockets import WebSocketState
 from app.schemas.matching import WSMessage, WSMessageType, MatchResult, MatchUpdate
 import logging
@@ -21,7 +21,7 @@ import logging
 logger = logging.getLogger(__name__)
 
 class RedisWebSocketManager:
-    def __init__(self):
+    def __init__(self) -> None:
         self.active_connections: Dict[str, Dict[str, WebSocket]] = {
             "analysis": {},
             "matches": {}
@@ -30,10 +30,10 @@ class RedisWebSocketManager:
         self.pubsub: Optional[Any] = None
         self.instance_id = str(uuid.uuid4())
         
-    async def connect(self):
+    async def connect(self) -> None:
         """Connect to Redis"""
         self.redis = Redis.from_url(
-            settings.REDIS_URL,
+            str(settings.REDIS_URL),
             encoding="utf-8",
             decode_responses=True
         )
@@ -49,7 +49,7 @@ class RedisWebSocketManager:
         # Start message listener
         asyncio.create_task(self._listen_messages())
         
-    async def disconnect(self):
+    async def disconnect(self) -> None:
         """Disconnect from Redis"""
         if self.pubsub:
             await self.pubsub.unsubscribe()
@@ -57,7 +57,7 @@ class RedisWebSocketManager:
         if self.redis:
             await self.redis.close()
             
-    async def _listen_messages(self):
+    async def _listen_messages(self) -> None:
         """Listen for messages from Redis"""
         while True:
             try:
@@ -72,7 +72,7 @@ class RedisWebSocketManager:
                 )
                 await asyncio.sleep(1)  # Prevent tight loop on error
                 
-    async def _handle_redis_message(self, message: Dict[str, Any]):
+    async def _handle_redis_message(self, message: Dict[str, Any]) -> None:
         """Handle incoming Redis message"""
         try:
             data = json.loads(message["data"])
@@ -107,7 +107,7 @@ class RedisWebSocketManager:
         websocket: WebSocket,
         ws_type: str,
         user_id: Optional[int] = None
-    ):
+    ) -> str:
         """Connect a new WebSocket client"""
         await websocket.accept()
         client_id = str(uuid.uuid4())
@@ -131,7 +131,7 @@ class RedisWebSocketManager:
         
         return client_id
         
-    async def disconnect_websocket(self, client_id: str, ws_type: str):
+    async def disconnect_websocket(self, client_id: str, ws_type: str) -> None:
         """Disconnect a WebSocket client"""
         if client_id in self.active_connections[ws_type]:
             # Update metrics
@@ -155,7 +155,7 @@ class RedisWebSocketManager:
         message: Dict[str, Any],
         ws_type: str,
         exclude_client: Optional[str] = None
-    ):
+    ) -> None:
         """Broadcast message to all connected clients"""
         # Add metadata
         message_data = {
@@ -189,7 +189,7 @@ class RedisWebSocketManager:
         message: Dict[str, Any],
         client_id: str,
         ws_type: str
-    ):
+    ) -> None:
         """Send message to specific client"""
         if client_id in self.active_connections[ws_type]:
             try:
@@ -221,7 +221,7 @@ async def get_websocket_manager() -> RedisWebSocketManager:
 async def get_websocket_connection(
     websocket: WebSocket,
     ws_type: str,
-    current_user: Optional[Dict[str, Any]] = Depends(get_current_user_ws)
+    current_user: Optional[Dict[str, Any]] = Depends(get_current_user)
 ) -> tuple[str, RedisWebSocketManager]:
     """Dependency to handle WebSocket connection"""
     client_id = await manager.connect_websocket(
@@ -235,22 +235,21 @@ async def get_websocket_connection(
         await manager.disconnect_websocket(client_id, ws_type)
 
 class ConnectionManager:
-    def __init__(self):
+    def __init__(self) -> None:
         # Active connections by type and ID
         self.active_connections: Dict[str, Dict[str, Set[WebSocket]]] = {
             'resume': {},
             'job': {},
-            'match': {},
             'global': set()
         }
         
         # Connection metadata
         self.connection_metadata: Dict[WebSocket, Dict[str, Any]] = {}
         
-        # Message queue for each connection
+        # Message queues for each connection
         self.message_queues: Dict[WebSocket, asyncio.Queue] = {}
         
-        # Heartbeat interval (seconds)
+        # Heartbeat settings
         self.heartbeat_interval = 30
         
         # Start heartbeat task
@@ -261,7 +260,7 @@ class ConnectionManager:
         websocket: WebSocket,
         connection_type: str,
         entity_id: Optional[str] = None
-    ):
+    ) -> None:
         """Connect a new WebSocket client."""
         await websocket.accept()
         
@@ -292,7 +291,7 @@ class ConnectionManager:
             f"{f' - {entity_id}' if entity_id else ''}"
         )
     
-    async def disconnect(self, websocket: WebSocket):
+    async def disconnect(self, websocket: WebSocket) -> None:
         """Disconnect a WebSocket client."""
         metadata = self.connection_metadata.get(websocket)
         if metadata:
@@ -303,7 +302,7 @@ class ConnectionManager:
             if connection_type == 'global':
                 self.active_connections['global'].discard(websocket)
             else:
-                if entity_id in self.active_connections[connection_type]:
+                if entity_id and entity_id in self.active_connections[connection_type]:
                     self.active_connections[connection_type][entity_id].discard(websocket)
                     if not self.active_connections[connection_type][entity_id]:
                         del self.active_connections[connection_type][entity_id]
@@ -322,10 +321,10 @@ class ConnectionManager:
         message: WSMessage,
         connection_type: Optional[str] = None,
         entity_id: Optional[str] = None
-    ):
+    ) -> None:
         """Broadcast a message to relevant connections."""
         # Get target connections
-        target_connections = set()
+        target_connections: Set[WebSocket] = set()
         
         # Add global connections
         target_connections.update(self.active_connections['global'])
@@ -348,7 +347,7 @@ class ConnectionManager:
             if websocket.client_state == WebSocketState.CONNECTED:
                 await self.message_queues[websocket].put(message)
     
-    async def _process_messages(self, websocket: WebSocket):
+    async def _process_messages(self, websocket: WebSocket) -> None:
         """Process messages for a connection."""
         try:
             while True:
@@ -379,7 +378,7 @@ class ConnectionManager:
             logger.error(f"Error in message processing: {e}")
             await self.disconnect(websocket)
     
-    async def _heartbeat_loop(self):
+    async def _heartbeat_loop(self) -> None:
         """Send periodic heartbeats to check connection health."""
         while True:
             try:
@@ -412,7 +411,7 @@ class ConnectionManager:
             
             await asyncio.sleep(self.heartbeat_interval)
     
-    async def send_match_update(self, match_result: MatchResult):
+    async def send_match_update(self, match_result: MatchResult) -> None:
         """Send a match update to relevant connections."""
         message = WSMessage(
             type=WSMessageType.MATCH_UPDATE,
@@ -424,7 +423,7 @@ class ConnectionManager:
         await self.broadcast(message, 'resume', match_result.resume_id)
         await self.broadcast(message, 'job', match_result.job_id)
     
-    async def send_cache_invalidation(self, update: MatchUpdate):
+    async def send_cache_invalidation(self, update: MatchUpdate) -> None:
         """Send a cache invalidation notification."""
         message = WSMessage(
             type=WSMessageType.CACHE_INVALIDATION,
@@ -439,7 +438,7 @@ class ConnectionManager:
         error: str,
         connection_type: Optional[str] = None,
         entity_id: Optional[str] = None
-    ):
+    ) -> None:
         """Send an error message to relevant connections."""
         message = WSMessage(
             type=WSMessageType.ERROR,

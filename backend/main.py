@@ -4,6 +4,7 @@ from fastapi.responses import JSONResponse
 import uvicorn
 from dotenv import load_dotenv
 import os
+from typing import Dict, Any
 
 # Load environment variables
 load_dotenv()
@@ -26,12 +27,12 @@ app.add_middleware(
 
 # Health check endpoint
 @app.get("/health")
-async def health_check():
+async def health_check() -> Dict[str, str]:
     return {"status": "healthy", "service": "ResuMatch AI API"}
 
 # Root endpoint
 @app.get("/")
-async def root():
+async def root() -> Dict[str, str]:
     return {
         "message": "Welcome to ResuMatch AI API",
         "docs_url": "/docs",

@@ -1,9 +1,8 @@
 from fastapi import Request, Response
-from fastapi.middleware.base import BaseHTTPMiddleware
-from starlette.middleware.base import RequestResponseEndpoint
+from starlette.middleware.base import BaseHTTPMiddleware, RequestResponseEndpoint
 from starlette.responses import JSONResponse
 from datetime import datetime, timedelta
-from typing import Dict, Tuple, Optional
+from typing import Dict, Tuple, Optional, Any
 import time
 import asyncio
 from app.core.logging import log_api_request, log_api_error
@@ -17,10 +16,10 @@ class RateLimitMiddleware(BaseHTTPMiddleware):
     
     def __init__(
         self,
-        app,
+        app: Any,
         requests_per_minute: int = 60,
         burst_size: int = 10
-    ):
+    ) -> None:
         super().__init__(app)
         self.requests_per_minute = requests_per_minute
         self.burst_size = burst_size
@@ -38,7 +37,7 @@ class RateLimitMiddleware(BaseHTTPMiddleware):
             return await call_next(request)
         
         # Get client identifier (IP or user ID if authenticated)
-        client_id = request.headers.get("X-User-ID") or request.client.host
+        client_id = request.headers.get("X-User-ID") or (request.client.host if request.client else "unknown")
         
         async with self.lock:
             # Clean up old requests
@@ -94,7 +93,7 @@ class RateLimitMiddleware(BaseHTTPMiddleware):
                 status_code=response.status_code,
                 duration_ms=duration,
                 user_id=request.headers.get("X-User-ID"),
-                client_ip=request.client.host
+                client_ip=request.client.host if request.client else "unknown"
             )
             
             return response
@@ -111,7 +110,7 @@ class RateLimitMiddleware(BaseHTTPMiddleware):
                 error_code=ErrorCodes.SERVER_ERROR,
                 error_message=str(e),
                 user_id=request.headers.get("X-User-ID"),
-                client_ip=request.client.host,
+                client_ip=request.client.host if request.client else "unknown",
                 exception=str(e)
             )
             

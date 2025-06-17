@@ -1,4 +1,4 @@
-from typing import List, Optional, Set, Dict, Any
+from typing import List, Optional, Set, Dict, Any, AsyncGenerator, Callable
 import asyncio
 from datetime import datetime, timedelta
 import json
@@ -55,7 +55,7 @@ class CacheManager:
         # Start pubsub listener
         asyncio.create_task(self._listen_for_invalidations())
     
-    async def _listen_for_invalidations(self):
+    async def _listen_for_invalidations(self) -> None:
         """Listen for cache invalidation events."""
         await self.pubsub.subscribe('cache_invalidation')
         
@@ -69,7 +69,7 @@ class CacheManager:
                 print(f"Error in cache invalidation listener: {e}")
                 await asyncio.sleep(1)
     
-    async def _handle_invalidation_event(self, data: Dict[str, Any]):
+    async def _handle_invalidation_event(self, data: Dict[str, Any]) -> None:
         """Handle cache invalidation event."""
         entity_type = data.get('type')
         entity_id = data.get('id')
@@ -85,7 +85,7 @@ class CacheManager:
         # Clear dependent keys
         await self._clear_dependent_keys(entity_type, entity_id)
     
-    async def _clear_dependent_keys(self, entity_type: str, entity_id: str):
+    async def _clear_dependent_keys(self, entity_type: str, entity_id: str) -> None:
         """Clear keys that depend on the invalidated entity."""
         if entity_type not in self.dependencies:
             return
@@ -104,7 +104,7 @@ class CacheManager:
                 if keys:
                     await self.redis.delete(*keys)
     
-    async def invalidate_resume(self, resume_id: str, reason: str = "update"):
+    async def invalidate_resume(self, resume_id: str, reason: str = "update") -> None:
         """Invalidate all cache entries for a resume."""
         affected_keys = []
         
@@ -128,7 +128,7 @@ class CacheManager:
         # Clear dependent keys
         await self._clear_dependent_keys('resume', resume_id)
     
-    async def invalidate_job(self, job_id: str, reason: str = "update"):
+    async def invalidate_job(self, job_id: str, reason: str = "update") -> None:
         """Invalidate all cache entries for a job."""
         affected_keys = []
         
@@ -152,7 +152,7 @@ class CacheManager:
         # Clear dependent keys
         await self._clear_dependent_keys('job', job_id)
     
-    async def invalidate_match(self, resume_id: str, job_id: str, reason: str = "update"):
+    async def invalidate_match(self, resume_id: str, job_id: str, reason: str = "update") -> None:
         """Invalidate cache entries for a specific resume-job match."""
         affected_keys = []
         
@@ -228,7 +228,7 @@ class CacheManager:
     async def get_or_set(
         self,
         key: str,
-        getter_func,
+        getter_func: Callable[[], Any],
         ttl: Optional[int] = None,
         binary: bool = False
     ) -> Any:
@@ -242,7 +242,7 @@ class CacheManager:
         
         return value
     
-    async def clear_expired(self):
+    async def clear_expired(self) -> None:
         """Clear expired cache entries."""
         # Get all keys with metadata
         metadata_keys = await self.redis.keys('*:metadata')
@@ -262,11 +262,11 @@ class CacheManager:
                     await self.redis.delete(key, metadata_key)
 
 # Dependency
-async def get_cache_manager() -> CacheManager:
+async def get_cache_manager() -> AsyncGenerator[CacheManager, None]:
     """Get cache manager instance."""
-    manager = CacheManager(settings.REDIS_URL)
+    cache_manager = CacheManager(str(settings.REDIS_URL))
     try:
-        yield manager
+        yield cache_manager
     finally:
-        await manager.redis.close()
-        await manager.pubsub.close() 
+        await cache_manager.redis.close()
+        await cache_manager.pubsub.close() 

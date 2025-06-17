@@ -1,14 +1,14 @@
-from locust import HttpUser, WebSocketUser, task, between
+from locust import HttpUser, WebSocketUser, task, between, events
 from locust.clients import WebSocketResponse
 import json
 import random
 import time
-from typing import Dict, Any
+from typing import Dict, Any, Optional
 
 class APIUser(HttpUser):
     wait_time = between(1, 3)
     
-    def on_start(self):
+    def on_start(self) -> None:
         """Login and get token on start"""
         response = self.client.post(
             "/api/v1/auth/login",
@@ -24,7 +24,7 @@ class APIUser(HttpUser):
             self.environment.runner.quit()
             
     @task(3)
-    def get_resumes(self):
+    def get_resumes(self) -> None:
         """Test resume listing"""
         self.client.get(
             "/api/v1/resumes/",
@@ -33,7 +33,7 @@ class APIUser(HttpUser):
         )
         
     @task(2)
-    def get_jobs(self):
+    def get_jobs(self) -> None:
         """Test job listing"""
         self.client.get(
             "/api/v1/jobs/",
@@ -42,7 +42,7 @@ class APIUser(HttpUser):
         )
         
     @task(1)
-    def get_matches(self):
+    def get_matches(self) -> None:
         """Test match listing"""
         self.client.get(
             "/api/v1/matches/",
@@ -50,7 +50,7 @@ class APIUser(HttpUser):
         )
         
     @task(1)
-    def create_resume(self):
+    def create_resume(self) -> None:
         """Test resume creation"""
         # Generate random resume data
         resume_data = {
@@ -73,7 +73,7 @@ class APIUser(HttpUser):
         )
         
     @task(1)
-    def create_job(self):
+    def create_job(self) -> None:
         """Test job creation"""
         # Generate random job data
         job_data = {
@@ -98,7 +98,7 @@ class APIUser(HttpUser):
 class WebSocketUser(WebSocketUser):
     wait_time = between(1, 5)
     
-    def on_start(self):
+    def on_start(self) -> None:
         """Login and connect WebSocket on start"""
         # Login to get token
         response = self.client.post(
@@ -119,13 +119,13 @@ class WebSocketUser(WebSocketUser):
             name="analysis_ws"
         )
         
-    def on_stop(self):
+    def on_stop(self) -> None:
         """Close WebSocket connection on stop"""
         if hasattr(self, "ws"):
             self.ws.close()
             
     @task(3)
-    def receive_analysis_updates(self):
+    def receive_analysis_updates(self) -> None:
         """Test receiving analysis updates"""
         try:
             # Wait for message with timeout
@@ -138,7 +138,7 @@ class WebSocketUser(WebSocketUser):
             self.environment.runner.quit()
             
     @task(1)
-    def switch_to_matches(self):
+    def switch_to_matches(self) -> None:
         """Test switching to matches WebSocket"""
         # Close current connection
         self.ws.close()
@@ -170,17 +170,17 @@ class MixedUser(APIUser, WebSocketUser):
     """User that performs both HTTP and WebSocket operations"""
     wait_time = between(1, 4)
     
-    def on_start(self):
+    def on_start(self) -> None:
         """Initialize both HTTP and WebSocket connections"""
         APIUser.on_start(self)
         WebSocketUser.on_start(self)
         
-    def on_stop(self):
+    def on_stop(self) -> None:
         """Clean up both connections"""
         WebSocketUser.on_stop(self)
         
     @task(2)
-    def mixed_operation(self):
+    def mixed_operation(self) -> None:
         """Perform mixed HTTP and WebSocket operations"""
         # Get some resumes
         self.get_resumes()
@@ -204,6 +204,7 @@ class MixedUser(APIUser, WebSocketUser):
                         "required_skills": data["skills"],
                         "experience_level": "mid"
                     }
+                    
                     self.client.post(
                         "/api/v1/jobs/",
                         headers=self.headers,
@@ -212,34 +213,24 @@ class MixedUser(APIUser, WebSocketUser):
         except Exception:
             pass
 
-# Custom events for monitoring
-from locust import events
-
+# Event listeners
 @events.init.add_listener
-def on_locust_init(environment, **kwargs):
-    """Initialize custom metrics"""
-    from prometheus_client import start_http_server
-    start_http_server(8000)
+def on_locust_init(environment: Any, **kwargs: Any) -> None:
+    """Initialize test environment"""
+    print("Locust test environment initialized")
 
 @events.request.add_listener
-def on_request(request_type, name, response_time, response_length, exception, **kwargs):
-    """Track request metrics"""
+def on_request(request_type: str, name: str, response_time: float, response_length: int, exception: Optional[Exception], **kwargs: Any) -> None:
+    """Log request events"""
     if exception:
         print(f"Request failed: {name} - {exception}")
-    else:
-        print(f"Request succeeded: {name} - {response_time}ms")
-
-@events.websocket_message.add_listener
-def on_websocket_message(message, **kwargs):
-    """Track WebSocket message metrics"""
-    print(f"WebSocket message received: {len(message)} bytes")
 
 @events.test_start.add_listener
-def on_test_start(**kwargs):
-    """Log test start"""
-    print("Load test starting...")
+def on_test_start(**kwargs: Any) -> None:
+    """Handle test start"""
+    print("Load test started")
 
 @events.test_stop.add_listener
-def on_test_stop(**kwargs):
-    """Log test stop"""
-    print("Load test completed.") 
+def on_test_stop(**kwargs: Any) -> None:
+    """Handle test stop"""
+    print("Load test completed") 

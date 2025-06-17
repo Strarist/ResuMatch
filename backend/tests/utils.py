@@ -1,93 +1,99 @@
 import asyncio
 import json
 from datetime import datetime, timedelta
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List, Optional, Coroutine
 from unittest.mock import MagicMock
 
 import pytest
 from fastapi import WebSocket
 from redis.asyncio import Redis
+from fastapi.websockets import WebSocketState
 
 from app.schemas.matching import (
     Education, Skill, Experience, MatchResult,
     DegreeLevel, SkillCategory, ExperienceLevel,
-    EducationMatch, SkillMatch, ExperienceMatch, RoleMatch
+    EducationMatch, SkillMatch, ExperienceMatch, RoleMatch, MatchDimension
 )
 
 class MockWebSocket(WebSocket):
     """Mock WebSocket for testing."""
-    def __init__(self):
+    def __init__(self) -> None:
         self.messages: List[Dict[str, Any]] = []
-        self.client_state = "CONNECTED"
+        self.client_state = WebSocketState.CONNECTED
         self._closed = False
     
-    async def accept(self) -> None:
+    async def accept(self, subprotocol: Optional[str] = None, headers: Optional[List[tuple[bytes, bytes]]] = None) -> None:
         """Accept the connection."""
         pass
     
-    async def send_json(self, data: Dict[str, Any]) -> None:
+    async def send_json(self, data: Dict[str, Any], mode: str = "text") -> None:
         """Send JSON data."""
         self.messages.append(data)
     
-    async def receive_json(self) -> Dict[str, Any]:
+    async def receive_json(self, mode: str = "text") -> Dict[str, Any]:
         """Receive JSON data."""
         if not self.messages:
             raise Exception("No messages available")
         return self.messages.pop(0)
     
-    async def close(self, code: int = 1000) -> None:
+    async def close(self, code: int = 1000, reason: Optional[str] = None) -> None:
         """Close the connection."""
         self._closed = True
-        self.client_state = "DISCONNECTED"
+        self.client_state = WebSocketState.DISCONNECTED
 
 class MockRedis(Redis):
     """Mock Redis client for testing."""
-    def __init__(self):
+    def __init__(self) -> None:
         self._data: Dict[str, Any] = {}
         self._pubsub: Dict[str, List[Dict[str, Any]]] = {}
     
-    async def get(self, key: str) -> Optional[str]:
+    async def get(self, name: str) -> Optional[str]:
         """Get value from cache."""
-        return self._data.get(key)
+        return self._data.get(name)
     
     async def set(
         self,
-        key: str,
+        name: str,
         value: Any,
         ex: Optional[int] = None,
+        px: Optional[int] = None,
         nx: bool = False,
-        xx: bool = False
+        xx: bool = False,
+        keepttl: bool = False,
+        get: bool = False,
+        exat: Optional[int] = None,
+        pxat: Optional[int] = None
     ) -> bool:
         """Set value in cache."""
-        if nx and key in self._data:
+        if nx and name in self._data:
             return False
-        if xx and key not in self._data:
+        if xx and name not in self._data:
             return False
         
-        self._data[key] = value
+        self._data[name] = value
         if ex:
-            asyncio.create_task(self._expire(key, ex))
+            asyncio.create_task(self._expire(name, ex))
         return True
     
-    async def delete(self, *keys: str) -> int:
+    async def delete(self, *names: str) -> int:
         """Delete keys from cache."""
         count = 0
-        for key in keys:
-            if key in self._data:
-                del self._data[key]
+        for name in names:
+            if name in self._data:
+                del self._data[name]
                 count += 1
         return count
     
-    async def exists(self, *keys: str) -> int:
+    async def exists(self, *names: str) -> int:
         """Check if keys exist."""
-        return sum(1 for key in keys if key in self._data)
+        return sum(1 for name in names if name in self._data)
     
-    async def keys(self, pattern: str) -> List[str]:
+    async def keys(self, pattern: str = "*", **kwargs: Any) -> List[str]:
         """Get keys matching pattern."""
         import fnmatch
         return [k for k in self._data.keys() if fnmatch.fnmatch(k, pattern)]
     
-    async def publish(self, channel: str, message: str) -> int:
+    async def publish(self, channel: str, message: str, **kwargs: Any) -> int:
         """Publish message to channel."""
         if channel not in self._pubsub:
             self._pubsub[channel] = []
@@ -242,24 +248,24 @@ def create_test_match_result(
             explanation="Good match for senior role"
         ),
         dimensions=[
-            {
-                'name': 'Education',
-                'score': education_match.match_score,
-                'weight': 0.3,
-                'description': 'Education match score'
-            },
-            {
-                'name': 'Skills',
-                'score': skill_match.overall_score,
-                'weight': 0.4,
-                'description': 'Skill match score'
-            },
-            {
-                'name': 'Experience',
-                'score': experience_match.years_match,
-                'weight': 0.3,
-                'description': 'Experience match score'
-            }
+            MatchDimension(
+                name='Education',
+                score=education_match.match_score,
+                weight=0.3,
+                description='Education match score'
+            ),
+            MatchDimension(
+                name='Skills',
+                score=skill_match.overall_score,
+                weight=0.4,
+                description='Skill match score'
+            ),
+            MatchDimension(
+                name='Experience',
+                score=experience_match.years_match,
+                weight=0.3,
+                description='Experience match score'
+            )
         ]
     )
 

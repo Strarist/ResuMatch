@@ -1,4 +1,4 @@
-from prometheus_client import Counter, Histogram, Gauge, Summary
+from prometheus_client import Counter, Histogram, Gauge, Summary, REGISTRY
 from prometheus_client.openmetrics.exposition import generate_latest
 from fastapi import Response
 from typing import Dict, Any, Callable, Awaitable, Optional
@@ -164,7 +164,7 @@ def metrics_middleware() -> Callable[[Callable], Callable]:
 async def metrics_endpoint() -> Response:
     """Endpoint to expose Prometheus metrics"""
     return Response(
-        generate_latest(),
+        generate_latest(REGISTRY),
         media_type="text/plain"
     )
 
