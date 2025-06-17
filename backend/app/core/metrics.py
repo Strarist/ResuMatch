@@ -3,6 +3,7 @@ from prometheus_client.openmetrics.exposition import generate_latest
 from fastapi import Response
 from typing import Dict, Any
 import time
+import psutil
 from functools import wraps
 
 # Request metrics
@@ -170,8 +171,6 @@ async def metrics_endpoint():
 # System metrics collection
 def update_system_metrics():
     """Update system metrics (memory, CPU)"""
-    import psutil
-    
     # Memory metrics
     memory = psutil.virtual_memory()
     SYSTEM_MEMORY.labels(type='used').set(memory.used)
