@@ -179,10 +179,10 @@ def update_system_metrics():
     SYSTEM_MEMORY.labels(type='total').set(memory.total)
     
     # CPU metrics
-    cpu_percent = psutil.cpu_percent(interval=None, percpu=True)
-    SYSTEM_CPU.labels(type='user').set(sum(p.user for p in psutil.cpu_times_percent(interval=None, percpu=True)))
-    SYSTEM_CPU.labels(type='system').set(sum(p.system for p in psutil.cpu_times_percent(interval=None, percpu=True)))
-    SYSTEM_CPU.labels(type='idle').set(sum(p.idle for p in psutil.cpu_times_percent(interval=None, percpu=True)))
+    cpu_times = psutil.cpu_times_percent(interval=None, percpu=True)
+    SYSTEM_CPU.labels(type='user').set(sum(p.user for p in cpu_times))
+    SYSTEM_CPU.labels(type='system').set(sum(p.system for p in cpu_times))
+    SYSTEM_CPU.labels(type='idle').set(sum(p.idle for p in cpu_times))
 
 # Database metrics collection
 def update_db_metrics(db):
