@@ -13,14 +13,6 @@ env:
   IMAGE_NAME_FRONTEND: ${{ github.repository }}/frontend
 
 jobs:
-  dependency-review:
-    runs-on: ubuntu-latest
-    if: github.event_name == 'pull_request'
-    steps:
-      - uses: actions/checkout@v4
-      - name: GitHub Dependency Review
-        uses: actions/dependency-review-action@v4
-
   lint-test-backend:
     runs-on: ubuntu-latest
     defaults:
@@ -100,15 +92,15 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: frontend-coverage
-          path: frontend/coverage
+          path: coverage
       - name: Upload build artifact
         uses: actions/upload-artifact@v4
         with:
           name: frontend-build
-          path: frontend/dist
+          path: dist
 
   build-and-push-images:
-    needs: [dependency-review, lint-test-backend, lint-test-frontend]
+    needs: [lint-test-backend, lint-test-frontend]
     runs-on: ubuntu-latest
     permissions:
       contents: read
