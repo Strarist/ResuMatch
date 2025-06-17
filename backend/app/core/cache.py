@@ -58,7 +58,7 @@ class Cache:
         expire: Optional[int] = None,
         binary: bool = False
     ) -> bool:
-        """Set value in cache with optional expiration."""
+        """Set value in cache."""
         redis = self.redis_binary if binary else self.redis
         
         if binary:
@@ -66,7 +66,8 @@ class Cache:
         elif not isinstance(value, (str, int, float, bool)):
             value = json.dumps(value)
             
-        return await redis.set(key, value, ex=expire)
+        result = await redis.set(key, value, ex=expire)
+        return bool(result)
 
     async def delete(self, key: str) -> bool:
         """Delete value from cache."""

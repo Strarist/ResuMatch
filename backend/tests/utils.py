@@ -1,7 +1,7 @@
 import asyncio
 import json
 from datetime import datetime, timedelta
-from typing import Any, Dict, List, Optional, Coroutine
+from typing import Any, Dict, List, Optional, Coroutine, Union, Iterable
 from unittest.mock import MagicMock
 
 import pytest
@@ -15,14 +15,14 @@ from app.schemas.matching import (
     EducationMatch, SkillMatch, ExperienceMatch, RoleMatch, MatchDimension
 )
 
-class MockWebSocket(WebSocket):
+class MockWebSocket:
     """Mock WebSocket for testing."""
     def __init__(self) -> None:
         self.messages: List[Dict[str, Any]] = []
         self.client_state = WebSocketState.CONNECTED
         self._closed = False
     
-    async def accept(self, subprotocol: Optional[str] = None, headers: Optional[List[tuple[bytes, bytes]]] = None) -> None:
+    async def accept(self, subprotocol: Optional[str] = None, headers: Optional[Iterable[tuple[bytes, bytes]]] = None) -> None:
         """Accept the connection."""
         pass
     
@@ -41,30 +41,44 @@ class MockWebSocket(WebSocket):
         self._closed = True
         self.client_state = WebSocketState.DISCONNECTED
 
-class MockRedis(Redis):
+class MockRedis:
     """Mock Redis client for testing."""
     def __init__(self) -> None:
         self._data: Dict[str, Any] = {}
         self._pubsub: Dict[str, List[Dict[str, Any]]] = {}
     
-    async def get(self, name: str) -> Optional[str]:
+    async def get(self, name: Union[bytes, str, memoryview]) -> Optional[str]:
         """Get value from cache."""
+        if isinstance(name, bytes):
+            name = name.decode('utf-8')
+        elif isinstance(name, memoryview):
+            name = name.tobytes().decode('utf-8')
         return self._data.get(name)
     
     async def set(
         self,
-        name: str,
-        value: Any,
-        ex: Optional[int] = None,
-        px: Optional[int] = None,
+        name: Union[bytes, str, memoryview],
+        value: Union[bytes, memoryview, str, int, float],
+        ex: Optional[Union[int, timedelta]] = None,
+        px: Optional[Union[int, timedelta]] = None,
         nx: bool = False,
         xx: bool = False,
         keepttl: bool = False,
         get: bool = False,
-        exat: Optional[int] = None,
-        pxat: Optional[int] = None
+        exat: Optional[Union[int, datetime]] = None,
+        pxat: Optional[Union[int, datetime]] = None
     ) -> bool:
         """Set value in cache."""
+        if isinstance(name, bytes):
+            name = name.decode('utf-8')
+        elif isinstance(name, memoryview):
+            name = name.tobytes().decode('utf-8')
+            
+        if isinstance(value, bytes):
+            value = value.decode('utf-8')
+        elif isinstance(value, memoryview):
+            value = value.tobytes().decode('utf-8')
+            
         if nx and name in self._data:
             return False
         if xx and name not in self._data:
@@ -72,29 +86,57 @@ class MockRedis(Redis):
         
         self._data[name] = value
         if ex:
-            asyncio.create_task(self._expire(name, ex))
+            asyncio.create_task(self._expire(name, ex if isinstance(ex, int) else int(ex.total_seconds())))
         return True
     
-    async def delete(self, *names: str) -> int:
+    async def delete(self, *names: Union[bytes, str, memoryview]) -> int:
         """Delete keys from cache."""
         count = 0
         for name in names:
+            if isinstance(name, bytes):
+                name = name.decode('utf-8')
+            elif isinstance(name, memoryview):
+                name = name.tobytes().decode('utf-8')
             if name in self._data:
                 del self._data[name]
                 count += 1
         return count
     
-    async def exists(self, *names: str) -> int:
+    async def exists(self, *names: Union[bytes, str, memoryview]) -> int:
         """Check if keys exist."""
-        return sum(1 for name in names if name in self._data)
+        count = 0
+        for name in names:
+            if isinstance(name, bytes):
+                name = name.decode('utf-8')
+            elif isinstance(name, memoryview):
+                name = name.tobytes().decode('utf-8')
+            if name in self._data:
+                count += 1
+        return count
     
-    async def keys(self, pattern: str = "*", **kwargs: Any) -> List[str]:
+    async def keys(self, pattern: Union[bytes, str, memoryview] = "*", **kwargs: Any) -> List[str]:
         """Get keys matching pattern."""
         import fnmatch
+        if isinstance(pattern, bytes):
+            pattern = pattern.decode('utf-8')
+        elif isinstance(pattern, memoryview):
+            pattern = pattern.tobytes().decode('utf-8')
         return [k for k in self._data.keys() if fnmatch.fnmatch(k, pattern)]
     
-    async def publish(self, channel: str, message: str, **kwargs: Any) -> int:
+    async def publish(self, channel: Union[bytes, str, memoryview], message: Union[bytes, memoryview, str, int, float], **kwargs: Any) -> int:
         """Publish message to channel."""
+        if isinstance(channel, bytes):
+            channel = channel.decode('utf-8')
+        elif isinstance(channel, memoryview):
+            channel = channel.tobytes().decode('utf-8')
+            
+        if isinstance(message, bytes):
+            message = message.decode('utf-8')
+        elif isinstance(message, memoryview):
+            message = message.tobytes().decode('utf-8')
+        elif isinstance(message, (int, float)):
+            message = str(message)
+            
         if channel not in self._pubsub:
             self._pubsub[channel] = []
         self._pubsub[channel].append({"type": "message", "data": message})

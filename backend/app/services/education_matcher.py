@@ -4,6 +4,7 @@ from dataclasses import dataclass
 from enum import Enum
 import re
 from app.core.cache import Cache
+from app.core.config import settings
 
 class DegreeLevel(Enum):
     PHD = "phd"
@@ -24,9 +25,9 @@ class Education:
     is_relevant: bool = False
 
 class EducationMatcher:
-    def __init__(self):
+    def __init__(self) -> None:
         self.nlp = spacy.load("en_core_web_lg")
-        self.cache = Cache()
+        self.cache = Cache(str(settings.REDIS_URL))
         
         # Degree level mappings
         self.degree_mappings = {

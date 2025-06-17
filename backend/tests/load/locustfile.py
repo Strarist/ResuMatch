@@ -1,5 +1,4 @@
-from locust import HttpUser, WebSocketUser, task, between, events
-from locust.clients import WebSocketResponse
+from locust import HttpUser, task, between, events
 import json
 import random
 import time
@@ -95,7 +94,7 @@ class APIUser(HttpUser):
             json=job_data
         )
 
-class WebSocketUser(WebSocketUser):
+class WebSocketUser(HttpUser):
     wait_time = between(1, 5)
     
     def on_start(self) -> None:
@@ -114,7 +113,7 @@ class WebSocketUser(WebSocketUser):
             self.environment.runner.quit()
             
         # Connect WebSocket
-        self.ws = self.connect(
+        self.ws = self.client.websocket_connect(
             f"/api/v1/ws/analysis?token={self.token}",
             name="analysis_ws"
         )
@@ -144,7 +143,7 @@ class WebSocketUser(WebSocketUser):
         self.ws.close()
         
         # Connect to matches WebSocket
-        self.ws = self.connect(
+        self.ws = self.client.websocket_connect(
             f"/api/v1/ws/matches?token={self.token}",
             name="matches_ws"
         )
@@ -161,7 +160,7 @@ class WebSocketUser(WebSocketUser):
                 
         # Switch back to analysis
         self.ws.close()
-        self.ws = self.connect(
+        self.ws = self.client.websocket_connect(
             f"/api/v1/ws/analysis?token={self.token}",
             name="analysis_ws"
         )

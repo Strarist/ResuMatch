@@ -13,7 +13,7 @@ class Job(Base):
     title = Column(String, nullable=False)
     company = Column(String, nullable=False)
     description = Column(String, nullable=False)
-    requirements: List[str] = Column(ARRAY(String), nullable=True, default=list)
+    requirements = Column(ARRAY(String), nullable=True, default=list)
     location = Column(String, nullable=False)
     type = Column(String, nullable=False)  # full-time, part-time, contract, remote
     salary = Column(JSON, nullable=True)  # {min: int, max: int, currency: str}

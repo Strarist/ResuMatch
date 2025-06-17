@@ -12,7 +12,7 @@ nlp = spacy.load("en_core_web_sm")
 # Lazy load the classifier
 _classifier = None
 
-def get_classifier():
+def get_classifier() -> Any:
     global _classifier
     if _classifier is None:
         try:
@@ -20,7 +20,7 @@ def get_classifier():
         except Exception as e:
             logger.error(f"Error loading classifier: {e}")
             # Return a dummy classifier for testing/offline mode
-            def dummy_classifier(*args, **kwargs):
+            def dummy_classifier(*args: Any, **kwargs: Any) -> List[Dict[str, Any]]:
                 return [{"label": "POSITIVE", "score": 0.9}]
             _classifier = dummy_classifier
     return _classifier
@@ -62,7 +62,7 @@ async def analyze_job(text: str) -> Dict[str, Any]:
     
     # Find requirement sections
     requirement_sections = []
-    current_section = []
+    current_section: List[str] = []
     
     for sent in doc.sents:
         sent_text = sent.text.lower()
