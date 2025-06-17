@@ -1,0 +1,216 @@
+name: CI/CD Pipeline
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  workflow_dispatch: # Manual trigger for production
+
+env:
+  REGISTRY: ghcr.io
+  IMAGE_NAME_BACKEND: ${{ github.repository }}/backend
+  IMAGE_NAME_FRONTEND: ${{ github.repository }}/frontend
+
+jobs:
+  dependency-review:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: GitHub Dependency Review
+        uses: actions/dependency-review-action@v4
+
+  lint-test-backend:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: backend
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+          cache: 'pip'
+      - name: Install dependencies
+        run: |
+          set -e
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt -r requirements-test.txt
+      - name: Lint (flake8)
+        run: |
+          set -e
+          pip install flake8
+          flake8 . --count --select=E9,F63,F7,F82 --show-source --statistics
+          flake8 . --count --exit-zero --max-complexity=10 --statistics
+      - name: Type check (mypy)
+        run: |
+          set -e
+          pip install mypy
+          mypy .
+      - name: Test (pytest)
+        run: |
+          set -e
+          pip install pytest-cov
+          pytest --cov=app --cov-report=xml
+      - name: Upload coverage
+        uses: actions/upload-artifact@v4
+        with:
+          name: backend-coverage
+          path: backend/coverage.xml
+      - name: Upload to Codecov
+        uses: codecov/codecov-action@v4
+        with:
+          files: backend/coverage.xml
+          flags: backend
+          name: codecov-backend
+
+  lint-test-frontend:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: frontend
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+      - name: Install dependencies
+        run: |
+          set -e
+          npm ci
+      - name: Lint
+        run: |
+          set -e
+          npm run lint
+      - name: Type check
+        run: |
+          set -e
+          npm run type-check
+      - name: Test
+        run: |
+          set -e
+          npm test -- --coverage
+      - name: Build
+        run: |
+          set -e
+          npm run build
+      - name: Upload coverage
+        uses: actions/upload-artifact@v4
+        with:
+          name: frontend-coverage
+          path: frontend/coverage
+      - name: Upload build artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: frontend-build
+          path: frontend/dist
+
+  build-and-push-images:
+    needs: [dependency-review, lint-test-backend, lint-test-frontend]
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+    steps:
+      - uses: actions/checkout@v4
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+      - name: Log in to GitHub Container Registry
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      - name: Build and push backend image
+        uses: docker/build-push-action@v5
+        with:
+          context: ./backend
+          push: true
+          tags: |
+            ${{ env.REGISTRY }}/${{ env.IMAGE_NAME_BACKEND }}:${{ github.sha }}
+            ${{ env.REGISTRY }}/${{ env.IMAGE_NAME_BACKEND }}:latest
+            ${{ env.REGISTRY }}/${{ env.IMAGE_NAME_BACKEND }}:${{ github.ref_name }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+      - name: Build and push frontend image
+        uses: docker/build-push-action@v5
+        with:
+          context: ./frontend
+          push: true
+          tags: |
+            ${{ env.REGISTRY }}/${{ env.IMAGE_NAME_FRONTEND }}:${{ github.sha }}
+            ${{ env.REGISTRY }}/${{ env.IMAGE_NAME_FRONTEND }}:latest
+            ${{ env.REGISTRY }}/${{ env.IMAGE_NAME_FRONTEND }}:${{ github.ref_name }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+  deploy-staging:
+    needs: build-and-push-images
+    runs-on: ubuntu-latest
+    if: github.ref == 'refs/heads/main'
+    environment: staging
+    steps:
+      - name: Deploy to Staging (Render)
+        env:
+          BACKEND_IMAGE: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME_BACKEND }}:${{ github.sha }}
+          FRONTEND_IMAGE: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME_FRONTEND }}:${{ github.sha }}
+        run: |
+          set -e
+          curl -X POST "${{ secrets.RENDER_API_URL }}/deploys" \
+            -H "Authorization: Bearer ${{ secrets.RENDER_API_KEY }}" \
+            -H "Content-Type: application/json" \
+            -d '{"clearCache":true}'
+      - name: Health Check Staging
+        run: |
+          set -e
+          echo "Waiting for deployment to complete..."
+          sleep 60
+          curl -f "${{ secrets.STAGING_HEALTH_URL }}/health" || exit 1
+      - name: Notify Staging Success
+        if: success()
+        run: |
+          curl -X POST -H 'Content-type: application/json' \
+            --data '{"text":"✅ Staging deployment successful! Commit: ${{ github.sha }} | Branch: ${{ github.ref_name }}"}' \
+            ${{ secrets.SLACK_WEBHOOK }}
+      - name: Notify Staging Failure
+        if: failure()
+        run: |
+          curl -X POST -H 'Content-type: application/json' \
+            --data '{"text":"❌ Staging deployment failed! Commit: ${{ github.sha }} | Branch: ${{ github.ref_name }}"}' \
+            ${{ secrets.SLACK_WEBHOOK }}
+
+  deploy-production:
+    needs: build-and-push-images
+    runs-on: ubuntu-latest
+    if: github.event_name == 'workflow_dispatch'
+    environment: production
+    steps:
+      - name: Deploy to Production (Render)
+        env:
+          BACKEND_IMAGE: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME_BACKEND }}:${{ github.sha }}
+          FRONTEND_IMAGE: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME_FRONTEND }}:${{ github.sha }}
+        run: |
+          set -e
+          curl -X POST "${{ secrets.RENDER_API_URL_PROD }}/deploys" \
+            -H "Authorization: Bearer ${{ secrets.RENDER_API_KEY_PROD }}" \
+            -H "Content-Type: application/json" \
+            -d '{"clearCache":true}'
+      - name: Health Check Production
+        run: |
+          set -e
+          echo "Waiting for deployment to complete..."
+          sleep 60
+          curl -f "${{ secrets.PRODUCTION_HEALTH_URL }}/health" || exit 1
+      - name: Notify Production Success
+        if: success()
+        run: |
+          curl -X POST -H 'Content-type: application/json' \
+            --data '{"text":"🚀 Production deployment successful! Commit: ${{ github.sha }} | Branch: ${{ github.ref_name }}"}' \
+            ${{ secrets.SLACK_WEBHOOK }}
+      - name: Notify Production Failure
+        if: failure()
+        run: |
+          curl -X POST -H 'Content-type: application/json' \
+            --data '{"text":"💥 Production deployment failed! Commit: ${{ github.sha }} | Branch: ${{ github.ref_name }}"}' \
+            ${{ secrets.SLACK_WEBHOOK }} 
