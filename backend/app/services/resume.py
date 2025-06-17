@@ -188,4 +188,37 @@ class ResumeService:
 
 def calculate_match_score(resume, job):
     # TODO: Implement actual match score logic
-    return 0.0 
+    return 0.0
+
+async def extract_skills(text: str) -> List[str]:
+    """Extract skills from text using NLP."""
+    # Simple implementation - in production, use more sophisticated NLP
+    if not text:
+        return []
+    
+    # Common skill keywords
+    skill_keywords = [
+        'python', 'javascript', 'java', 'c++', 'c#', 'php', 'ruby', 'go', 'rust',
+        'react', 'angular', 'vue', 'node.js', 'django', 'flask', 'fastapi',
+        'postgresql', 'mysql', 'mongodb', 'redis', 'docker', 'kubernetes',
+        'aws', 'azure', 'gcp', 'git', 'jenkins', 'ci/cd', 'agile', 'scrum'
+    ]
+    
+    text_lower = text.lower()
+    found_skills = []
+    
+    for skill in skill_keywords:
+        if skill in text_lower:
+            found_skills.append(skill.title())
+    
+    return list(set(found_skills))
+
+async def analyze_resume(file_path: str) -> Dict[str, Any]:
+    """Analyze a resume file and extract structured data."""
+    try:
+        parser = ResumeParser()
+        result = parser.parse_resume(file_path)
+        return result
+    except Exception as e:
+        logger.error(f"Error analyzing resume: {str(e)}")
+        raise ValueError(f"Could not analyze resume: {str(e)}") 

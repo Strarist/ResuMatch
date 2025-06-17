@@ -9,6 +9,23 @@ class MatchCategory(str, Enum):
     FAIR = "fair"          # 40-60%
     POOR = "poor"          # < 40%
 
+class SkillGap(BaseModel):
+    skill_name: str
+    importance: float = Field(ge=0, le=1)
+    current_level: Optional[float] = None
+    required_level: float = Field(ge=0, le=1)
+    gap_size: float = Field(ge=0, le=1)
+    suggestions: List[str] = []
+
+class ImprovementSuggestion(BaseModel):
+    category: str  # "skill", "experience", "education", etc.
+    title: str
+    description: str
+    priority: float = Field(ge=0, le=1)
+    estimated_impact: float = Field(ge=0, le=1)
+    resources: List[str] = []
+    action_items: List[str] = []
+
 class SkillMatch(BaseModel):
     name: str
     score: float = Field(ge=0, le=1)

@@ -1,22 +1,14 @@
-from typing import Generator, Optional, Dict, Any
-from fastapi import Depends, HTTPException, status, WebSocket, WebSocketDisconnect
-from fastapi.security import OAuth2PasswordBearer, HTTPBearer, HTTPAuthorizationCredentials
-from jose import jwt, JWTError
-from pydantic import ValidationError
+from typing import Generator, Optional
+from fastapi import Depends, HTTPException, status
 from sqlalchemy.orm import Session
-from passlib.context import CryptContext
-
-from app.core.config import settings
-from app.core.security import verify_password
 from app.db.base import get_db
 from app.models.user import User
-from app.schemas.user import TokenPayload
-
-oauth2_scheme = OAuth2PasswordBearer(tokenUrl=f"{settings.API_V1_STR}/auth/login")
+from app.core.security import verify_password
+from jose import jwt, JWTError
+from app.core.config import settings
+from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 
 security = HTTPBearer()
-
-pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
 
 def get_current_user(
     credentials: HTTPAuthorizationCredentials = Depends(security),
@@ -52,15 +44,11 @@ def get_current_active_user(current_user: User = Depends(get_current_user)) -> U
         raise HTTPException(status_code=400, detail="Inactive user")
     return current_user
 
-def authenticate_user(db: Session, email: str, password: str) -> User | None:
+def authenticate_user(db: Session, email: str, password: str) -> Optional[User]:
     """Authenticate user with email and password"""
     user = db.query(User).filter(User.email == email).first()
     if not user:
         return None
     if not verify_password(str(password), str(user.hashed_password)):
         return None
-    return user
-
-def verify_user_password(user: User, password: str) -> bool:
-    """Verify user password"""
-    return verify_password(str(password), str(user.hashed_password)) 
+    return user 

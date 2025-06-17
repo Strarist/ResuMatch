@@ -164,4 +164,24 @@ class WSMessage(BaseModel):
 class MatchStrategy(str, Enum):
     HYBRID = "hybrid"
     KEYWORD = "keyword"
-    SEMANTIC = "semantic" 
+    SEMANTIC = "semantic"
+
+class RoleSimilarity(BaseModel):
+    title_similarity: float = Field(ge=0.0, le=1.0)
+    keyword_overlap: float = Field(ge=0.0, le=1.0)
+    semantic_similarity: float = Field(ge=0.0, le=1.0)
+    overall_score: float = Field(ge=0.0, le=1.0)
+    matched_keywords: List[str] = []
+    missing_keywords: List[str] = []
+
+class BatchMatchRequest(BaseModel):
+    resume_ids: List[str]
+    job_ids: List[str]
+    strategy: str = "hybrid"
+    include_details: bool = True
+
+class BatchMatchResponse(BaseModel):
+    matches: List[Dict[str, Any]]
+    total_processed: int
+    processing_time: float
+    errors: List[str] = [] 

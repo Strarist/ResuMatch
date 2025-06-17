@@ -274,10 +274,38 @@ class Cache:
 
 # Dependency
 async def get_cache() -> AsyncGenerator[Cache, None]:
-    """Get cache instance."""
+    """Dependency to get cache instance."""
     cache = Cache(str(settings.REDIS_URL))
     try:
         yield cache
     finally:
         await cache.redis.close()
-        await cache.redis_binary.close() 
+        await cache.redis_binary.close()
+
+class CacheManager:
+    """Manager class for cache operations with simplified interface."""
+    
+    def __init__(self, redis_url: Optional[str] = None) -> None:
+        self.cache = Cache(redis_url or str(settings.REDIS_URL))
+    
+    async def get(self, key: str, binary: bool = False) -> Optional[Any]:
+        """Get value from cache."""
+        return await self.cache.get(key, binary)
+    
+    async def set(
+        self,
+        key: str,
+        value: Any,
+        expire: Optional[int] = None,
+        binary: bool = False
+    ) -> bool:
+        """Set value in cache."""
+        return await self.cache.set(key, value, expire, binary)
+    
+    async def delete(self, key: str) -> bool:
+        """Delete value from cache."""
+        return await self.cache.delete(key)
+    
+    async def exists(self, key: str) -> bool:
+        """Check if key exists in cache."""
+        return await self.cache.exists(key) 

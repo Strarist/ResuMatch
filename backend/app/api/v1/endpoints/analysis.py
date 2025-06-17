@@ -1,5 +1,5 @@
 from fastapi import APIRouter, Depends, HTTPException, BackgroundTasks
-from typing import List
+from typing import List, Dict
 from app.api.deps import get_current_user
 from app.models.user import User
 from app.services.resume_parser import ResumeParser
@@ -12,11 +12,11 @@ async def analyze_resume(
     file_path: str,
     background_tasks: BackgroundTasks,
     current_user: User = Depends(get_current_user)
-):
+) -> ResumeAnalysisResponse:
     """Analyze a resume and extract structured data"""
     try:
         parser = ResumeParser()
-        analysis_result = await parser.parse_resume(file_path)
+        analysis_result = parser.parse_resume(file_path)
         
         return ResumeAnalysisResponse(
             success=True,

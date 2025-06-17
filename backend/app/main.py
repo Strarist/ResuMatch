@@ -18,7 +18,7 @@ async def lifespan(app: FastAPI):
     logger.info("Starting up application...")
     
     # Initialize database
-    await init_db()
+    init_db()
     
     logger.info("Application startup complete")
     

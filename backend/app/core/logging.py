@@ -146,4 +146,25 @@ def log_analysis_event(
             "user_id": user_id,
             **extra
         }
+    )
+
+def get_logger(name: str = "resumatch") -> logging.Logger:
+    """Get a logger instance"""
+    return logging.getLogger(name)
+
+def log_websocket_event(
+    logger: logging.Logger,
+    event_type: str,
+    user_id: str,
+    connection_id: str,
+    **extra: Any
+) -> None:
+    """Log WebSocket events"""
+    logger.info(
+        f"WebSocket {event_type}",
+        extra={
+            "user_id": user_id,
+            "connection_id": connection_id,
+            **extra
+        }
     ) 

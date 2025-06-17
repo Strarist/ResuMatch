@@ -1,4 +1,4 @@
-from typing import List, Dict, Any, Optional
+from typing import List, Dict, Any, Optional, Tuple
 from sqlalchemy.orm import Session
 from datetime import datetime
 import spacy
@@ -10,6 +10,9 @@ from app.schemas.compatibility import (
     MatchCategory, SkillGap, ImprovementSuggestion
 )
 from app.services.resume_matcher import ResumeMatcher
+
+# Alias for Job model
+JobPost = Job
 
 class CompatibilityAnalyzer:
     def __init__(self):

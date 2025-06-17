@@ -71,4 +71,9 @@ class ResumeList(BaseModel):
     total: int
     page: int
     size: int
-    pages: int 
+    pages: int
+
+class ResumeAnalysisResponse(BaseModel):
+    success: bool
+    data: Dict[str, Any]
+    message: str 

@@ -2,7 +2,7 @@ import asyncio
 from typing import List, Dict, Optional, Tuple, Any
 import numpy as np
 from sentence_transformers import SentenceTransformer
-from app.core.cache import Cache
+from app.core.cache import CacheManager
 from app.core.config import settings
 from app.models.job import Job
 from app.models.resume import Resume
@@ -14,7 +14,7 @@ from app.schemas.matching import RoleMatch, RoleSimilarity
 class RoleMatcher:
     def __init__(self) -> None:
         self.model = SentenceTransformer('all-MiniLM-L6-v2')
-        self.cache = Cache(str(settings.REDIS_URL))
+        self.cache = CacheManager()
         
         # Common job title variations
         self.title_variations = {
@@ -46,7 +46,7 @@ class RoleMatcher:
             stop_words='english',
             ngram_range=(1, 2)
         )
-        self.job_titles = []
+        self.job_titles: List[str] = []
         self.job_vectors = None
 
     def _init_common_embeddings(self) -> None:
