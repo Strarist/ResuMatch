@@ -1,5 +1,5 @@
 import { motion } from 'framer-motion';
-import { SkillMatch } from '../../../backend/app/schemas/compatibility';
+import { SkillMatch } from '../../types/compatibility';
 import { Tooltip } from '../common/Tooltip';
 
 interface SkillTagsProps {

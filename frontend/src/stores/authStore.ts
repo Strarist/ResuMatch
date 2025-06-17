@@ -30,10 +30,10 @@ export const useAuthStore = create<AuthState>()(
         try {
           set({ isLoading: true, error: null });
           const { auth } = await import('../lib/api');
-          const { access_token, user } = await auth.login(email, password);
+          const response = await auth.login(email, password);
           set({
-            user,
-            token: access_token,
+            user: response.user,
+            token: response.access_token,
             isAuthenticated: true,
             isLoading: false,
           });
@@ -50,10 +50,17 @@ export const useAuthStore = create<AuthState>()(
         try {
           set({ isLoading: true, error: null });
           const { auth } = await import('../lib/api');
-          const { access_token, user } = await auth.register(email, password, fullName);
+          const [firstName, ...lastNameParts] = fullName.split(' ');
+          const lastName = lastNameParts.join(' ') || '';
+          const response = await auth.register({ 
+            email, 
+            password, 
+            first_name: firstName, 
+            last_name: lastName 
+          });
           set({
-            user,
-            token: access_token,
+            user: response.user,
+            token: response.access_token,
             isAuthenticated: true,
             isLoading: false,
           });

@@ -7,8 +7,8 @@ import {
   ChartBarIcon,
   ArrowTrendingUpIcon,
 } from '@heroicons/react/24/outline';
-import PageTransition from '../../components/common/PageTransition';
-import Card, { CardHeader, CardBody } from '../../components/common/Card';
+import { PageTransition } from '../../components/common/PageTransition';
+import { Card, CardHeader, CardBody } from '../../components/common/Card';
 import LoadingSpinner from '../../components/common/LoadingSpinner';
 import AnalyticsCharts from '../../components/dashboard/AnalyticsCharts';
 import ResumeList from '../../components/dashboard/ResumeList';
@@ -179,7 +179,7 @@ export default function Dashboard() {
               <CardBody>
                 <div className="flow-root">
                   <ul className="-mb-8">
-                    {recentActivity.map((activity, activityIdx) => (
+                    {recentActivity.map((activity: any, activityIdx: number) => (
                       <li key={activity.id}>
                         <div className="relative pb-8">
                           {activityIdx !== recentActivity.length - 1 ? (

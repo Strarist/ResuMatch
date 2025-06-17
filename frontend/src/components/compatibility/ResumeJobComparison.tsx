@@ -17,7 +17,7 @@ import {
   Info as InfoIcon
 } from '@mui/icons-material';
 import { motion } from 'framer-motion';
-import { RadarChart } from './CompatibilityRadar';
+import { CustomRadarChart } from './CompatibilityRadar';
 import { CareerTimeline } from '../timeline/CareerTimeline';
 
 interface Skill {
@@ -227,8 +227,8 @@ const ResumeJobComparison: React.FC<ResumeJobComparisonProps> = ({
           theme.palette.info.main
         )}
         
-        <Grid container spacing={2}>
-          <Grid item xs={6}>
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <div className="md:col-span-1">
             <Typography variant="subtitle2" gutterBottom>
               Your Education
             </Typography>
@@ -245,9 +245,9 @@ const ResumeJobComparison: React.FC<ResumeJobComparisonProps> = ({
                 </Typography>
               )}
             </Box>
-          </Grid>
+          </div>
           
-          <Grid item xs={6}>
+          <div className="md:col-span-1">
             <Typography variant="subtitle2" gutterBottom>
               Required Education
             </Typography>
@@ -259,8 +259,8 @@ const ResumeJobComparison: React.FC<ResumeJobComparisonProps> = ({
                 {data.education.required.field}
               </Typography>
             </Box>
-          </Grid>
-        </Grid>
+          </div>
+        </div>
       </Paper>
     </motion.div>
   );
@@ -311,8 +311,16 @@ const ResumeJobComparison: React.FC<ResumeJobComparisonProps> = ({
               Relevant Experience
             </Typography>
             <CareerTimeline
-              experiences={data.experience.relevant}
-              variant="horizontal"
+              items={data.experience.relevant.map(exp => ({
+                id: `${exp.title}-${exp.company}`,
+                title: exp.title,
+                company: exp.company,
+                startDate: exp.startDate,
+                endDate: exp.endDate || undefined,
+                description: exp.description,
+                skills: exp.skills,
+                type: 'job' as const
+              }))}
               showSkills
             />
           </Box>
@@ -404,18 +412,18 @@ const ResumeJobComparison: React.FC<ResumeJobComparisonProps> = ({
         
         <Divider sx={{ my: 3 }} />
         
-        <Grid container spacing={3}>
-          <Grid item xs={12} md={6}>
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+          <div className="md:col-span-1">
             {renderSkillsSection()}
             {renderEducationSection()}
-          </Grid>
+          </div>
           
-          <Grid item xs={12} md={6}>
+          <div className="md:col-span-1">
             {renderExperienceSection()}
             {renderRoleMatchSection()}
-          </Grid>
+          </div>
           
-          <Grid item xs={12}>
+          <div className="md:col-span-2">
             <Paper
               elevation={2}
               sx={{
@@ -427,15 +435,18 @@ const ResumeJobComparison: React.FC<ResumeJobComparisonProps> = ({
                 Detailed Analysis
               </Typography>
               <Box sx={{ height: 400 }}>
-                <RadarChart
-                  data={data.dimensions}
-                  showTooltips
-                  showLegend
+                <CustomRadarChart
+                  data={data.dimensions.map(d => ({
+                    label: d.name,
+                    value: d.score * 100
+                  }))}
+                  showLabels
+                  showValues
                 />
               </Box>
             </Paper>
-          </Grid>
-        </Grid>
+          </div>
+        </div>
       </Paper>
     </motion.div>
   );

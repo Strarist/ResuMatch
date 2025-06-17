@@ -37,9 +37,9 @@ export const ResumeMatchResults = () => {
 
   const chartData = matches.map(match => ({
     name: `Resume ${match.resume_id.slice(0, 8)}`,
-    score: match.overall_score * 100,
-    skills: match.skill_match.match_score * 100,
-    experience: match.experience_match.match_score * 100,
+    value: match.overall_score * 100,
+    skills: match.skill_match.score * 100,
+    experience: match.experience_match.score * 100,
   }));
 
   return (
@@ -75,9 +75,9 @@ export const ResumeMatchResults = () => {
             <AnimatedChart
               data={chartData}
               type="bar"
-              keys={['score', 'skills', 'experience']}
-              indexBy="name"
-              margin={{ top: 20, right: 20, bottom: 50, left: 60 }}
+              title="Match Overview"
+              xAxisLabel="Resume"
+              yAxisLabel="Score (%)"
             />
           </div>
         </GlassCard>
@@ -93,19 +93,11 @@ export const ResumeMatchResults = () => {
                   <div className="mt-2 space-y-2">
                     <div>
                       <span className="font-medium">Skills Match: </span>
-                      {(match.skill_match.match_score * 100).toFixed(1)}%
-                      {match.skill_match.semantic_score && (
-                        <span className="text-sm text-gray-600 ml-2">
-                          (Semantic: {(match.skill_match.semantic_score * 100).toFixed(1)}%)
-                        </span>
-                      )}
+                      {(match.skill_match.score * 100).toFixed(1)}%
                     </div>
                     <div>
                       <span className="font-medium">Experience Match: </span>
-                      {(match.experience_match.match_score * 100).toFixed(1)}%
-                      <span className="text-sm text-gray-600 ml-2">
-                        (Role Similarity: {(match.experience_match.role_similarity * 100).toFixed(1)}%)
-                      </span>
+                      {(match.experience_match.score * 100).toFixed(1)}%
                     </div>
                   </div>
                 </div>

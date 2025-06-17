@@ -6,7 +6,7 @@ import { Link, useNavigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import { useAuthStore } from '../../store/auth';
 import api from '../../lib/api';
-import PageTransition from '../../components/common/PageTransition';
+import { PageTransition } from '../../components/common/PageTransition';
 import LoadingSpinner from '../../components/common/LoadingSpinner';
 
 const schema = yup.object({

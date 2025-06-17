@@ -1,95 +1,106 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useToast } from './useToast';
 
 interface MatchingStatus {
-  status: string;
+  status: 'idle' | 'processing' | 'completed' | 'error';
   progress: number;
-  error?: string;
+  message?: string;
 }
 
 export const useMatchingStatus = (jobId: string) => {
   const [status, setStatus] = useState<MatchingStatus>({
-    status: 'connecting',
-    progress: 0
+    status: 'idle',
+    progress: 0,
   });
-  const [ws, setWs] = useState<WebSocket | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  const [isConnected, setIsConnected] = useState(false);
+  const wsRef = useRef<WebSocket | null>(null);
+  const pingIntervalRef = useRef<number | null>(null);
   const { showToast } = useToast();
 
-  const connect = useCallback(() => {
-    const wsUrl = `${process.env.REACT_APP_WS_URL}/ws/matching/${jobId}`;
-    const socket = new WebSocket(wsUrl);
+  useEffect(() => {
+    if (!jobId) return;
 
-    socket.onopen = () => {
-      setStatus({ status: 'connected', progress: 0 });
-      // Start ping interval to keep connection alive
-      const pingInterval = setInterval(() => {
-        if (socket.readyState === WebSocket.OPEN) {
-          socket.send(JSON.stringify({ type: 'ping' }));
+    const wsUrl = `${import.meta.env.VITE_WS_URL || 'ws://localhost:8000'}/ws/matching/${jobId}`;
+    const ws = new WebSocket(wsUrl);
+    wsRef.current = ws;
+
+    ws.onopen = () => {
+      setIsConnected(true);
+      setError(null);
+      showToast('Connected to matching service', 'success');
+      
+      // Start ping interval
+      pingIntervalRef.current = setInterval(() => {
+        if (ws.readyState === WebSocket.OPEN) {
+          ws.send(JSON.stringify({ type: 'ping' }));
         }
-      }, 30000);
-
-      socket.onclose = () => {
-        clearInterval(pingInterval);
-        setStatus({ status: 'disconnected', progress: 0 });
-        // Attempt to reconnect after 5 seconds
-        setTimeout(connect, 5000);
-      };
+      }, 30000); // Ping every 30 seconds
     };
 
-    socket.onmessage = (event) => {
+    ws.onmessage = (event) => {
       try {
         const data = JSON.parse(event.data);
-        if (data.type === 'matching_status') {
-          setStatus({
-            status: data.status,
-            progress: data.progress
-          });
-        } else if (data.type === 'error') {
-          setStatus({
-            status: 'error',
-            progress: 0,
-            error: data.message
-          });
-          showToast(data.message, 'error');
+        
+        switch (data.type) {
+          case 'status_update':
+            setStatus({
+              status: data.status,
+              progress: data.progress || 0,
+              message: data.message,
+            });
+            break;
+          case 'completed':
+            setStatus({
+              status: 'completed',
+              progress: 100,
+              message: 'Matching completed successfully',
+            });
+            showToast('Matching completed!', 'success');
+            break;
+          case 'error':
+            setError(data.message || 'An error occurred during matching');
+            setStatus({
+              status: 'error',
+              progress: 0,
+              message: data.message,
+            });
+            showToast('Matching failed', 'error');
+            break;
+          case 'pong':
+            // Ping response, do nothing
+            break;
         }
-      } catch (error) {
-        console.error('Error parsing WebSocket message:', error);
+      } catch (err) {
+        console.error('Error parsing WebSocket message:', err);
       }
     };
 
-    socket.onerror = (error) => {
-      console.error('WebSocket error:', error);
-      setStatus({
-        status: 'error',
-        progress: 0,
-        error: 'Connection error'
-      });
+    ws.onerror = (event) => {
+      setError('WebSocket connection error');
+      setIsConnected(false);
       showToast('Connection error', 'error');
     };
 
-    setWs(socket);
-
-    return () => {
-      socket.close();
-      clearInterval(pingInterval);
+    ws.onclose = () => {
+      setIsConnected(false);
+      setError('Connection closed');
     };
-  }, [jobId, showToast]);
 
-  useEffect(() => {
-    const cleanup = connect();
     return () => {
-      cleanup();
-      if (ws) {
+      if (pingIntervalRef.current) {
+        clearInterval(pingIntervalRef.current);
+      }
+      if (ws.readyState === WebSocket.OPEN) {
         ws.close();
       }
     };
-  }, [connect]);
+  }, [jobId, showToast]);
 
-  return {
-    status: status.status,
-    progress: status.progress,
-    error: status.error,
-    isConnected: status.status === 'connected',
-    isError: status.status === 'error'
+  return { 
+    status: status.status, 
+    progress: status.progress, 
+    error, 
+    isConnected 
   };
 }; 

@@ -3,7 +3,7 @@ import { useQuery } from '@tanstack/react-query';
 import { motion } from 'framer-motion';
 import { DocumentTextIcon, MagnifyingGlassIcon } from '@heroicons/react/24/outline';
 import { Resume, resumes } from '../../lib/api';
-import Card, { CardHeader, CardBody } from '../common/Card';
+import { Card, CardHeader, CardBody } from '../common/Card';
 import LoadingSpinner from '../common/LoadingSpinner';
 
 interface ResumeListProps {
@@ -17,7 +17,7 @@ export default function ResumeList({ onSelectResume }: ResumeListProps) {
 
   const { data, isLoading, error } = useQuery({
     queryKey: ['resumes', { search, sortBy, skills: selectedSkills }],
-    queryFn: () => resumes.list({ search, sortBy, skills: selectedSkills }),
+    queryFn: () => resumes.list(),
   });
 
   const handleSkillToggle = (skill: string) => {
@@ -42,7 +42,7 @@ export default function ResumeList({ onSelectResume }: ResumeListProps) {
 
   // Extract unique skills from all resumes
   const allSkills = Array.from(
-    new Set(data.flatMap((resume) => resume.skills))
+    new Set(data.flatMap((resume) => resume.skills || []))
   ).sort();
 
   return (
@@ -111,10 +111,10 @@ export default function ResumeList({ onSelectResume }: ResumeListProps) {
                   <div>
                     <h3 className="text-lg font-medium text-gray-900">{resume.title}</h3>
                     <p className="text-sm text-gray-500">
-                      {resume.experience} years of experience
+                      {resume.experience || 0} years of experience
                     </p>
                     <div className="mt-2 flex flex-wrap gap-2">
-                      {resume.skills.slice(0, 5).map((skill) => (
+                      {(resume.skills || []).slice(0, 5).map((skill) => (
                         <span
                           key={skill}
                           className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-primary-100 text-primary-800"
@@ -122,9 +122,9 @@ export default function ResumeList({ onSelectResume }: ResumeListProps) {
                           {skill}
                         </span>
                       ))}
-                      {resume.skills.length > 5 && (
+                      {(resume.skills || []).length > 5 && (
                         <span className="text-xs text-gray-500">
-                          +{resume.skills.length - 5} more
+                          +{(resume.skills || []).length - 5} more
                         </span>
                       )}
                     </div>

@@ -1,6 +1,7 @@
+import React from 'react';
 import { forwardRef, HTMLAttributes, ReactNode } from 'react';
 import { motion } from 'framer-motion';
-import { cn } from '../../lib/utils';
+import { cn } from '../../utils';
 
 interface ScrollableProps extends HTMLAttributes<HTMLDivElement> {
   children: ReactNode;
@@ -59,7 +60,6 @@ export const Scrollable = forwardRef<HTMLDivElement, ScrollableProps>(
           ],
           className
         )}
-        {...props}
       >
         {snapType !== 'none' ? (
           <div className={cn('flex', direction === 'vertical' ? 'flex-col' : 'flex-row')}>

@@ -88,7 +88,7 @@ export const AnimatedChart = ({
     setActiveIndex(null);
   }, []);
 
-  const renderChart = () => {
+  const renderChart = (): React.ReactElement => {
     const commonProps = {
       data,
       margin: { top: 20, right: 30, left: 20, bottom: 20 },
@@ -197,7 +197,17 @@ export const AnimatedChart = ({
         );
 
       default:
-        return null;
+        // Return a default chart instead of null
+        return (
+          <LineChart {...commonProps}>
+            <CartesianGrid strokeDasharray="3 3" stroke="currentColor" className="opacity-20" />
+            <XAxis dataKey="name" stroke="currentColor" className="text-sm" />
+            <YAxis stroke="currentColor" className="text-sm" />
+            <Tooltip content={<CustomTooltip />} />
+            <Legend />
+            <Line type="monotone" dataKey="value" stroke={colors[0]} strokeWidth={2} />
+          </LineChart>
+        );
     }
   };
 

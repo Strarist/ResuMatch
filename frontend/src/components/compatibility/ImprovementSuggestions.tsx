@@ -1,5 +1,5 @@
 import { motion } from 'framer-motion';
-import { MatchCategory } from '../../../backend/app/schemas/compatibility';
+import { MatchCategory } from '../../types/compatibility';
 
 interface ImprovementSuggestionsProps {
   suggestions: string[];

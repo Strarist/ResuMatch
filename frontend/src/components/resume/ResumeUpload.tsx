@@ -124,10 +124,9 @@ export const ResumeUpload = ({ onUploadComplete }: ResumeUploadProps) => {
           >
             <div className="flex justify-between items-center mb-2">
               <span className="text-sm font-medium">
-                {status === 'parsing' && 'Parsing resume...'}
-                {status === 'extracting_skills' && 'Extracting skills...'}
-                {status === 'analyzing' && 'Analyzing content...'}
+                {status === 'processing' && 'Analyzing resume...'}
                 {status === 'completed' && 'Analysis complete!'}
+                {status === 'error' && 'Analysis failed'}
               </span>
               <span className="text-sm text-gray-500">{Math.round(progress)}%</span>
             </div>

@@ -8,7 +8,7 @@ import {
   CurrencyDollarIcon,
 } from '@heroicons/react/24/outline';
 import { Job, jobs } from '../../lib/api';
-import Card, { CardHeader, CardBody } from '../common/Card';
+import { Card, CardHeader, CardBody } from '../common/Card';
 import LoadingSpinner from '../common/LoadingSpinner';
 
 interface JobListProps {
@@ -26,14 +26,7 @@ export default function JobList({ onSelectJob }: JobListProps) {
 
   const { data, isLoading, error } = useQuery({
     queryKey: ['jobs', { search, sortBy, type: selectedType, location: selectedLocation, skills: selectedSkills }],
-    queryFn: () =>
-      jobs.list({
-        search,
-        sortBy,
-        type: selectedType || undefined,
-        location: selectedLocation || undefined,
-        skills: selectedSkills,
-      }),
+    queryFn: () => jobs.list(),
   });
 
   const handleSkillToggle = (skill: string) => {
@@ -179,10 +172,12 @@ export default function JobList({ onSelectJob }: JobListProps) {
                         <MapPinIcon className="h-4 w-4 mr-1" />
                         {job.location}
                       </div>
-                      <div className="flex items-center">
-                        <BriefcaseIcon className="h-4 w-4 mr-1" />
-                        {job.type}
-                      </div>
+                      {job.type && (
+                        <div className="flex items-center">
+                          <BriefcaseIcon className="h-4 w-4 mr-1" />
+                          {job.type}
+                        </div>
+                      )}
                       {job.salary && (
                         <div className="flex items-center">
                           <CurrencyDollarIcon className="h-4 w-4 mr-1" />

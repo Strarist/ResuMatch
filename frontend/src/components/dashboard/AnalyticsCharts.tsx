@@ -15,7 +15,7 @@ import {
 } from 'recharts';
 import { motion } from 'framer-motion';
 import { dashboard } from '../../lib/api';
-import Card, { CardHeader, CardBody } from '../common/Card';
+import { Card, CardHeader, CardBody } from '../common/Card';
 import LoadingSpinner from '../common/LoadingSpinner';
 
 const COLORS = ['#0088FE', '#00C49F', '#FFBB28', '#FF8042', '#8884D8'];
@@ -44,7 +44,7 @@ const itemVariants = {
 export default function AnalyticsCharts() {
   const { data, isLoading, error } = useQuery({
     queryKey: ['dashboard-analytics'],
-    queryFn: dashboard.getMatchAnalytics,
+    queryFn: dashboard.getAnalytics,
   });
 
   if (isLoading) {
@@ -140,7 +140,7 @@ export default function AnalyticsCharts() {
                     outerRadius={80}
                     label
                   >
-                    {data.matchDistribution.map((entry, index) => (
+                    {data.matchDistribution.map((entry: any, index: number) => (
                       <Cell
                         key={`cell-${index}`}
                         fill={COLORS[index % COLORS.length]}

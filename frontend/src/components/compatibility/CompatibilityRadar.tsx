@@ -8,7 +8,9 @@ import {
   ResponsiveContainer
 } from 'recharts';
 import { motion, AnimatePresence } from 'framer-motion';
-import { CompatibilityReport } from '../../../backend/app/schemas/compatibility';
+import { CompatibilityReport } from '../../types/compatibility';
+import React from 'react';
+import { cn } from '../../utils';
 
 interface CompatibilityRadarProps {
   report: CompatibilityReport;
@@ -19,6 +21,19 @@ interface Dimension {
   value: number;
   description: string;
   icon: string;
+}
+
+interface RadarChartProps {
+  data: {
+    label: string;
+    value: number;
+    maxValue?: number;
+  }[];
+  size?: number;
+  className?: string;
+  color?: string;
+  showLabels?: boolean;
+  showValues?: boolean;
 }
 
 export const CompatibilityRadar = ({ report }: CompatibilityRadarProps) => {
@@ -178,6 +193,155 @@ export const CompatibilityRadar = ({ report }: CompatibilityRadarProps) => {
           </motion.div>
         )}
       </AnimatePresence>
+    </div>
+  );
+};
+
+export const CustomRadarChart: React.FC<RadarChartProps> = ({
+  data,
+  size = 300,
+  className = '',
+  color = '#3b82f6',
+  showLabels = true,
+  showValues = true,
+}) => {
+  const centerX = size / 2;
+  const centerY = size / 2;
+  const radius = Math.min(centerX, centerY) - 40;
+
+  const generatePolygonPoints = (values: number[]) => {
+    const points = values.map((value, index) => {
+      const angle = (index * 2 * Math.PI) / values.length - Math.PI / 2;
+      const r = (value / 100) * radius;
+      const x = centerX + r * Math.cos(angle);
+      const y = centerY + r * Math.sin(angle);
+      return `${x},${y}`;
+    });
+    return points.join(' ');
+  };
+
+  const generateGridPoints = (levels: number) => {
+    const gridPoints = [];
+    for (let i = 1; i <= levels; i++) {
+      const values = data.map(() => (i / levels) * 100);
+      gridPoints.push(generatePolygonPoints(values));
+    }
+    return gridPoints;
+  };
+
+  const values = data.map(d => d.value);
+  const gridPoints = generateGridPoints(5);
+
+  return (
+    <div className={cn('relative', className)}>
+      <svg width={size} height={size} className="mx-auto">
+        {/* Grid circles */}
+        {gridPoints.map((points, index) => (
+          <polygon
+            key={index}
+            points={points}
+            fill="none"
+            stroke="#e5e7eb"
+            strokeWidth="1"
+            className="dark:stroke-gray-600"
+          />
+        ))}
+
+        {/* Axis lines */}
+        {data.map((_, index) => {
+          const angle = (index * 2 * Math.PI) / data.length - Math.PI / 2;
+          const x = centerX + radius * Math.cos(angle);
+          const y = centerY + radius * Math.sin(angle);
+          return (
+            <line
+              key={index}
+              x1={centerX}
+              y1={centerY}
+              x2={x}
+              y2={y}
+              stroke="#e5e7eb"
+              strokeWidth="1"
+              className="dark:stroke-gray-600"
+            />
+          );
+        })}
+
+        {/* Data polygon */}
+        <motion.polygon
+          points={generatePolygonPoints(values)}
+          fill={color}
+          fillOpacity="0.2"
+          stroke={color}
+          strokeWidth="2"
+          initial={{ pathLength: 0 }}
+          animate={{ pathLength: 1 }}
+          transition={{ duration: 1, ease: "easeInOut" }}
+        />
+
+        {/* Data points */}
+        {values.map((value, index) => {
+          const angle = (index * 2 * Math.PI) / values.length - Math.PI / 2;
+          const r = (value / 100) * radius;
+          const x = centerX + r * Math.cos(angle);
+          const y = centerY + r * Math.sin(angle);
+          return (
+            <motion.circle
+              key={index}
+              cx={x}
+              cy={y}
+              r="4"
+              fill={color}
+              initial={{ scale: 0 }}
+              animate={{ scale: 1 }}
+              transition={{ delay: index * 0.1, duration: 0.3 }}
+            />
+          );
+        })}
+
+        {/* Labels */}
+        {showLabels && data.map((item, index) => {
+          const angle = (index * 2 * Math.PI) / data.length - Math.PI / 2;
+          const x = centerX + (radius + 20) * Math.cos(angle);
+          const y = centerY + (radius + 20) * Math.sin(angle);
+          const textAnchor = Math.abs(Math.cos(angle)) < 0.1 ? 'middle' : 
+                           Math.cos(angle) > 0 ? 'start' : 'end';
+          const dominantBaseline = Math.abs(Math.sin(angle)) < 0.1 ? 'middle' : 
+                                 Math.sin(angle) > 0 ? 'hanging' : 'auto';
+          
+          return (
+            <text
+              key={index}
+              x={x}
+              y={y}
+              textAnchor={textAnchor}
+              dominantBaseline={dominantBaseline}
+              className="text-xs font-medium fill-gray-700 dark:fill-gray-300"
+            >
+              {item.label}
+            </text>
+          );
+        })}
+
+        {/* Values */}
+        {showValues && values.map((value, index) => {
+          const angle = (index * 2 * Math.PI) / values.length - Math.PI / 2;
+          const r = (value / 100) * radius;
+          const x = centerX + r * Math.cos(angle);
+          const y = centerY + r * Math.sin(angle);
+          
+          return (
+            <text
+              key={index}
+              x={x}
+              y={y - 8}
+              textAnchor="middle"
+              className="text-xs font-bold fill-gray-900 dark:fill-white"
+            >
+              {Math.round(value)}%
+            </text>
+          );
+        })}
+      </svg>
     </div>
   );
 }; 
