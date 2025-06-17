@@ -24,13 +24,13 @@ REQUEST_LATENCY = Histogram(
 WS_CONNECTIONS = Gauge(
     'resumatch_websocket_connections',
     'Number of active WebSocket connections',
-    ['type']  # analysis or matches
+    ['type']
 )
 
 WS_MESSAGES = Counter(
     'resumatch_websocket_messages_total',
     'Total number of WebSocket messages',
-    ['type', 'direction']  # type: analysis/matches, direction: sent/received
+    ['type', 'direction']
 )
 
 WS_CONNECTION_DURATION = Histogram(
@@ -44,7 +44,7 @@ WS_CONNECTION_DURATION = Histogram(
 BACKGROUND_TASKS = Counter(
     'resumatch_background_tasks_total',
     'Total number of background tasks',
-    ['type', 'status']  # type: analysis/matching, status: started/completed/failed
+    ['type', 'status']
 )
 
 TASK_DURATION = Histogram(
@@ -58,7 +58,7 @@ TASK_DURATION = Histogram(
 CACHE_OPERATIONS = Counter(
     'resumatch_cache_operations_total',
     'Total number of cache operations',
-    ['operation', 'status']  # operation: get/set/delete, status: hit/miss/error
+    ['operation', 'status']
 )
 
 CACHE_SIZE = Gauge(
@@ -70,7 +70,7 @@ CACHE_SIZE = Gauge(
 DB_OPERATIONS = Counter(
     'resumatch_db_operations_total',
     'Total number of database operations',
-    ['operation', 'table', 'status']  # operation: select/insert/update/delete
+    ['operation', 'table', 'status']
 )
 
 DB_CONNECTIONS = Gauge(
@@ -82,27 +82,27 @@ DB_CONNECTIONS = Gauge(
 SYSTEM_MEMORY = Gauge(
     'resumatch_system_memory_bytes',
     'System memory usage in bytes',
-    ['type']  # type: used/available/total
+    ['type']
 )
 
 SYSTEM_CPU = Gauge(
     'resumatch_system_cpu_percent',
     'System CPU usage percentage',
-    ['type']  # type: user/system/idle
+    ['type']
 )
 
 # Custom metrics for business logic
 MATCH_SCORES = Histogram(
     'resumatch_match_scores',
     'Distribution of match scores',
-    ['type'],  # type: resume-job/job-resume
+    ['type'],
     buckets=(0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9, 1.0)
 )
 
 ANALYSIS_DURATION = Histogram(
     'resumatch_analysis_duration_seconds',
     'Duration of resume/job analysis in seconds',
-    ['type'],  # type: resume/job
+    ['type'],
     buckets=(1, 5, 15, 30, 60, 120, 300, 600)
 )
 
@@ -168,27 +168,20 @@ async def metrics_endpoint():
         media_type="text/plain"
     )
 
-# System metrics collection
 def update_system_metrics():
     """Update system metrics (memory, CPU)"""
-    # Memory metrics
     memory = psutil.virtual_memory()
     SYSTEM_MEMORY.labels(type='used').set(memory.used)
     SYSTEM_MEMORY.labels(type='available').set(memory.available)
     SYSTEM_MEMORY.labels(type='total').set(memory.total)
     
-    # CPU metrics
     cpu_times = psutil.cpu_times_percent(interval=None, percpu=True)
     SYSTEM_CPU.labels(type='user').set(sum(p.user for p in cpu_times))
     SYSTEM_CPU.labels(type='system').set(sum(p.system for p in cpu_times))
     SYSTEM_CPU.labels(type='idle').set(sum(p.idle for p in cpu_times))
 
-# Database metrics collection
 def update_db_metrics(db):
     """Update database metrics"""
-    # Get connection pool stats
     pool = db.get_bind().pool
     DB_CONNECTIONS.set(pool.size())
-    
-    # Track active connections
     DB_CONNECTIONS.set(pool.checkedin() + pool.checkedout()) 
