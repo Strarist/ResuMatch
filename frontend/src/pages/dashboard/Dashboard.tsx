@@ -1,4 +1,3 @@
-import { useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { motion } from 'framer-motion';
 import {
@@ -13,7 +12,7 @@ import LoadingSpinner from '../../components/common/LoadingSpinner';
 import AnalyticsCharts from '../../components/dashboard/AnalyticsCharts';
 import ResumeList from '../../components/dashboard/ResumeList';
 import JobList from '../../components/dashboard/JobList';
-import { dashboard, Resume, Job } from '../../lib/api';
+import { dashboard } from '../../lib/api';
 
 const containerVariants = {
   hidden: { opacity: 0 },

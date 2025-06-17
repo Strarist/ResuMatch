@@ -25,7 +25,7 @@ export const ResumeMatchResults = () => {
         const data = await response.json();
         setMatches(data.matches);
         showToast('Match results updated', 'success');
-      } catch (error) {
+      } catch {
         showToast('Error fetching match results', 'error');
       } finally {
         setIsLoading(false);
