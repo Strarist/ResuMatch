@@ -37,8 +37,9 @@ export default function Login() {
       
       setAuth(user, token);
       navigate('/');
-    } catch (err: any) {
-      setError(err.response?.data?.detail || 'An error occurred during login');
+    } catch (err: unknown) {
+      const error = err as { response?: { data?: { detail?: string } } };
+      setError(error.response?.data?.detail || 'An error occurred during login');
     } finally {
       setIsLoading(false);
     }

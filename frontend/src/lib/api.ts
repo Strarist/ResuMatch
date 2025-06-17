@@ -83,7 +83,7 @@ export interface DashboardData {
   total_jobs: number;
   recent_matches: number;
   average_score: number;
-  recent_activity: any[];
+  recent_activity: unknown[];
 }
 
 // API functions

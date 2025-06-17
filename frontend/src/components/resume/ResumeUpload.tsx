@@ -1,6 +1,6 @@
 import { useState, useCallback } from 'react';
 import { useDropzone } from 'react-dropzone';
-import { motion, AnimatePresence } from 'framer-motion';
+import { motion } from 'framer-motion';
 import { GlassCard, LoadingBlur } from '../common';
 import { useToast } from '../../hooks/useToast';
 import { useResumeAnalysis } from '../../hooks/useResumeAnalysis';
@@ -49,7 +49,7 @@ export const ResumeUpload = ({ onUploadComplete }: ResumeUploadProps) => {
       const data = await response.json();
       showToast('Resume uploaded successfully', 'success');
       onUploadComplete?.(data.id);
-    } catch (error) {
+    } catch {
       showToast('Error uploading resume', 'error');
     } finally {
       setIsUploading(false);

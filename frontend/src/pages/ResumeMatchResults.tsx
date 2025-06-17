@@ -10,7 +10,7 @@ export const ResumeMatchResults = () => {
   const [matches, setMatches] = useState<MatchResult[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const { showToast } = useToast();
-  const { status, progress, error, isConnected } = useMatchingStatus(jobId!);
+  const { status, progress, isConnected } = useMatchingStatus(jobId!);
 
   useEffect(() => {
     const fetchMatches = async () => {
@@ -55,12 +55,6 @@ export const ResumeMatchResults = () => {
           </span>
         </div>
       </div>
-      
-      {error && (
-        <div className="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded">
-          {error}
-        </div>
-      )}
       
       {status === 'processing' && (
         <div className="bg-blue-100 border border-blue-400 text-blue-700 px-4 py-3 rounded">

@@ -37,9 +37,6 @@ const itemVariants = {
 };
 
 export default function Dashboard() {
-  const [selectedResume, setSelectedResume] = useState<Resume | null>(null);
-  const [selectedJob, setSelectedJob] = useState<Job | null>(null);
-
   const { data: stats, isLoading: isLoadingStats } = useQuery({
     queryKey: ['dashboard-stats'],
     queryFn: dashboard.getStats,
@@ -165,8 +162,8 @@ export default function Dashboard() {
 
         {/* Resume and Job Lists */}
         <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
-          <ResumeList onSelectResume={setSelectedResume} />
-          <JobList onSelectJob={setSelectedJob} />
+          <ResumeList />
+          <JobList />
         </div>
 
         {/* Recent Activity */}
@@ -179,7 +176,7 @@ export default function Dashboard() {
               <CardBody>
                 <div className="flow-root">
                   <ul className="-mb-8">
-                    {recentActivity.map((activity: any, activityIdx: number) => (
+                    {recentActivity.map((activity: { id: string; status: string; type: string; title: string; description: string; date: string }, activityIdx: number) => (
                       <li key={activity.id}>
                         <div className="relative pb-8">
                           {activityIdx !== recentActivity.length - 1 ? (

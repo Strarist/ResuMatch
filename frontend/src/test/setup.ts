@@ -2,7 +2,7 @@
 
 // Mock IntersectionObserver
 if (typeof global !== 'undefined') {
-  (global as any).IntersectionObserver = class IntersectionObserver {
+  (global as unknown as { IntersectionObserver: typeof IntersectionObserver }).IntersectionObserver = class IntersectionObserver {
     constructor() {}
     observe() {}
     unobserve() {}
@@ -12,7 +12,7 @@ if (typeof global !== 'undefined') {
 
 // Mock ResizeObserver
 if (typeof global !== 'undefined') {
-  (global as any).ResizeObserver = class ResizeObserver {
+  (global as unknown as { ResizeObserver: typeof ResizeObserver }).ResizeObserver = class ResizeObserver {
     constructor() {}
     observe() {}
     unobserve() {}
