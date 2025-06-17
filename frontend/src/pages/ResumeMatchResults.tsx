@@ -33,7 +33,7 @@ export const ResumeMatchResults = () => {
     };
 
     fetchMatches();
-  }, [jobId, isConnected]);
+  }, [jobId, isConnected, showToast]);
 
   const chartData = matches.map(match => ({
     name: `Resume ${match.resume_id.slice(0, 8)}`,

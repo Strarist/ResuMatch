@@ -13,13 +13,13 @@ import {
   AreaChart,
   Area,
 } from 'recharts';
-import { motion, AnimatePresence } from 'framer-motion';
+import { motion } from 'framer-motion';
 import { cn } from '../../lib/utils';
 
 interface ChartData {
   name: string;
   value: number;
-  [key: string]: any;
+  [key: string]: number | string;
 }
 
 interface AnimatedChartProps {
@@ -37,7 +37,7 @@ interface AnimatedChartProps {
   animationDuration?: number;
 }
 
-const CustomTooltip = ({ active, payload, label }: any) => {
+const CustomTooltip = ({ active, payload, label }: { active?: boolean; payload?: any[]; label?: string }) => {
   if (active && payload && payload.length) {
     return (
       <motion.div
@@ -47,7 +47,7 @@ const CustomTooltip = ({ active, payload, label }: any) => {
         className="rounded-lg bg-white/90 dark:bg-gray-800/90 p-3 shadow-lg backdrop-blur-sm border border-gray-200 dark:border-gray-700"
       >
         <p className="text-sm font-medium text-gray-900 dark:text-white">{label}</p>
-        {payload.map((entry: any, index: number) => (
+        {payload.map((entry, index) => (
           <p
             key={index}
             className="text-sm"
@@ -76,16 +76,12 @@ export const AnimatedChart = ({
   stacked = false,
   animationDuration = 1500,
 }: AnimatedChartProps) => {
-  const [activeIndex, setActiveIndex] = useState<number | null>(null);
-
-  const handleMouseMove = useCallback((e: any) => {
-    if (e && e.activeTooltipIndex !== undefined) {
-      setActiveIndex(e.activeTooltipIndex);
-    }
+  const handleMouseMove = useCallback((e: unknown) => {
+    // No-op or add logic if needed
   }, []);
 
   const handleMouseLeave = useCallback(() => {
-    setActiveIndex(null);
+    // No-op or add logic if needed
   }, []);
 
   const renderChart = (): React.ReactElement => {

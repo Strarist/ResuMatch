@@ -21,7 +21,6 @@ export const Scrollable = forwardRef<HTMLDivElement, ScrollableProps>(
       snapAlign = 'start',
       hideScrollbar = false,
       className,
-      ...props
     },
     ref
   ) => {
