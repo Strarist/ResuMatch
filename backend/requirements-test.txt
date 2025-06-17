@@ -15,7 +15,6 @@ mypy==1.13.0
 black==24.10.0
 isort==5.13.2
 bandit==1.7.8
-safety==2.3.5
 pre-commit==4.1.0
 pylint==3.0.2
 
