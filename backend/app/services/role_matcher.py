@@ -1,3 +1,4 @@
+import asyncio
 from typing import List, Dict, Optional, Tuple
 import numpy as np
 from sentence_transformers import SentenceTransformer

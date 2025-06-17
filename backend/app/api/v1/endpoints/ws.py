@@ -143,7 +143,7 @@ async def broadcast_analysis_update(
     )
     
     # Send update to connected clients
-    await manager.broadcast_to_user(current_user.id, update_data)
+    await manager.broadcast_to_user(user_id, update_data)
 
 # Helper function to get analysis type and related object
 async def get_analysis_info(db: Session, analysis_id: str) -> tuple[str, Any]:
@@ -255,4 +255,4 @@ async def broadcast_match_update(
     )
     
     # Send update to connected clients
-    await manager.send_analysis_update(user_id, f"matches_{analysis_id}", update_data) 
+    await manager.broadcast_to_user(user_id, update_data) 

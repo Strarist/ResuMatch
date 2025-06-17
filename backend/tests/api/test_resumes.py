@@ -1,6 +1,7 @@
 import pytest
 from fastapi.testclient import TestClient
 from app.schemas.common import ErrorCodes
+from app.core.config import settings
 from app.tests.conftest import assert_success_response, assert_error_response, assert_paginated_response
 
 def test_create_resume_success(authorized_client: TestClient):

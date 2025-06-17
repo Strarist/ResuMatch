@@ -14,7 +14,7 @@ from typing import Dict, Any
 from app.api.v1.api import api_router
 from app.core.config import settings
 from app.core.middleware import RateLimitMiddleware, RequestLoggingMiddleware
-from app.core.metrics import metrics_endpoint, metrics_middleware, update_system_metrics
+from app.core.metrics import metrics_endpoint, metrics_middleware, update_system_metrics, update_db_metrics
 from app.core.websocket import manager as ws_manager
 from app.core.logging import setup_logging, log_api_request, log_api_error
 from app.db.session import SessionLocal

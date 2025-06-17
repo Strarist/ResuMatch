@@ -1,4 +1,4 @@
-from pydantic import BaseModel, constr, conint
+from pydantic import BaseModel, Field, conint
 from typing import List, Optional, Dict
 from datetime import datetime
 
@@ -10,12 +10,12 @@ class SalaryRange(BaseModel):
 
 
 class JobBase(BaseModel):
-    title: constr(min_length=1, max_length=200)
-    company: constr(min_length=1, max_length=200)
-    description: constr(min_length=1)
+    title: str = Field(..., min_length=1, max_length=200)
+    company: str = Field(..., min_length=1, max_length=200)
+    description: str = Field(..., min_length=1)
     requirements: List[str]
-    location: constr(min_length=1, max_length=100)
-    type: constr(pattern="^(full-time|part-time|contract|remote)$")
+    location: str = Field(..., min_length=1, max_length=100)
+    type: str = Field(..., pattern="^(full-time|part-time|contract|remote)$")
     salary: Optional[SalaryRange] = None
 
 
@@ -24,12 +24,12 @@ class JobCreate(JobBase):
 
 
 class JobUpdate(BaseModel):
-    title: Optional[constr(min_length=1, max_length=200)] = None
-    company: Optional[constr(min_length=1, max_length=200)] = None
-    description: Optional[constr(min_length=1)] = None
+    title: Optional[str] = Field(None, min_length=1, max_length=200)
+    company: Optional[str] = Field(None, min_length=1, max_length=200)
+    description: Optional[str] = Field(None, min_length=1)
     requirements: Optional[List[str]] = None
-    location: Optional[constr(min_length=1, max_length=100)] = None
-    type: Optional[constr(pattern="^(full-time|part-time|contract|remote)$")] = None
+    location: Optional[str] = Field(None, min_length=1, max_length=100)
+    type: Optional[str] = Field(None, pattern="^(full-time|part-time|contract|remote)$")
     salary: Optional[SalaryRange] = None
 
 

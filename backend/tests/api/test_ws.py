@@ -4,6 +4,7 @@ import asyncio
 from fastapi.testclient import TestClient
 from fastapi.websockets import WebSocketDisconnect
 from app.schemas.common import ErrorCodes
+from app.core.config import settings
 from app.tests.conftest import assert_success_response
 from typing import AsyncGenerator, Dict, Any
 import websockets

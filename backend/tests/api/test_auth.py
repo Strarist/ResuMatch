@@ -1,6 +1,7 @@
 import pytest
 from fastapi.testclient import TestClient
 from app.schemas.common import ErrorCodes
+from app.core.config import settings
 
 def test_login_success(client: TestClient, test_user: dict):
     """Test successful login"""
