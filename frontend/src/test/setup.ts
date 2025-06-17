@@ -1,5 +1,7 @@
 /// <reference types="vitest/globals" />
 
+import '@testing-library/jest-dom';
+
 // Mock IntersectionObserver
 if (typeof global !== 'undefined') {
   (global as unknown as { IntersectionObserver: typeof IntersectionObserver }).IntersectionObserver = class IntersectionObserver {
