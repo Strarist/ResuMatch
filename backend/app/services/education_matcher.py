@@ -5,6 +5,9 @@ from enum import Enum
 import re
 from app.core.cache import Cache
 from app.core.config import settings
+import logging
+
+logger = logging.getLogger(__name__)
 
 class DegreeLevel(Enum):
     PHD = "phd"
@@ -26,7 +29,12 @@ class Education:
 
 class EducationMatcher:
     def __init__(self) -> None:
-        self.nlp = spacy.load("en_core_web_lg")
+        try:
+            self.nlp = spacy.load("en_core_web_sm")
+        except Exception as e:
+            logger.error(f"Error loading spaCy model: {e}")
+            # Use a dummy NLP object for testing/offline mode
+            self.nlp = None
         self.cache = Cache(str(settings.REDIS_URL))
         
         # Degree level mappings

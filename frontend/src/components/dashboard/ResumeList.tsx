@@ -15,7 +15,7 @@ export default function ResumeList({ onSelectResume }: ResumeListProps) {
   const [sortBy, setSortBy] = useState<string>('updatedAt');
   const [selectedSkills, setSelectedSkills] = useState<string[]>([]);
 
-  const { data, isLoading, error } = useQuery({
+  const { data, isLoading, error } = useQuery<{ items: Resume[]; total: number }>({
     queryKey: ['resumes', { search, sortBy, skills: selectedSkills }],
     queryFn: () => resumes.list(),
   });
@@ -40,9 +40,12 @@ export default function ResumeList({ onSelectResume }: ResumeListProps) {
     );
   }
 
+  // Ensure data is an array
+  const resumeData = Array.isArray(data?.items) ? data.items : [];
+
   // Extract unique skills from all resumes
   const allSkills = Array.from(
-    new Set(data.flatMap((resume) => resume.skills || []))
+    new Set(resumeData.flatMap((resume) => resume.skills || []))
   ).sort();
 
   return (
@@ -67,7 +70,7 @@ export default function ResumeList({ onSelectResume }: ResumeListProps) {
               className="border border-gray-300 rounded-lg px-4 py-2 focus:ring-2 focus:ring-primary-500 focus:border-primary-500"
             >
               <option value="updatedAt">Recently Updated</option>
-              <option value="createdAt">Recently Added</option>
+              <option value="upload_date">Recently Added</option>
               <option value="matchScore">Match Score</option>
             </select>
           </div>
@@ -78,7 +81,7 @@ export default function ResumeList({ onSelectResume }: ResumeListProps) {
         <div className="mb-6">
           <h3 className="text-sm font-medium text-gray-700 mb-2">Filter by Skills</h3>
           <div className="flex flex-wrap gap-2">
-            {allSkills.map((skill) => (
+            {allSkills.map((skill: string) => (
               <button
                 key={skill}
                 onClick={() => handleSkillToggle(skill)}
@@ -96,7 +99,7 @@ export default function ResumeList({ onSelectResume }: ResumeListProps) {
 
         {/* Resume List */}
         <div className="space-y-4">
-          {data.map((resume) => (
+          {resumeData.map((resume) => (
             <motion.div
               key={resume.id}
               initial={{ opacity: 0, y: 20 }}
@@ -110,11 +113,11 @@ export default function ResumeList({ onSelectResume }: ResumeListProps) {
                   <DocumentTextIcon className="h-6 w-6 text-primary-600 mt-1" />
                   <div>
                     <h3 className="text-lg font-medium text-gray-900">{resume.title}</h3>
-                    <p className="text-sm text-gray-500">
-                      {resume.experience || 0} years of experience
-                    </p>
+                    <div className="text-sm text-gray-600 dark:text-gray-400">
+                      {resume.skills?.length || 0} skills • {typeof resume.experience === 'object' ? Object.keys(resume.experience).length : 0} years of experience
+                    </div>
                     <div className="mt-2 flex flex-wrap gap-2">
-                      {(resume.skills || []).slice(0, 5).map((skill) => (
+                      {(resume.skills || []).slice(0, 5).map((skill: string) => (
                         <span
                           key={skill}
                           className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-primary-100 text-primary-800"
@@ -131,21 +134,21 @@ export default function ResumeList({ onSelectResume }: ResumeListProps) {
                   </div>
                 </div>
                 {resume.matchScore && (
-                  <div className="flex flex-col items-end">
-                    <span className="text-sm font-medium text-gray-900">
-                      Match Score
-                    </span>
-                    <span
-                      className={`text-lg font-semibold ${
-                        resume.matchScore >= 80
-                          ? 'text-green-600'
-                          : resume.matchScore >= 60
-                          ? 'text-yellow-600'
-                          : 'text-red-600'
-                      }`}
-                    >
-                      {resume.matchScore}%
-                    </span>
+                  <div className="flex items-center space-x-2">
+                    <div className="flex items-center">
+                      <div
+                        className={`w-2 h-2 rounded-full mr-2 ${
+                          resume.matchScore >= 80
+                            ? 'bg-green-500'
+                            : resume.matchScore >= 60
+                            ? 'bg-yellow-500'
+                            : 'bg-red-500'
+                        }`}
+                      />
+                      <span className="text-sm font-medium text-gray-700 dark:text-gray-300">
+                        {resume.matchScore}%
+                      </span>
+                    </div>
                   </div>
                 )}
               </div>

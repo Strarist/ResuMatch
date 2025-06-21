@@ -21,6 +21,7 @@ from app.services.resume import ResumeService
 from app.schemas.resume import ResumeCreate
 from app.schemas.job import JobCreate
 from uuid import uuid4
+from unittest.mock import Mock
 
 
 # Service fixtures with mocks
@@ -294,7 +295,9 @@ async def test_resume_matching():
         type="full-time"
     )
 
-    service = ResumeService()
+    # Create a mock database session
+    mock_db = Mock()
+    service = ResumeService(mock_db)
 
     match_result = await service.match_resume(
         resume_id=uuid4(),

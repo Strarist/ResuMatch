@@ -8,7 +8,7 @@ from datetime import datetime
 from uuid import UUID
 
 from app.api.deps import get_current_user_ws
-from app.db.base import get_db
+from app.db.session import get_db
 from app.models.user import User
 from app.models.resume import Resume
 from app.models.job import Job

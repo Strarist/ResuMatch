@@ -8,9 +8,11 @@ from uuid import UUID
 import tempfile
 import os
 from pathlib import Path
+import json
+from fastapi.responses import JSONResponse
 
 from app.api.deps import get_current_active_user
-from app.db.base import get_db
+from app.db.session import get_db
 from app.models.user import User
 from app.models.resume import Resume
 from app.schemas.resume import (
@@ -24,8 +26,7 @@ from app.schemas.resume import (
 from app.services.resume import analyze_resume, extract_skills
 from app.services.resume_parser import ResumeParser
 from app.services.resume_matcher import ResumeMatcher
-from app.crud import resume as resume_crud
-from app.core.websocket import broadcast_analysis_update
+from app.core.websocket import broadcast_analysis_update, ConnectionManager
 from app.core.config import settings
 
 router = APIRouter()
@@ -36,8 +37,10 @@ matcher = ResumeMatcher()
 ALLOWED_EXTENSIONS = {'.pdf', '.docx', '.doc'}
 MAX_FILE_SIZE = 5 * 1024 * 1024  # 5MB
 
+logging.warning('resumes.py imported and endpoints registering...')
 
-@router.get("/", response_model=ResumeListSchema)
+
+@router.get("/")
 def list_resumes(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_active_user),
@@ -55,9 +58,6 @@ def list_resumes(
     if search:
         query = query.filter(Resume.title.ilike(f"%{search}%"))
 
-    if skills:
-        query = query.filter(Resume.skills.overlap(skills))
-
     if sort_by == "updatedAt":
         query = query.order_by(desc(Resume.updated_at))
     elif sort_by == "createdAt":
@@ -66,9 +66,49 @@ def list_resumes(
         query = query.order_by(desc(Resume.match_score))
 
     total = query.count()
-    items = query.offset(skip).limit(limit).all()
+    db_items = query.offset(skip).limit(limit).all()
 
-    return {"items": items, "total": total}
+    # Manually build the list of resume dictionaries for the response
+    response_items = []
+    for r in db_items:
+        # Safely convert skills from string to list
+        skills_list = []
+        if isinstance(r.skills, str):
+            skills_list = [s.strip() for s in r.skills.split(',') if s.strip()]
+        
+        # Safely convert education from string to list
+        education_list = []
+        if isinstance(r.education, str):
+            education_list = [e.strip() for e in r.education.split(',') if e.strip()]
+
+        # Safely convert experience to a dictionary
+        experience_dict = {}
+        if isinstance(r.experience, dict):
+            experience_dict = r.experience
+        elif isinstance(r.experience, str):
+            try:
+                parsed_exp = json.loads(r.experience)
+                if isinstance(parsed_exp, dict):
+                    experience_dict = parsed_exp
+            except (json.JSONDecodeError, TypeError):
+                pass  # Keep as empty dict if parsing fails
+
+        response_items.append({
+            "id": str(r.id),
+            "user_id": r.user_id,
+            "title": r.title,
+            "content": r.content,
+            "skills": skills_list,
+            "experience": experience_dict,
+            "education": education_list,
+            "file_path": r.file_path,
+            "match_score": r.match_score,
+            "created_at": r.created_at.isoformat() if r.created_at else None,
+            "updated_at": r.updated_at.isoformat() if r.updated_at else None,
+        })
+    
+    # Return a direct JSONResponse, bypassing the response_model
+    return JSONResponse(content={"items": response_items, "total": total})
 
 
 @router.post("/", response_model=ResumeSchema)
@@ -237,37 +277,110 @@ async def process_resume(
             pass
 
 
+def process_resume_sync(
+    file_path: str,
+    user_id: int,
+    resume_id: int,
+    db: Session
+) -> None:
+    """Process uploaded resume in background."""
+    try:
+        # Parse resume
+        parsed_data = parser.parse_resume(file_path)
+        
+        # Extract skills and experience
+        skills = parsed_data.get('skills', [])
+        experience = parsed_data.get('experience', [])
+        education = parsed_data.get('education', [])
+        content = parsed_data.get('summary', '')
+        
+        # Update resume record
+        resume = db.query(Resume).filter(Resume.id == resume_id).first()
+        if resume:
+            resume.content = content
+            resume.skills = ", ".join(skills) if skills else ""
+            resume.experience = experience
+            resume.education = ", ".join(education) if education else ""
+            db.add(resume)
+            db.commit()
+            db.refresh(resume)
+            
+            logger.info(f"Resume {resume_id} processed successfully")
+        
+    except Exception as e:
+        logger.error(f"Error processing resume {resume_id}: {str(e)}")
+        # Update resume with error status
+        try:
+            resume = db.query(Resume).filter(Resume.id == resume_id).first()
+            if resume:
+                resume.content = f"Error processing: {str(e)}"
+                db.add(resume)
+                db.commit()
+        except:
+            pass
+    finally:
+        # Cleanup temporary file
+        try:
+            os.remove(file_path)
+        except:
+            pass
+
+
 @router.post("/upload", response_model=ResumeResponse)
-async def upload_resume(
+def upload_resume(
     background_tasks: BackgroundTasks,
     file: UploadFile = File(...),
-    current_user: User = Depends(get_current_active_user)
+    current_user: User = Depends(get_current_active_user),
+    db: Session = Depends(get_db)
 ) -> ResumeResponse:
     """Upload and process a resume file."""
     # Validate file
-    await validate_file(file)
+    if not file.filename:
+        raise HTTPException(status_code=400, detail="No file provided")
+    
+    ext = Path(file.filename).suffix.lower()
+    if ext not in ALLOWED_EXTENSIONS:
+        raise HTTPException(
+            status_code=400,
+            detail=f"File type not allowed. Supported types: {', '.join(ALLOWED_EXTENSIONS)}"
+        )
     
     # Create temporary file
-    with tempfile.NamedTemporaryFile(delete=False, suffix=Path(file.filename).suffix) as temp_file:
-        content = await file.read()
+    with tempfile.NamedTemporaryFile(delete=False, suffix=ext) as temp_file:
+        content = file.file.read()
+        if len(content) > MAX_FILE_SIZE:
+            raise HTTPException(
+                status_code=400,
+                detail=f"File too large. Maximum size: {MAX_FILE_SIZE/1024/1024}MB"
+            )
         temp_file.write(content)
         temp_path = temp_file.name
     
     try:
-        # Generate resume ID
-        resume_id = UUID.uuid4()
+        # Create resume record in database
+        resume = Resume(
+            user_id=current_user.id,
+            title=file.filename,
+            file_path=temp_path,
+            file_name=file.filename,
+            file_size=len(content),
+            content="",  # Will be populated during processing
+        )
+        db.add(resume)
+        db.commit()
+        db.refresh(resume)
         
         # Start background processing
         background_tasks.add_task(
-            process_resume,
+            process_resume_sync,
             temp_path,
             current_user.id,
-            resume_id,
-            background_tasks
+            resume.id,
+            db
         )
         
         return ResumeResponse(
-            id=resume_id,
+            id=str(resume.id),
             status="processing",
             message="Resume upload started. Processing in background."
         )
@@ -278,7 +391,8 @@ async def upload_resume(
             os.remove(temp_path)
         except:
             pass
-        raise HTTPException(status_code=500, detail=str(e))
+        logger.error(f"Error uploading resume: {str(e)}")
+        raise HTTPException(status_code=500, detail="Error uploading resume")
 
 
 @router.get("/{resume_id}/status", response_model=ResumeResponse)
@@ -403,4 +517,9 @@ async def reanalyze_resume(
             logger.error(f"Error in background analysis: {str(e)}")
 
     background_tasks.add_task(analyze_and_update)
-    return resume 
+    return resume
+
+
+@router.get('/test')
+def test_resumes_endpoint():
+    return {'message': 'Test endpoint from resumes is working!'} 

@@ -1,7 +1,6 @@
 import asyncio
 from typing import List, Dict, Optional, Tuple, Any
 import numpy as np
-from sentence_transformers import SentenceTransformer
 from app.core.cache import CacheManager
 from app.core.config import settings
 from app.models.job import Job
@@ -13,7 +12,12 @@ from app.schemas.matching import RoleMatch, RoleSimilarity
 
 class RoleMatcher:
     def __init__(self) -> None:
-        self.model = SentenceTransformer('all-MiniLM-L6-v2')
+        # Use TF-IDF instead of expensive sentence transformers
+        self.vectorizer = TfidfVectorizer(
+            max_features=1000,
+            stop_words='english',
+            ngram_range=(1, 2)
+        )
         self.cache = CacheManager()
         
         # Common job title variations
@@ -38,19 +42,14 @@ class RoleMatcher:
             # Add more common variations
         }
         
-        # Pre-compute embeddings for common titles
-        self._init_common_embeddings()
+        # Pre-compute vectors for common titles
+        self._init_common_vectors()
 
-        self.vectorizer = TfidfVectorizer(
-            max_features=1000,
-            stop_words='english',
-            ngram_range=(1, 2)
-        )
         self.job_titles: List[str] = []
         self.job_vectors = None
 
-    def _init_common_embeddings(self) -> None:
-        """Pre-compute embeddings for common job titles."""
+    def _init_common_vectors(self) -> None:
+        """Pre-compute vectors for common job titles."""
         all_titles = []
         for main_title, variations in self.title_variations.items():
             all_titles.extend([main_title] + variations)
@@ -58,43 +57,36 @@ class RoleMatcher:
         # Get unique titles
         unique_titles = list(set(all_titles))
         
-        # Compute embeddings
-        embeddings = self.model.encode(
-            unique_titles,
-            convert_to_tensor=True,
-            show_progress_bar=True
-        )
+        # Compute TF-IDF vectors
+        vectors = self.vectorizer.fit_transform(unique_titles)
         
         # Store in cache
-        for title, embedding in zip(unique_titles, embeddings):
-            cache_key = f"role_embedding:{title.lower()}"
+        for title, vector in zip(unique_titles, vectors.toarray()):
+            cache_key = f"role_vector:{title.lower()}"
             asyncio.create_task(self.cache.set(
                 cache_key,
-                embedding.cpu().numpy().tobytes(),
+                vector.tobytes(),
                 expire=86400  # 24 hours
             ))
 
-    async def get_role_embedding(self, title: str) -> np.ndarray:
-        """Get role embedding from cache or compute it."""
-        cache_key = f"role_embedding:{title.lower()}"
+    async def get_role_vector(self, title: str) -> np.ndarray:
+        """Get role vector from cache or compute it."""
+        cache_key = f"role_vector:{title.lower()}"
         cached = await self.cache.get(cache_key)
         
         if cached:
-            return np.frombuffer(cached, dtype=np.float32)
+            return np.frombuffer(cached, dtype=np.float64)
         
-        # Compute and cache embedding
-        embedding = self.model.encode(
-            title,
-            convert_to_tensor=True
-        ).cpu().numpy()
+        # Compute and cache vector
+        vector = self.vectorizer.transform([title]).toarray()[0]
         
         await self.cache.set(
             cache_key,
-            embedding.tobytes(),
+            vector.tobytes(),
             expire=86400  # 24 hours
         )
         
-        return embedding
+        return vector
 
     async def get_title_variations(self, title: str) -> List[str]:
         """Get similar job titles based on common variations."""
@@ -108,13 +100,13 @@ class RoleMatcher:
                 return [main_title] + [v for v in variations if v != title_lower]
         
         # If no direct match, find semantic matches
-        title_embedding = await self.get_role_embedding(title)
+        title_vector = await self.get_role_vector(title)
         
         similarities = []
         for main_title, variations in self.title_variations.items():
-            main_embedding = await self.get_role_embedding(main_title)
-            similarity = np.dot(title_embedding, main_embedding) / (
-                np.linalg.norm(title_embedding) * np.linalg.norm(main_embedding)
+            main_vector = await self.get_role_vector(main_title)
+            similarity = np.dot(title_vector, main_vector) / (
+                np.linalg.norm(title_vector) * np.linalg.norm(main_vector)
             )
             similarities.append((main_title, similarity))
         
@@ -147,50 +139,39 @@ class RoleMatcher:
         resume_variations = await self.get_title_variations(resume_role)
         
         # Calculate title similarity
-        title_embeddings = await asyncio.gather(
-            *[self.get_role_embedding(t) for t in [resume_role, job_title] + job_variations + resume_variations]
+        title_vectors = await asyncio.gather(
+            *[self.get_role_vector(t) for t in [resume_role, job_title] + job_variations + resume_variations]
         )
         
-        resume_embedding = title_embeddings[0]
-        job_embedding = title_embeddings[1]
+        resume_vector = title_vectors[0]
+        job_vector = title_vectors[1]
         
         # Direct title similarity
-        direct_similarity = np.dot(resume_embedding, job_embedding) / (
-            np.linalg.norm(resume_embedding) * np.linalg.norm(job_embedding)
+        direct_similarity = np.dot(resume_vector, job_vector) / (
+            np.linalg.norm(resume_vector) * np.linalg.norm(job_vector)
         )
         
         # Variation-based similarity
         variation_similarities = []
-        for var_embedding in title_embeddings[2:]:
-            similarity = np.dot(resume_embedding, var_embedding) / (
-                np.linalg.norm(resume_embedding) * np.linalg.norm(var_embedding)
+        for var_vector in title_vectors[2:]:
+            similarity = np.dot(resume_vector, var_vector) / (
+                np.linalg.norm(resume_vector) * np.linalg.norm(var_vector)
             )
             variation_similarities.append(similarity)
         
         max_variation_similarity = max(variation_similarities) if variation_similarities else 0
         
         # Calculate description relevance
-        desc_embedding = self.model.encode(
-            job_description,
-            convert_to_tensor=True
-        ).cpu().numpy()
+        desc_vector = self.vectorizer.transform([job_description]).toarray()[0]
         
-        desc_similarity = np.dot(resume_embedding, desc_embedding) / (
-            np.linalg.norm(resume_embedding) * np.linalg.norm(desc_embedding)
+        desc_similarity = np.dot(resume_vector, desc_vector) / (
+            np.linalg.norm(resume_vector) * np.linalg.norm(desc_vector)
         )
         
-        # Combine scores
-        title_score = max(direct_similarity, max_variation_similarity)
-        desc_score = desc_similarity
+        # Calculate overall similarity
+        overall_similarity = (direct_similarity * 0.5 + max_variation_similarity * 0.3 + desc_similarity * 0.2)
         
-        # Get relevant variations for suggestions
-        relevant_variations = []
-        if direct_similarity < 0.7:  # If direct match is not strong
-            for var, sim in zip(job_variations, variation_similarities[:len(job_variations)]):
-                if sim > 0.7:  # Only include strong matches
-                    relevant_variations.append(var)
-        
-        return title_score, desc_score, relevant_variations
+        return float(overall_similarity), float(direct_similarity), job_variations
 
     async def analyze_role_match(
         self,

@@ -1,7 +1,7 @@
 from typing import Generator, Optional
 from fastapi import Depends, HTTPException, status
 from sqlalchemy.orm import Session
-from app.db.base import get_db
+from app.db.session import get_db
 from app.models.user import User
 from app.core.security import verify_password
 from jose import jwt, JWTError
@@ -27,13 +27,13 @@ def get_current_user(
             settings.SECRET_KEY, 
             algorithms=["HS256"]
         )
-        email: Optional[str] = payload.get("sub")
-        if email is None:
+        user_id: Optional[str] = payload.get("sub")
+        if user_id is None:
             raise credentials_exception
     except JWTError:
         raise credentials_exception
         
-    user = db.query(User).filter(User.email == email).first()
+    user = db.query(User).filter(User.id == int(user_id)).first()
     if user is None:
         raise credentials_exception
     return user

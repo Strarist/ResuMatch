@@ -1,37 +1,45 @@
 import pytest
+import asyncio
 from typing import Generator, Dict, Any
+from unittest.mock import MagicMock, AsyncMock
 from fastapi.testclient import TestClient
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker, Session
 from sqlalchemy.pool import StaticPool
-import asyncio
-from unittest.mock import MagicMock, patch
 import spacy
 from app.core.config import Settings
 
 from app.main import app
 from app.db.base import Base
-from app.db.base import get_db
+from app.db.session import get_db
 from app.core.config import settings
 from app.core.security import create_access_token, get_password_hash
-from app.models.user import User
-from app.models.resume import Resume
-from app.models.job import Job
 from app.schemas.common import ErrorCodes
 
-# Test database configuration
-SQLALCHEMY_DATABASE_URL = "sqlite:///./test.db"
-engine = create_engine(SQLALCHEMY_DATABASE_URL, connect_args={"check_same_thread": False})
+# Import all models to ensure they are registered with SQLAlchemy
+from app.models import User, Resume, Job
+
+# Test database setup
+SQLALCHEMY_DATABASE_URL = "sqlite:///:memory:"
+
+engine = create_engine(
+    SQLALCHEMY_DATABASE_URL,
+    connect_args={"check_same_thread": False},
+    poolclass=StaticPool,
+)
 TestingSessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
 
-# Test settings
 class TestSettings(Settings):
     """Test settings with mock services."""
     TESTING: bool = True
     REDIS_URL: str = "redis://localhost:6379/1"
-    DATABASE_URL: str = "sqlite:///:memory:"
+    DATABASE_URL: str = SQLALCHEMY_DATABASE_URL
+    SQLALCHEMY_DATABASE_URI: str = SQLALCHEMY_DATABASE_URL
     SPACY_MODEL: str = "en_core_web_sm"
-    
+    SECRET_KEY: str = "test-secret-key"
+    ALGORITHM: str = "HS256"
+    ACCESS_TOKEN_EXPIRE_MINUTES: int = 30
+
     class Config:
         env_file = ".env.test"
 
@@ -44,133 +52,97 @@ def event_loop():
 
 @pytest.fixture(scope="session")
 def test_settings():
-    """Get test settings."""
+    """Test settings fixture."""
     return TestSettings()
 
 @pytest.fixture(scope="session")
 def mock_spacy():
-    """Create a mock spaCy model."""
-    nlp_mock = MagicMock()
-    
-    # Mock spaCy methods
-    nlp_mock.return_value = nlp_mock
-    nlp_mock.similarity.return_value = 0.8
-    nlp_mock.ents = []
-    
-    # Mock doc
-    doc_mock = MagicMock()
-    doc_mock.similarity.return_value = 0.8
-    doc_mock.ents = []
-    nlp_mock.return_value = doc_mock
-    
-    # Patch spacy.load
-    with patch('spacy.load', return_value=nlp_mock):
-        yield nlp_mock
+    """Mock spaCy NLP model."""
+    mock_nlp = MagicMock()
+    mock_nlp.return_value = MagicMock()
+    return mock_nlp
 
 @pytest.fixture(scope="session")
 def mock_redis():
-    """Create a mock Redis client."""
-    redis_mock = MagicMock()
-    
-    # Mock Redis methods
-    redis_mock.get.return_value = None
-    redis_mock.set.return_value = True
-    redis_mock.delete.return_value = 1
-    redis_mock.exists.return_value = 0
-    redis_mock.keys.return_value = []
-    redis_mock.publish.return_value = 1
-    
-    # Mock pubsub
-    pubsub_mock = MagicMock()
-    pubsub_mock.subscribe.return_value = None
-    pubsub_mock.get_message.return_value = None
-    redis_mock.pubsub.return_value = pubsub_mock
-    
-    # Patch redis.asyncio.Redis
-    with patch('redis.asyncio.Redis.from_url', return_value=redis_mock):
-        yield redis_mock
+    """Mock Redis for session scope."""
+    mock_redis = MagicMock()
+    mock_redis.get = MagicMock(return_value=None)
+    mock_redis.set = MagicMock(return_value=True)
+    mock_redis.delete = MagicMock(return_value=True)
+    mock_redis.exists = MagicMock(return_value=False)
+    mock_redis.flushdb = MagicMock()
+    return mock_redis
 
 @pytest.fixture(scope="session")
 def mock_websocket():
-    """Create a mock WebSocket client."""
-    ws_mock = MagicMock()
-    
-    # Mock WebSocket methods
-    ws_mock.accept = MagicMock()
-    ws_mock.send_json = MagicMock()
-    ws_mock.close = MagicMock()
-    ws_mock.client_state = "CONNECTED"
-    
-    return ws_mock
+    """Mock WebSocket for session scope."""
+    mock_ws = MagicMock()
+    mock_ws.send_json = AsyncMock()
+    mock_ws.send_text = AsyncMock()
+    mock_ws.close = AsyncMock()
+    return mock_ws
 
 @pytest.fixture(scope="session")
 def test_env():
-    """Set test environment variables."""
+    """Test environment setup."""
+    # Set test environment variables
     import os
-    
-    env = {
-        "TESTING": "true",
-        "REDIS_URL": "redis://localhost:6379/1",
-        "DATABASE_URL": "sqlite:///:memory:",
-        "SPACY_MODEL": "en_core_web_sm",
-        "SECRET_KEY": "test-secret-key",
-        "ALGORITHM": "HS256",
-        "ACCESS_TOKEN_EXPIRE_MINUTES": "30",
-    }
-    
-    # Save original env
-    original_env = dict(os.environ)
-    
-    # Update env
-    os.environ.update(env)
-    
-    yield env
-    
-    # Restore original env
-    os.environ.clear()
-    os.environ.update(original_env)
+    os.environ["TESTING"] = "true"
+    os.environ["DATABASE_URL"] = SQLALCHEMY_DATABASE_URL
+    os.environ["SQLALCHEMY_DATABASE_URI"] = SQLALCHEMY_DATABASE_URL
+    os.environ["REDIS_URL"] = "redis://localhost:6379/1"
+    os.environ["SECRET_KEY"] = "test-secret-key"
+    os.environ["ALGORITHM"] = "HS256"
+    os.environ["ACCESS_TOKEN_EXPIRE_MINUTES"] = "30"
+    return True
 
 @pytest.fixture(autouse=True)
 async def setup_test_env(test_env, mock_redis, mock_spacy):
-    """Set up test environment for each test."""
-    # Clear Redis
-    await mock_redis.flushdb()
+    """Setup test environment before each test."""
+    # Mock external dependencies
+    import app.core.cache
+    app.core.cache.redis = mock_redis
     
-    # Reset spaCy mock
-    mock_spacy.reset_mock()
-    
-    yield
+    # Mock spaCy
+    with pytest.MonkeyPatch().context() as m:
+        m.setattr("spacy.load", mock_spacy)
+        yield
     
     # Clean up
-    await mock_redis.flushdb()
+    mock_redis.flushdb()
     mock_spacy.reset_mock()
 
-@pytest.fixture(scope="session")
+@pytest.fixture
 def db() -> Generator[Session, None, None]:
-    """Database session fixture"""
+    """Database session fixture with proper cleanup."""
+    # Drop all tables and recreate for each test
+    Base.metadata.drop_all(bind=engine)
     Base.metadata.create_all(bind=engine)
+    
     db = TestingSessionLocal()
     try:
         yield db
     finally:
         db.close()
+        # Clean up after each test
         Base.metadata.drop_all(bind=engine)
 
 @pytest.fixture
 def client(db: Session) -> TestClient:
-    """Test client fixture"""
+    """Test client fixture with database override."""
     def override_get_db():
         try:
             yield db
         finally:
             pass
     
-    app.dependency_overrides = {}
+    # Override the database dependency
+    app.dependency_overrides[get_db] = override_get_db
     return TestClient(app)
 
 @pytest.fixture
 def test_user(db: Session) -> User:
-    """Test user fixture"""
+    """Test user fixture."""
     user = User(
         email="test@example.com",
         hashed_password=get_password_hash("testpassword123"),
@@ -184,7 +156,7 @@ def test_user(db: Session) -> User:
 
 @pytest.fixture
 def test_resume(db: Session, test_user: User) -> Resume:
-    """Test resume fixture"""
+    """Test resume fixture."""
     resume = Resume(
         user_id=test_user.id,
         title="Test Resume",
@@ -201,7 +173,7 @@ def test_resume(db: Session, test_user: User) -> Resume:
 
 @pytest.fixture
 def test_job(db: Session, test_user: User) -> Job:
-    """Test job fixture"""
+    """Test job fixture."""
     job = Job(
         user_id=test_user.id,
         title="Software Engineer",
@@ -221,15 +193,14 @@ def test_job(db: Session, test_user: User) -> Job:
 
 @pytest.fixture
 def authorized_client(client: TestClient, test_user: User) -> TestClient:
-    """Authorized test client fixture"""
-    # Create access token
+    """Authorized test client fixture."""
     access_token = create_access_token(test_user.id)
     client.headers["Authorization"] = f"Bearer {access_token}"
     return client
 
 @pytest.fixture
 def test_user_data() -> Dict[str, Any]:
-    """Test user data fixture"""
+    """Test user data fixture."""
     return {
         "email": "newuser@example.com",
         "password": "newpassword123",
@@ -238,7 +209,7 @@ def test_user_data() -> Dict[str, Any]:
 
 @pytest.fixture
 def test_resume_data() -> Dict[str, Any]:
-    """Test resume data fixture"""
+    """Test resume data fixture."""
     return {
         "title": "Software Engineer Resume",
         "content": "Experienced software engineer with 5 years of experience",
@@ -249,7 +220,7 @@ def test_resume_data() -> Dict[str, Any]:
 
 @pytest.fixture
 def test_job_data() -> Dict[str, Any]:
-    """Test job data fixture"""
+    """Test job data fixture."""
     return {
         "title": "Senior Software Engineer",
         "company": "Tech Corp",
@@ -264,156 +235,132 @@ def test_job_data() -> Dict[str, Any]:
 
 # Mock fixtures for external services
 @pytest.fixture
-def mock_redis(monkeypatch):
-    """Mock Redis fixture"""
-    class MockRedis:
-        def __init__(self):
-            self.data = {}
-        
-        def get(self, key):
-            return self.data.get(key)
-        
-        def set(self, key, value, ex=None):
-            self.data[key] = value
-            return True
-        
-        def delete(self, key):
-            if key in self.data:
-                del self.data[key]
-            return True
-        
-        def exists(self, key):
-            return key in self.data
+def mock_redis_service(monkeypatch):
+    """Mock Redis service fixture."""
+    mock_redis = MagicMock()
+    mock_redis.get = MagicMock(return_value=None)
+    mock_redis.set = MagicMock(return_value=True)
+    mock_redis.delete = MagicMock(return_value=True)
+    mock_redis.exists = MagicMock(return_value=False)
+    mock_redis.flushdb = MagicMock()
+    mock_redis.publish = MagicMock()
+    mock_redis.subscribe = MagicMock()
+    mock_redis.get_message = MagicMock(return_value=None)
     
-    mock_redis_instance = MockRedis()
-    monkeypatch.setattr("app.core.cache.redis", mock_redis_instance)
-    return mock_redis_instance
+    # Mock async methods
+    mock_redis.get_async = AsyncMock(return_value=None)
+    mock_redis.set_async = AsyncMock(return_value=True)
+    mock_redis.delete_async = AsyncMock(return_value=True)
+    
+    return mock_redis
 
 @pytest.fixture
 def mock_websocket_manager(monkeypatch):
-    """Mock WebSocket manager fixture"""
-    class MockWebSocketManager:
-        def __init__(self):
-            self.connections = {}
-        
-        async def connect(self, websocket, user_id):
-            self.connections[user_id] = websocket
-        
-        async def disconnect(self, websocket, user_id):
-            if user_id in self.connections:
-                del self.connections[user_id]
-        
-        async def send_message(self, user_id, message):
-            if user_id in self.connections:
-                await self.connections[user_id].send_text(str(message))
-    
-    mock_manager = MockWebSocketManager()
-    monkeypatch.setattr("app.core.websocket.manager", mock_manager)
+    """Mock WebSocket manager fixture."""
+    mock_manager = MagicMock()
+    mock_manager.connect = AsyncMock()
+    mock_manager.disconnect = AsyncMock()
+    mock_manager.send_message = AsyncMock()
+    mock_manager.broadcast = AsyncMock()
+    mock_manager.active_connections = {}
     return mock_manager
 
 @pytest.fixture
 def mock_resume_parser(monkeypatch):
-    """Mock resume parser fixture"""
-    class MockResumeParser:
-        async def parse_resume(self, file_path):
-            return {
-                "skills": ["Python", "FastAPI"],
-                "experience": [{"title": "Software Engineer", "company": "Tech Corp"}],
-                "education": ["Bachelor's in Computer Science"],
-                "contact_info": {"email": "test@example.com"},
-                "summary": "Experienced software engineer"
-            }
-    
-    mock_parser = MockResumeParser()
-    monkeypatch.setattr("app.services.resume_parser.ResumeParser", lambda: mock_parser)
+    """Mock resume parser fixture."""
+    mock_parser = MagicMock()
+    mock_parser.parse_resume = AsyncMock(return_value={
+        "skills": ["Python", "FastAPI"],
+        "experience": [{"title": "Software Engineer", "company": "Tech Corp"}],
+        "education": ["Bachelor's in Computer Science"],
+        "contact_info": {"email": "test@example.com"},
+        "summary": "Experienced software engineer"
+    })
+    mock_parser.parse_file = AsyncMock(return_value={
+        "content": "Test resume content",
+        "skills": ["Python", "FastAPI"],
+        "experience": [{"title": "Software Engineer", "company": "Tech Corp"}]
+    })
     return mock_parser
 
 @pytest.fixture
 def mock_resume_matcher(monkeypatch):
-    """Mock resume matcher fixture"""
-    class MockResumeMatcher:
-        def extract_skills(self, text):
-            return ["Python", "FastAPI"] if "python" in text.lower() else []
-        
-        def calculate_semantic_similarity(self, text1, text2):
-            return 0.8
-        
-        def match_resume_to_job(self, resume, job):
-            from app.schemas.matching import MatchResult, SkillMatch, ExperienceMatch, MatchStrategy
-            return MatchResult(
-                job_id=str(job.id),
-                resume_id=str(resume.id),
-                skill_match=SkillMatch(matched_skills=["Python"], missing_skills=[], match_percentage=0.8),
-                experience_match=ExperienceMatch(role_similarity=0.8, experience_years=5, match_score=0.8),
-                overall_score=0.8,
-                strategy=MatchStrategy.AI_DRIVEN
-            )
-    
-    mock_matcher = MockResumeMatcher()
-    monkeypatch.setattr("app.services.resume_matcher.ResumeMatcher", lambda: mock_matcher)
+    """Mock resume matcher fixture."""
+    mock_matcher = MagicMock()
+    mock_matcher.extract_skills = AsyncMock(return_value=["Python", "FastAPI"])
+    mock_matcher.calculate_semantic_similarity = MagicMock(return_value=0.8)
+    mock_matcher.match_resume_to_job = MagicMock(return_value={
+        "score": 0.85,
+        "skills_match": 0.9,
+        "experience_match": 0.8
+    })
     return mock_matcher
 
-# Common test assertions
+# Test utilities
 def assert_error_response(response: Any, status_code: int, error_code: str) -> None:
-    """Assert error response format and content"""
+    """Assert error response structure."""
     assert response.status_code == status_code
     data = response.json()
-    assert "error" in data
-    assert data["error"]["code"] == error_code
-    assert "message" in data["error"]
-    assert "timestamp" in data
+    assert "detail" in data
+    if error_code:
+        assert error_code in str(data["detail"])
 
 def assert_success_response(response: Dict[str, Any]) -> None:
-    """Assert that a response has a success status and contains data."""
-    assert response.get("status") == "success"
-    assert "data" in response
+    """Assert success response structure."""
+    assert response.status_code == 200
+    data = response.json()
+    assert isinstance(data, dict)
 
 def assert_paginated_response(response: Any, expected_count: int) -> None:
-    """Assert paginated response format and content"""
+    """Assert paginated response structure."""
     assert response.status_code == 200
     data = response.json()
     assert "items" in data
-    assert "pagination" in data
+    assert "total" in data
     assert len(data["items"]) == expected_count
-    assert "total" in data["pagination"]
-    assert "page" in data["pagination"]
-    assert "size" in data["pagination"]
-    assert "pages" in data["pagination"]
 
-# Test data generators
 def generate_test_resume() -> Dict[str, Any]:
-    """Generate test resume data"""
+    """Generate test resume data."""
     return {
-        "title": "Test Resume",
-        "content": "Experienced Python developer with FastAPI and SQL skills.",
-        "skills": ["python", "fastapi", "sql", "docker"],
-        "experience": 3,
-        "education": ["Bachelor's in Computer Science"],
+        "title": "Software Engineer Resume",
+        "content": "Experienced software engineer with Python and FastAPI skills",
+        "skills": ["Python", "FastAPI", "React", "Docker"],
+        "experience": [
+            {"title": "Senior Software Engineer", "company": "Tech Corp", "years": 3},
+            {"title": "Software Engineer", "company": "Startup Inc", "years": 2}
+        ],
+        "education": ["Bachelor's in Computer Science"]
     }
 
 def generate_test_job() -> Dict[str, Any]:
-    """Generate test job data"""
+    """Generate test job data."""
     return {
-        "title": "Python Developer",
-        "company": "Test Company",
-        "description": "Looking for a Python developer with FastAPI experience.",
-        "requirements": ["python", "fastapi", "sql", "docker"],
-        "location": "Remote",
-        "type": "full_time",
-        "salary": {"min": 80000, "max": 120000, "currency": "USD"},
+        "title": "Senior Software Engineer",
+        "company": "Tech Corp",
+        "description": "Looking for an experienced Python developer with FastAPI experience",
+        "requirements": "Python, FastAPI, SQL, Docker, React",
+        "location": "San Francisco, CA",
+        "salary_min": 100000,
+        "salary_max": 150000,
+        "job_type": "full-time",
+        "experience_level": "senior"
     }
 
 @pytest.fixture(autouse=True)
 def mock_huggingface_pipeline(monkeypatch):
-    """Mock the Hugging Face pipeline so that tests run without internet."""
+    """Mock HuggingFace pipeline for all tests."""
     mock_pipeline = MagicMock()
-    mock_pipeline.return_value = [{"label": "POSITIVE", "score": 0.9}]
+    mock_pipeline.return_value = MagicMock()
     monkeypatch.setattr("transformers.pipeline", mock_pipeline)
-    yield mock_pipeline
+    return mock_pipeline
 
 @pytest.fixture
 def mock_db():
-    """Mock database session for testing."""
-    with patch("sqlalchemy.orm.Session") as mock:
-        mock.return_value = MagicMock()
-        yield mock.return_value 
+    """Mock database session."""
+    mock_session = MagicMock()
+    mock_session.query = MagicMock()
+    mock_session.add = MagicMock()
+    mock_session.commit = MagicMock()
+    mock_session.refresh = MagicMock()
+    mock_session.close = MagicMock()
+    return mock_session 

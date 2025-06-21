@@ -59,6 +59,12 @@ export default function AnalyticsCharts() {
     );
   }
 
+  // Ensure all data arrays exist and are arrays
+  const topSkills = Array.isArray(data.topSkills) ? data.topSkills : [];
+  const skillTrends = Array.isArray(data.skillTrends) ? data.skillTrends : [];
+  const matchDistribution = Array.isArray(data.matchDistribution) ? data.matchDistribution : [];
+  const topJobTitles = Array.isArray(data.topJobTitles) ? data.topJobTitles : [];
+
   return (
     <motion.div
       variants={containerVariants}
@@ -76,7 +82,7 @@ export default function AnalyticsCharts() {
             <div className="h-80">
               <ResponsiveContainer width="100%" height="100%">
                 <BarChart
-                  data={data.topSkills}
+                  data={topSkills}
                   margin={{ top: 20, right: 30, left: 20, bottom: 5 }}
                 >
                   <CartesianGrid strokeDasharray="3 3" />
@@ -101,7 +107,7 @@ export default function AnalyticsCharts() {
             <div className="h-80">
               <ResponsiveContainer width="100%" height="100%">
                 <LineChart
-                  data={data.skillTrends}
+                  data={skillTrends}
                   margin={{ top: 20, right: 30, left: 20, bottom: 5 }}
                 >
                   <CartesianGrid strokeDasharray="3 3" />
@@ -132,7 +138,7 @@ export default function AnalyticsCharts() {
               <ResponsiveContainer width="100%" height="100%">
                 <PieChart>
                   <Pie
-                    data={data.matchDistribution}
+                    data={matchDistribution}
                     dataKey="count"
                     nameKey="range"
                     cx="50%"
@@ -140,7 +146,7 @@ export default function AnalyticsCharts() {
                     outerRadius={80}
                     label
                   >
-                    {data.matchDistribution.map((entry: { range: string; count: number }, index: number) => (
+                    {matchDistribution.map((entry: { range: string; count: number }, index: number) => (
                       <Cell
                         key={`cell-${index}`}
                         fill={COLORS[index % COLORS.length]}
@@ -165,7 +171,7 @@ export default function AnalyticsCharts() {
             <div className="h-80">
               <ResponsiveContainer width="100%" height="100%">
                 <BarChart
-                  data={data.topJobTitles}
+                  data={topJobTitles}
                   margin={{ top: 20, right: 30, left: 20, bottom: 5 }}
                 >
                   <CartesianGrid strokeDasharray="3 3" />

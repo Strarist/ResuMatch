@@ -19,7 +19,7 @@ const jobTypes = ['full-time', 'part-time', 'contract', 'remote'] as const;
 
 export default function JobList({ onSelectJob }: JobListProps) {
   const [search, setSearch] = useState('');
-  const [sortBy, setSortBy] = useState<string>('createdAt');
+  const [sortBy, setSortBy] = useState<string>('posted_date');
   const [selectedType, setSelectedType] = useState<string | null>(null);
   const [selectedLocation, setSelectedLocation] = useState<string | null>(null);
   const [selectedSkills, setSelectedSkills] = useState<string[]>([]);
@@ -49,13 +49,16 @@ export default function JobList({ onSelectJob }: JobListProps) {
     );
   }
 
+  // Ensure data is an array
+  const jobData = Array.isArray(data) ? data : [];
+
   // Extract unique locations and skills from all jobs
   const allLocations = Array.from(
-    new Set(data.map((job) => job.location))
+    new Set(jobData.map((job) => job.location))
   ).sort();
 
   const allSkills = Array.from(
-    new Set(data.flatMap((job) => job.requirements))
+    new Set(jobData.flatMap((job) => job.requirements))
   ).sort();
 
   return (
@@ -79,7 +82,7 @@ export default function JobList({ onSelectJob }: JobListProps) {
               onChange={(e) => setSortBy(e.target.value)}
               className="border border-gray-300 rounded-lg px-4 py-2 focus:ring-2 focus:ring-primary-500 focus:border-primary-500"
             >
-              <option value="createdAt">Recently Posted</option>
+              <option value="posted_date">Recently Posted</option>
               <option value="matchScore">Match Score</option>
               <option value="salary">Salary</option>
             </select>
@@ -152,7 +155,7 @@ export default function JobList({ onSelectJob }: JobListProps) {
 
         {/* Job List */}
         <div className="space-y-4">
-          {data.map((job) => (
+          {jobData.map((job) => (
             <motion.div
               key={job.id}
               initial={{ opacity: 0, y: 20 }}
@@ -187,7 +190,12 @@ export default function JobList({ onSelectJob }: JobListProps) {
                       )}
                     </div>
                     <div className="mt-2 flex flex-wrap gap-2">
-                      {job.requirements.slice(0, 5).map((skill) => (
+                      {(Array.isArray(job.requirements)
+                        ? job.requirements
+                        : typeof job.requirements === 'string'
+                        ? (job.requirements as string).split(',').map((s: string) => s.trim()).filter(Boolean)
+                        : []
+                      ).slice(0, 5).map((skill: string) => (
                         <span
                           key={skill}
                           className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-primary-100 text-primary-800"
@@ -195,7 +203,7 @@ export default function JobList({ onSelectJob }: JobListProps) {
                           {skill}
                         </span>
                       ))}
-                      {job.requirements.length > 5 && (
+                      {Array.isArray(job.requirements) && job.requirements.length > 5 && (
                         <span className="text-xs text-gray-500">
                           +{job.requirements.length - 5} more
                         </span>

@@ -24,18 +24,4 @@ class Job(Base):
 
     # Relationships
     user = relationship("User", back_populates="jobs")
-    matches = relationship("MatchResult", back_populates="job")
-
-
-class JobMatch(Base):
-    __tablename__ = "job_matches"
-
-    id = Column(Integer, primary_key=True, autoincrement=True)
-    job_id = Column(Integer, ForeignKey("jobs.id"), nullable=False)
-    resume_id = Column(Integer, ForeignKey("resumes.id"), nullable=False)
-    score = Column(Float, nullable=False)
-    created_at = Column(DateTime(timezone=True), server_default=func.now())
-
-    # Relationships
-    job = relationship("Job", back_populates="matches")
-    resume = relationship("Resume", back_populates="matches") 
+    resume_matches = relationship("JobMatch", back_populates="job") 

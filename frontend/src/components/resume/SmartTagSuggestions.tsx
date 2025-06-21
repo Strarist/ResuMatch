@@ -46,8 +46,8 @@ const SmartTagSuggestions: React.FC<SmartTagSuggestionsProps> = ({
   const [copiedTag, setCopiedTag] = useState<string | null>(null);
   
   // Sort tags by relevance
-  const sortedTags = [...tags].sort((a, b) => b.relevance - a.relevance);
-  const displayedTags = expanded ? sortedTags : sortedTags.slice(0, maxSuggestions);
+  const sortedTags = Array.isArray(tags) ? [...tags].sort((a, b) => b.relevance - a.relevance) : [];
+  const displayedTags = expanded ? sortedTags : (Array.isArray(sortedTags) ? sortedTags.slice(0, maxSuggestions) : []);
   
   const handleTagClick = (tag: Tag) => {
     if (selectedTags.some(t => t.text === tag.text)) {

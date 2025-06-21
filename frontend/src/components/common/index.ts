@@ -4,7 +4,7 @@ export { ThemeToggle } from './ThemeToggle';
 export { Shimmer } from './Shimmer';
 export { Toaster } from './Toast';
 export { PageTransition } from './PageTransition';
-export { NeomorphicInput } from './NeomorphicInput';
+export { default as NeomorphicInput } from './NeomorphicInput';
 export { NeomorphicSelect } from './NeomorphicSelect';
 export { NeomorphicCheckbox } from './NeomorphicCheckbox';
 export { AnimatedChart } from './AnimatedChart';

@@ -155,7 +155,7 @@ export const CompatibilityRadar = ({ report }: CompatibilityRadarProps) => {
             <p className="text-sm text-gray-600">{activeDimension.description}</p>
             
             {/* Additional insights based on dimension */}
-            {activeDimension.name === 'Skills' && report.skill_matches.length > 0 && (
+            {activeDimension.name === 'Skills' && Array.isArray(report.skill_matches) && report.skill_matches.length > 0 && (
               <div className="mt-2 text-sm">
                 <div className="font-medium text-gray-700">Top Skills:</div>
                 <div className="flex flex-wrap gap-1 mt-1">

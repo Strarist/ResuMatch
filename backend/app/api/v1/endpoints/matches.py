@@ -4,7 +4,7 @@ from sqlalchemy.orm import Session
 from sqlalchemy import desc
 
 from app.api.deps import get_current_active_user
-from app.db.base import get_db
+from app.db.session import get_db
 from app.models.user import User
 from app.models.job import Job
 from app.models.resume import Resume
@@ -18,8 +18,7 @@ from app.schemas.compatibility import (
     CompatibilityRequest, CompatibilityResponse, CompatibilityReport
 )
 from app.services.compatibility import CompatibilityAnalyzer
-from app.crud import resume as resume_crud
-from app.crud import job as job_crud
+from app.crud import get_resume, get_job, create_job
 from app.core.cache import get_cache, Cache
 
 router = APIRouter()
@@ -257,11 +256,11 @@ async def compare_resume_job(
     Compare a resume against a job posting and generate a compatibility report.
     """
     # Get resume and job
-    resume = resume_crud.get(db, id=request.resume_id)
+    resume = get_resume(db, id=request.resume_id)
     if not resume:
         raise HTTPException(status_code=404, detail="Resume not found")
     
-    job = job_crud.get(db, id=request.job_id)
+    job = get_job(db, id=request.job_id)
     if not job:
         raise HTTPException(status_code=404, detail="Job posting not found")
     

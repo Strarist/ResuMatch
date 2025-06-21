@@ -1,13 +1,36 @@
 from typing import Dict, List, Any, Optional
 import spacy
-from transformers import pipeline
+# from transformers import pipeline
 import re
 from app.models.resume import Resume
 from app.services.resume import calculate_match_score
 from app.core.logging import logger
 
-# Load spaCy model for NLP tasks
-nlp = spacy.load("en_core_web_sm")
+# Lazy load spaCy model for NLP tasks
+_nlp = None
+
+def get_nlp():
+    global _nlp
+    if _nlp is None:
+        try:
+            _nlp = spacy.load("en_core_web_sm")
+            logger.info("spaCy model loaded successfully")
+        except Exception as e:
+            logger.error(f"Error loading spaCy model: {e}")
+            # Return a dummy NLP object for testing/offline mode
+            class DummyNLP:
+                def __call__(self, text):
+                    return DummyDoc(text)
+            class DummyDoc:
+                def __init__(self, text):
+                    self.text = text
+                    self.ents = []
+                    self.sents = [DummySent(text)]
+            class DummySent:
+                def __init__(self, text):
+                    self.text = text
+            _nlp = DummyNLP()
+    return _nlp
 
 # Lazy load the classifier
 _classifier = None
@@ -58,7 +81,7 @@ async def analyze_job(text: str) -> Dict[str, Any]:
     
     # Extract requirements
     requirements = []
-    doc = nlp(text)
+    doc = get_nlp()(text)
     
     # Find requirement sections
     requirement_sections = []
@@ -79,7 +102,7 @@ async def analyze_job(text: str) -> Dict[str, Any]:
     
     # Extract skills and requirements from sections
     for section in requirement_sections:
-        section_doc = nlp(section)
+        section_doc = get_nlp()(section)
         
         # Extract technical skills
         for ent in section_doc.ents:

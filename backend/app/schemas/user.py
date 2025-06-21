@@ -1,7 +1,6 @@
 from pydantic import BaseModel, Field, EmailStr
 from typing import Optional
 from datetime import datetime
-from uuid import UUID
 
 
 class UserBase(BaseModel):
@@ -20,7 +19,7 @@ class UserUpdate(BaseModel):
 
 
 class UserInDBBase(UserBase):
-    id: UUID
+    id: int
     is_active: bool = True
     is_superuser: bool = False
     created_at: datetime
@@ -41,6 +40,7 @@ class UserInDB(UserInDBBase):
 class Token(BaseModel):
     access_token: str
     token_type: str
+    user: Optional[dict] = None
 
 
 class TokenPayload(BaseModel):

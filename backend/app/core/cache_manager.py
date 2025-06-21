@@ -53,7 +53,8 @@ class CacheManager:
         }
         
         # Start pubsub listener
-        asyncio.create_task(self._listen_for_invalidations())
+        # Don't start listener here - it will be started when needed
+        # asyncio.create_task(self._listen_for_invalidations())
     
     async def _listen_for_invalidations(self) -> None:
         """Listen for cache invalidation events."""

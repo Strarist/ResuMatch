@@ -3,9 +3,15 @@ from pydantic_settings import BaseSettings
 from pydantic import AnyHttpUrl, validator, PostgresDsn
 import secrets
 from pathlib import Path
+import logging, json
 
 
 class Settings(BaseSettings):
+    GOOGLE_CLIENT_ID: str = "16914536247-f80lhjpkn1cg13kel3us37oqmqhk0aqp.apps.googleusercontent.com"
+    GOOGLE_CLIENT_SECRET: str = "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"
+    GITHUB_CLIENT_ID: str = "Ov23liYDEIvutNelvWWE"
+    GITHUB_CLIENT_SECRET: str = "f330e70e05b66bfbd3f2b12a688c84df176d7735"
+    SESSION_SECRET_KEY: str = "Arist2$straw"
     PROJECT_NAME: str = "ResuMatch AI"
     VERSION: str = "1.0.0"
     API_V1_STR: str = "/api/v1"
@@ -19,10 +25,29 @@ class Settings(BaseSettings):
     
     @validator("BACKEND_CORS_ORIGINS", pre=True)
     def assemble_cors_origins(cls, v: Union[str, List[str]]) -> Union[List[str], str]:
-        if isinstance(v, str) and not v.startswith("["):
-            return [i.strip() for i in v.split(",")]
-        elif isinstance(v, (list, str)):
+        logger = logging.getLogger("config")
+        logger.warning(f"Parsing BACKEND_CORS_ORIGINS: {v!r}")
+        if isinstance(v, str):
+            v = v.strip()
+            if v == "":
+                logger.error("BACKEND_CORS_ORIGINS is an empty string!")
+                return []
+            if v.startswith("["):
+                try:
+                    parsed = json.loads(v)
+                    logger.warning(f"Parsed as JSON: {parsed!r}")
+                    return parsed
+                except Exception as e:
+                    logger.error(f"Failed to parse BACKEND_CORS_ORIGINS as JSON: {e}")
+                    raise ValueError(f"Invalid BACKEND_CORS_ORIGINS JSON: {v}")
+            else:
+                # Comma-separated string
+                result = [i.strip() for i in v.split(",") if i.strip()]
+                logger.warning(f"Parsed as CSV: {result!r}")
+                return result
+        elif isinstance(v, list):
             return v
+        logger.error(f"Unrecognized BACKEND_CORS_ORIGINS value: {v!r}")
         raise ValueError(v)
     
     # Security

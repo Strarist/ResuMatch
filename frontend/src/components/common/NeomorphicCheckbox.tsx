@@ -42,7 +42,7 @@ export const NeomorphicCheckbox = forwardRef<HTMLInputElement, NeomorphicCheckbo
                 'shadow-neo-sm dark:shadow-neo-dark-sm',
                 isFocused && 'shadow-neo-md dark:shadow-neo-dark-md',
                 error && 'shadow-error-sm dark:shadow-error-dark-sm',
-                'peer-checked:bg-primary-500 peer-checked:dark:bg-primary-400',
+                'peer-checked:ring-2 peer-checked:ring-primary-400 peer-checked:bg-white/80 peer-checked:dark:bg-gray-800/80',
                 'peer-checked:shadow-none',
                 className
               )}
@@ -56,7 +56,7 @@ export const NeomorphicCheckbox = forwardRef<HTMLInputElement, NeomorphicCheckbo
                 transition={{ type: 'spring', stiffness: 500, damping: 30 }}
                 className="absolute inset-0 flex items-center justify-center"
               >
-                <CheckIcon className="h-4 w-4 text-white" />
+                <CheckIcon className="h-4 w-4 text-primary-500 dark:text-primary-400" />
               </motion.div>
             </div>
           </div>

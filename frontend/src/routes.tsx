@@ -9,6 +9,9 @@ import Resumes from './pages/resumes/Resumes';
 import Jobs from './pages/jobs/Jobs';
 import Analysis from './pages/analysis/Analysis';
 import Profile from './pages/profile/Profile';
+import { TestAPI } from './pages/TestAPI';
+import { Debug } from './pages/Debug';
+import { TestScoreBadge } from './pages/TestScoreBadge';
 
 // Protected Route component
 const ProtectedRoute = ({ children }: { children: React.ReactNode }) => {
@@ -24,6 +27,7 @@ export const AppRoutes = () => {
           {/* Public routes */}
           <Route path="/login" element={<Login />} />
           <Route path="/register" element={<Register />} />
+          <Route path="/debug" element={<Debug />} />
           
           {/* Protected routes */}
           <Route
@@ -63,6 +67,22 @@ export const AppRoutes = () => {
             element={
               <ProtectedRoute>
                 <Profile />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/test-api"
+            element={
+              <ProtectedRoute>
+                <TestAPI />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/test-score-badge"
+            element={
+              <ProtectedRoute>
+                <TestScoreBadge />
               </ProtectedRoute>
             }
           />

@@ -2,23 +2,29 @@ from typing import List, Dict, Any, Optional, Tuple
 from sqlalchemy.orm import Session
 from datetime import datetime
 import spacy
-from sentence_transformers import SentenceTransformer
+# from sentence_transformers import SentenceTransformer
 from app.models.resume import Resume
 from app.models.job import Job
+JobPost = Job
 from app.schemas.compatibility import (
     CompatibilityReport, SkillMatch, RoleMatch, ExperienceMatch,
     MatchCategory, SkillGap, ImprovementSuggestion
 )
 from app.services.resume_matcher import ResumeMatcher
+import logging
 
-# Alias for Job model
-JobPost = Job
+logger = logging.getLogger(__name__)
 
 class CompatibilityAnalyzer:
     def __init__(self):
         self.matcher = ResumeMatcher()
-        self.nlp = spacy.load("en_core_web_lg")
-        self.embedder = SentenceTransformer('all-MiniLM-L6-v2')
+        try:
+            self.nlp = spacy.load("en_core_web_sm")
+        except Exception as e:
+            logger.error(f"Error loading spaCy model: {e}")
+            # Use a dummy NLP object for testing/offline mode
+            self.nlp = None
+        # self.embedder = SentenceTransformer('all-MiniLM-L6-v2')
         
         # Predefined skill categories
         self.skill_categories = {
@@ -268,4 +274,65 @@ class CompatibilityAnalyzer:
             average_skill_score=average_skill_score,
             suggestions=suggestions,
             analysis_timestamp=datetime.utcnow().isoformat()
-        ) 
+        )
+
+class CompatibilityService:
+    """Simple compatibility service for basic analysis"""
+    
+    def __init__(self):
+        self.matcher = ResumeMatcher()
+    
+    def calculate_compatibility_score(self, resume: Resume, job: Job) -> float:
+        """Calculate overall compatibility score between resume and job"""
+        try:
+            # Extract skills from resume and job
+            resume_skills = resume.skills.split(',') if resume.skills else []
+            job_requirements = job.requirements or []
+            
+            # Calculate skill match
+            skill_match = self.matcher.calculate_skill_match(job_requirements, resume_skills)
+            
+            # Calculate experience match
+            experience_match = self.matcher.calculate_experience_match(
+                job.description or "",
+                resume.experience or ""
+            )
+            
+            # Calculate overall score (60% skills, 40% experience)
+            overall_score = (skill_match.match_percentage * 0.6) + (experience_match.match_score * 0.4)
+            
+            return overall_score
+            
+        except Exception as e:
+            logger.error(f"Error calculating compatibility score: {e}")
+            return 0.0
+    
+    def get_improvement_suggestions(self, resume: Resume, job: Job) -> List[str]:
+        """Get improvement suggestions for resume based on job requirements"""
+        suggestions = []
+        
+        try:
+            # Extract skills
+            resume_skills = resume.skills.split(',') if resume.skills else []
+            job_requirements = job.requirements or []
+            
+            # Find missing skills
+            missing_skills = set(job_requirements) - set(resume_skills)
+            
+            for skill in missing_skills:
+                suggestions.append(f"Add {skill} to your skills section")
+            
+            # Experience suggestions
+            if job.required_experience_years and resume.total_experience_years:
+                if resume.total_experience_years < job.required_experience_years:
+                    suggestions.append(f"Highlight {job.required_experience_years - resume.total_experience_years} more years of relevant experience")
+            
+            # General suggestions
+            if not suggestions:
+                suggestions.append("Your profile looks well-matched for this position!")
+            
+        except Exception as e:
+            logger.error(f"Error generating suggestions: {e}")
+            suggestions.append("Unable to generate specific suggestions at this time")
+        
+        return suggestions 

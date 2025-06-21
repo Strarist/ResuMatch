@@ -40,3 +40,36 @@
 .read-the-docs {
   color: #888;
 }
+
+body, #root, .app-bg {
+  min-height: 100vh;
+  min-width: 100vw;
+  position: relative;
+  z-index: 0;
+}
+
+.app-bg {
+  position: fixed;
+  inset: 0;
+  z-index: -1;
+  width: 100vw;
+  height: 100vh;
+  pointer-events: none;
+  background: linear-gradient(120deg, #a1c4fd 0%, #c2e9fb 50%, #fbc2eb 100%);
+  background-size: 200% 200%;
+  animation: gradientMove 16s ease-in-out infinite;
+}
+
+@media (prefers-color-scheme: dark) {
+  .app-bg {
+    background: linear-gradient(120deg, #232526 0%, #414345 50%, #485563 100%);
+    background-size: 200% 200%;
+    animation: gradientMove 16s ease-in-out infinite;
+  }
+}
+
+@keyframes gradientMove {
+  0% { background-position: 0% 50%; }
+  50% { background-position: 100% 50%; }
+  100% { background-position: 0% 50%; }
+}

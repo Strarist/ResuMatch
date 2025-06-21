@@ -5,7 +5,7 @@ from sqlalchemy import desc
 import logging
 
 from app.api.deps import get_current_active_user
-from app.db.base import get_db
+from app.db.session import get_db
 from app.models.user import User
 from app.models.job import Job
 from app.schemas.job import (
@@ -119,4 +119,102 @@ async def reanalyze_job(
     return job
 
 
-# ... (keep existing endpoints: list_jobs, get_job, update_job, delete_job) 
+@router.get("/", response_model=JobListSchema)
+def list_jobs(
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_active_user),
+    skip: int = 0,
+    limit: int = 100,
+    search: Optional[str] = None,
+    sort_by: Optional[str] = None,
+) -> Any:
+    """
+    Retrieve jobs with filtering and sorting
+    """
+    query = db.query(Job).filter(Job.user_id == current_user.id)
+
+    if search:
+        query = query.filter(Job.title.ilike(f"%{search}%"))
+
+    if sort_by == "updatedAt":
+        query = query.order_by(desc(Job.updated_at))
+    elif sort_by == "createdAt":
+        query = query.order_by(desc(Job.created_at))
+    elif sort_by == "title":
+        query = query.order_by(Job.title)
+
+    total = query.count()
+    items = query.offset(skip).limit(limit).all()
+
+    return {"items": items, "total": total}
+
+
+@router.get("/{job_id}", response_model=JobSchema)
+def get_job(
+    *,
+    db: Session = Depends(get_db),
+    job_id: str,
+    current_user: User = Depends(get_current_active_user),
+) -> Any:
+    """
+    Get job by ID
+    """
+    job = db.query(Job).filter(
+        Job.id == job_id, Job.user_id == current_user.id
+    ).first()
+    if not job:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Job not found",
+        )
+    return job
+
+
+@router.put("/{job_id}", response_model=JobSchema)
+def update_job(
+    *,
+    db: Session = Depends(get_db),
+    job_id: str,
+    job_in: JobUpdate,
+    current_user: User = Depends(get_current_active_user),
+) -> Any:
+    """
+    Update job
+    """
+    job = db.query(Job).filter(
+        Job.id == job_id, Job.user_id == current_user.id
+    ).first()
+    if not job:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Job not found",
+        )
+    for field, value in job_in.model_dump(exclude_unset=True).items():
+        setattr(job, field, value)
+    db.add(job)
+    db.commit()
+    db.refresh(job)
+    return job
+
+
+@router.delete("/{job_id}", response_model=JobSchema)
+def delete_job(
+    *,
+    db: Session = Depends(get_db),
+    job_id: str,
+    current_user: User = Depends(get_current_active_user),
+) -> Any:
+    """
+    Delete job
+    """
+    job = db.query(Job).filter(
+        Job.id == job_id, Job.user_id == current_user.id
+    ).first()
+    if not job:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Job not found",
+        )
+    db.delete(job)
+    db.commit()
+    return job 

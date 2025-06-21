@@ -6,6 +6,8 @@ from redis.asyncio import Redis
 from fastapi import Depends
 from app.core.config import settings
 
+redis = None
+
 class Cache:
     def __init__(self, redis_url: str):
         self.redis = Redis.from_url(redis_url, encoding="utf-8", decode_responses=True)

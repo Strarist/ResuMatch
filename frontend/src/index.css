@@ -22,11 +22,17 @@
   }
   
   .input-primary {
-    @apply block w-full rounded-md border-gray-300 shadow-sm focus:border-primary-500 focus:ring-primary-500 sm:text-sm;
+    @apply block w-full rounded-lg px-4 py-2 transition-all duration-200;
+    @apply bg-white dark:bg-gray-900 !text-gray-900 dark:!text-white;
+    @apply placeholder-gray-400 dark:placeholder-gray-500;
+    @apply border border-gray-300 dark:border-gray-700 border-solid;
+    @apply focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-primary-500;
+    @apply shadow-sm;
+    @apply !text-[1rem];
   }
   
   .card {
-    @apply bg-white shadow rounded-lg p-6;
+    @apply bg-white/80 dark:bg-gray-900/80 backdrop-blur-md shadow-lg rounded-2xl border border-gray-200 dark:border-gray-700 transition-colors duration-300;
   }
 }
 
@@ -97,4 +103,108 @@ button:focus-visible {
   button {
     background-color: #f9f9f9;
   }
+}
+
+@layer utilities {
+  .animate-gradient-move {
+    background-size: 200% 200%;
+    animation: gradient-move 8s ease-in-out infinite;
+  }
+}
+
+@keyframes gradient-move {
+  0% {
+    background-position: 0% 50%;
+  }
+  50% {
+    background-position: 100% 50%;
+  }
+  100% {
+    background-position: 0% 50%;
+  }
+}
+
+html, body, #root {
+  height: 100%;
+  width: 100%;
+  margin: 0;
+  padding: 0;
+}
+
+html, body {
+  @apply min-h-screen min-w-full transition-colors duration-300;
+  @apply bg-gray-50 text-gray-900;
+}
+
+.dark html, .dark body {
+  @apply bg-gray-900 text-gray-100;
+}
+
+.card {
+  @apply bg-white/80 dark:bg-gray-900/80 backdrop-blur-md shadow-lg rounded-2xl border border-gray-200 dark:border-gray-700 transition-colors duration-300;
+}
+
+.input-primary {
+  @apply block w-full rounded-lg px-4 py-2 transition-all duration-200;
+  @apply bg-white dark:bg-gray-900 !text-gray-900 dark:!text-white;
+  @apply placeholder-gray-400 dark:placeholder-gray-500;
+  @apply border border-gray-300 dark:border-gray-700 border-solid;
+  @apply focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-primary-500;
+  @apply shadow-sm;
+  @apply !text-[1rem];
+}
+
+/* Autofill and dark mode fixes */
+input {
+  --input-text-color: #111;
+  --input-bg-color: #fff;
+}
+.dark input {
+  --input-text-color: #fff;
+  --input-bg-color: #1a202c;
+  color: #fff !important;
+  background: #1a202c !important;
+}
+input:-webkit-autofill,
+input:-webkit-autofill:focus,
+input:-webkit-autofill:hover,
+input:-webkit-autofill:active {
+  -webkit-text-fill-color: #fff !important;
+  box-shadow: 0 0 0px 1000px #1a202c inset !important;
+  background-color: #1a202c !important;
+  color: #fff !important;
+  filter: none !important;
+}
+
+/* Bulletproof auth input styling for dark mode and autofill */
+.auth-input {
+  width: 100%;
+  border-radius: 0.5rem;
+  padding: 0.5rem 1rem;
+  background: #fff !important;
+  color: #111 !important;
+  border: 1px solid #d1d5db;
+  transition: all 0.2s;
+  font-size: 1rem;
+}
+.dark .auth-input {
+  background: #1a202c !important;
+  color: #fff !important;
+  border-color: #374151;
+}
+.auth-input::placeholder {
+  color: #9ca3af !important;
+}
+.dark .auth-input::placeholder {
+  color: #6b7280 !important;
+}
+.auth-input:-webkit-autofill,
+.auth-input:-webkit-autofill:focus,
+.auth-input:-webkit-autofill:hover,
+.auth-input:-webkit-autofill:active {
+  -webkit-text-fill-color: #fff !important;
+  box-shadow: 0 0 0px 1000px #1a202c inset !important;
+  background-color: #1a202c !important;
+  color: #fff !important;
+  filter: none !important;
 }

@@ -1,5 +1,7 @@
+from app.db.base import Base
 from sqlalchemy.orm import Session
-from app.db.base import Base, engine
+from app.db.session import engine
+import app.models
 from app.core.config import settings
 from app.models.user import User
 from app.models.resume import Resume
@@ -28,6 +30,9 @@ def create_test_data(db: Session) -> None:
     test_resume = Resume(
         user_id=test_user.id,
         title="Test Resume",
+        file_path="/test/resume.pdf",
+        file_name="test_resume.pdf",
+        file_size=1024,
         content="This is a test resume",
         skills=["Python", "FastAPI", "PostgreSQL"],
         experience={
