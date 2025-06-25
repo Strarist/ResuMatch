@@ -25,4 +25,7 @@ pytest-mock
 pytest-timeout
 pytest-xdist
 numpy
+langchain
+langchain-community
+langchain-chroma
 # Add any other packages you actually use in your backend below
