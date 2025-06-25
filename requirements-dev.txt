@@ -1,3 +1,4 @@
 pytest
 fastapi-limiter
-redis 
+redis
+uvicorn[standard]
