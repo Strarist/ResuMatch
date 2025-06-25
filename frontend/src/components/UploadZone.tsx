@@ -7,7 +7,6 @@ import PDFPreview from './PDFPreview'
 import LoadingSkeleton from './LoadingSkeleton'
 
 export default function UploadZone() {
-  // eslint-disable-next-line @typescript-eslint/no-unused-vars
   const [file, setFile] = useState<File | null>(null)
   const [uploading, setUploading] = useState(false)
 
@@ -28,6 +27,7 @@ export default function UploadZone() {
   })
 
   const handleUpload = async (file: File) => {
+    if (!file) return;
     setUploading(true)
     
     try {
