@@ -1,3 +1,16 @@
 pytest
 fastapi-limiter
-redis 
+redis
+uvicorn[standard]
+prometheus-fastapi-instrumentator
+sentry-sdk
+sqlalchemy
+asyncpg
+pydantic
+python-dotenv
+celery
+PyPDF2
+pikepdf
+langchain
+langchain-community
+langchain-chroma
