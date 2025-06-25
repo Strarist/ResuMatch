@@ -30,4 +30,3 @@ langchain-community
 langchain-chroma
 authlib
 fastapi-limiter
-aioredis
