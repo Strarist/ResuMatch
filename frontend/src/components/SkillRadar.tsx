@@ -71,7 +71,6 @@ export default function SkillRadar({ jobSkills, className = '' }: SkillRadarProp
     },
     animation: {
       duration: 2000,
-      easing: 'easeOutQuart',
     },
   }
 
