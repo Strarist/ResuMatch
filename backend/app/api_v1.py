@@ -11,6 +11,9 @@ from .db import get_db
 from .models import User
 from jose import jwt
 from datetime import datetime, timedelta
+from app.utils.pdf_sanitizer import sanitize_pdf
+import logging
+from fastapi_limiter.depends import RateLimiter
 
 router = APIRouter(prefix="/v1", tags=["Resumes"])
 
@@ -44,7 +47,7 @@ def create_jwt(user):
     }
     return jwt.encode(payload, JWT_SECRET, algorithm=JWT_ALGORITHM)
 
-@router.post("/resumes", status_code=status.HTTP_202_ACCEPTED)
+@router.post("/resumes", status_code=status.HTTP_202_ACCEPTED, dependencies=[Depends(RateLimiter(times=5, seconds=60))])
 async def upload_resume(file: UploadFile = File(...)):
     # Magic number check: first 4 bytes must be %PDF
     first_bytes = await file.read(4)
@@ -75,34 +78,22 @@ async def upload_resume(file: UploadFile = File(...)):
             raise HTTPException(status_code=400, detail="PDF contains JavaScript, which is not allowed")
         if any("/EmbeddedFile" in str(obj) for obj in pdf.pages):
             raise HTTPException(status_code=400, detail="PDF contains embedded files, which are not allowed")
-        # Deep sanitization with pikepdf
-        import pikepdf
-        try:
-            with pikepdf.open(BytesIO(file_bytes)) as pdf_sanitized:
-                # Remove all JavaScript actions
-                pdf_sanitized.remove_javascript()
-                # Remove embedded files
-                if "/Names" in pdf_sanitized.root:
-                    names = pdf_sanitized.root["/Names"]
-                    if "/EmbeddedFiles" in names:
-                        del names["/EmbeddedFiles"]
-                # Remove any /AA (additional actions)
-                if "/AA" in pdf_sanitized.root:
-                    del pdf_sanitized.root["/AA"]
-                # Save sanitized PDF to bytes
-                from io import BytesIO as _BytesIO
-                sanitized_bytes_io = _BytesIO()
-                pdf_sanitized.save(sanitized_bytes_io)
-                sanitized_bytes = sanitized_bytes_io.getvalue()
-        except Exception as e:
-            raise HTTPException(status_code=400, detail=f"PDF sanitization failed: {str(e)}")
     except Exception as e:
         raise HTTPException(status_code=400, detail=f"PDF parsing failed: {str(e)}")
-    # Save sanitized file to disk
+    # Save file to disk
     resume_id = uuid.uuid4().hex
     file_path = os.path.join(UPLOAD_DIR, f"{resume_id}_{file.filename}")
     with open(file_path, "wb") as f:
-        f.write(sanitized_bytes)
+        f.write(file_bytes)
+    # Deep sanitization with pikepdf utility
+    try:
+        sanitized = sanitize_pdf(file_path, file_path)
+        if not sanitized:
+            logging.error(f"Sanitization failed for {file_path}")
+            raise HTTPException(status_code=400, detail="PDF sanitization failed")
+    except Exception as e:
+        logging.error(f"Sanitization exception for {file_path}: {e}")
+        raise HTTPException(status_code=500, detail="PDF sanitization failed")
     # Queue Celery task
     process_pdf.delay(resume_id, file_path)
     return JSONResponse(
@@ -110,7 +101,7 @@ async def upload_resume(file: UploadFile = File(...)):
         content={"message": "Resume upload accepted for processing", "resume_id": resume_id}
     )
 
-@router.get('/auth/google/login')
+@router.get('/auth/google/login', dependencies=[Depends(RateLimiter(times=10, seconds=60))])
 async def google_login(request: Request):
     redirect_uri = os.getenv('OAUTH_REDIRECT_URI', 'http://localhost:8000/auth/google/callback')
     return await oauth.google.authorize_redirect(request, redirect_uri)
@@ -135,4 +126,19 @@ async def google_callback(request: Request, db: AsyncSession = Depends(get_db)):
     jwt_token = create_jwt(user)
     response = JSONResponse({"message": "Google login successful", "user": {"id": user.id, "name": user.name, "email": user.email, "profile_img": user.profile_img}})
     response.set_cookie(key="access_token", value=jwt_token, httponly=True, secure=True, samesite="lax")
-    return response 
+    return response
+
+@router.post("/analyze", dependencies=[Depends(RateLimiter(times=5, seconds=60))])
+async def analyze_resume(request: Request):
+    # Placeholder for AI-powered resume analysis
+    return {"result": "Resume analysis complete (dummy response)"}
+
+@router.get("/auth/linkedin/login", dependencies=[Depends(RateLimiter(times=10, seconds=60))])
+async def linkedin_login(request: Request):
+    # Placeholder for LinkedIn OAuth login
+    return {"message": "LinkedIn login (dummy response)"}
+
+@router.delete("/resumes/{id}", dependencies=[Depends(RateLimiter(times=5, seconds=60))])
+async def delete_resume(id: str, request: Request):
+    # Placeholder for resume deletion logic
+    return {"message": f"Resume {id} deleted (dummy response)"} 
