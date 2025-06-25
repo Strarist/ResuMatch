@@ -14,3 +14,4 @@ pikepdf
 langchain
 langchain-community
 langchain-chroma
+authlib
