@@ -2,3 +2,4 @@ pytest
 fastapi-limiter
 redis
 uvicorn[standard]
+prometheus-fastapi-instrumentator
