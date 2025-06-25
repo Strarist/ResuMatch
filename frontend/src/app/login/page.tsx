@@ -21,8 +21,8 @@ export default function LoginPage() {
             Session expired – please log in again.
           </div>
         )}
-        <Image src="/logo.svg" alt="ResuMatch Logo" width={64} height={64} className="mb-2 animate-fade-in" />
-        <h1 className="text-3xl font-extrabold text-white mb-2 animate-slide-in-bottom">Sign in to ResuMatch</h1>
+        <Image src="/logo.svg" alt="ResuMatch Logo" width={80} height={80} className="mb-6" />
+        <h1 className="text-3xl font-bold mb-6">Sign in to ResuMatch</h1>
         <p className="text-gray-400 mb-6 text-center animate-fade-in" style={{ animationDelay: '0.2s' }}>
           Match your resume to jobs, visualize your skills, and land your dream role.
         </p>
