@@ -12,7 +12,6 @@ RUN pip install --no-cache-dir -r requirements.txt
 
 # Copy backend code
 COPY backend/app ./app
-COPY backend/migrate.py ./migrate.py
 COPY backend/uploads ./uploads
 
 # Set environment variables
@@ -23,4 +22,4 @@ ENV PYTHONUNBUFFERED=1 \
 EXPOSE 8000
 
 # Run migrations on startup, then start the app
-CMD ["sh", "-c", "python migrate.py && uvicorn app.main:app --host 0.0.0.0 --port 8000"] 
+CMD ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000"] 
