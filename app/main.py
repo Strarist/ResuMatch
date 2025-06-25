@@ -9,8 +9,9 @@ import redis.asyncio as aioredis
 from fastapi.responses import JSONResponse
 from starlette.status import HTTP_429_TOO_MANY_REQUESTS
 import logging
-from datetime import datetime
+from datetime import datetime, UTC
 from fastapi_limiter.depends import RateLimiter
+from contextlib import asynccontextmanager
 
 # Sentry setup
 SENTRY_DSN = os.getenv("SENTRY_DSN")
@@ -21,13 +22,20 @@ if SENTRY_DSN:
         environment=os.getenv("ENV", "development"),
     )
 
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    redis = await aioredis.from_url(os.getenv("REDIS_URL", "redis://localhost:6379"), encoding="utf-8", decode_responses=True)
+    await FastAPILimiter.init(redis)
+    yield
+
 app = FastAPI(
     title="ResuMatch API",
     version="1.0.0",
     openapi_url="/v1/openapi.json",
     docs_url="/v1/docs",
     redoc_url="/v1/redoc",
-    dependencies=[Depends(RateLimiter(times=1000, seconds=3600))]
+    dependencies=[Depends(RateLimiter(times=1000, seconds=3600))],
+    lifespan=lifespan
 )
 
 # CORS best practice: allow only frontend origin in production
@@ -42,11 +50,6 @@ app.add_middleware(
 # Prometheus metrics
 Instrumentator().instrument(app).expose(app, endpoint="/metrics")
 
-@app.on_event("startup")
-async def startup():
-    redis = await aioredis.from_url(os.getenv("REDIS_URL", "redis://localhost:6379"), encoding="utf-8", decode_responses=True)
-    await FastAPILimiter.init(redis)
-
 app.include_router(api_v1_router)
 
 @app.get("/v1/healthz", tags=["Health"])
@@ -58,7 +61,7 @@ async def rate_limit_exceeded_handler(request: Request, exc):
     ip = request.client.host
     endpoint = request.url.path
     method = request.method
-    now = datetime.utcnow().isoformat()
+    now = datetime.now(UTC).isoformat()
     logging.warning(f"[RATE LIMIT] 429 - IP: {ip} - Endpoint: {endpoint} - Method: {method} - Time: {now}")
     return JSONResponse(
         status_code=429,
