@@ -7,9 +7,9 @@ import PDFPreview from './PDFPreview'
 import LoadingSkeleton from './LoadingSkeleton'
 
 export default function UploadZone() {
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
   const [file, setFile] = useState<File | null>(null)
   const [uploading, setUploading] = useState(false)
-  const [uploadProgress, setUploadProgress] = useState(0)
 
   const onDrop = useCallback((acceptedFiles: File[]) => {
     const file = acceptedFiles[0]
@@ -30,13 +30,11 @@ export default function UploadZone() {
 
   const handleUpload = async (file: File) => {
     setUploading(true)
-    setUploadProgress(0)
     
     try {
       // Simulate upload progress
       for (let i = 0; i <= 100; i += 10) {
         await new Promise(resolve => setTimeout(resolve, 200))
-        setUploadProgress(i)
       }
       
       // TODO: Implement actual file upload
@@ -68,20 +66,14 @@ export default function UploadZone() {
         <input {...getInputProps()} />
         
         <div className="space-y-4">
-          {file ? (
+          {uploading ? (
+            <LoadingSkeleton />
+          ) : file ? (
             <>
               <DocumentIcon className="mx-auto h-12 w-12 text-blue-500" />
               <div className="text-sm text-gray-400">
-                {uploading ? `Uploading... ${uploadProgress}%` : file.name}
+                {file.name}
               </div>
-              {uploading && (
-                <div className="w-full h-2 bg-gray-700 rounded-full overflow-hidden">
-                  <div 
-                    className="h-full bg-blue-500 transition-all duration-300 ease-out"
-                    style={{ width: `${uploadProgress}%` }}
-                  />
-                </div>
-              )}
             </>
           ) : (
             <>
