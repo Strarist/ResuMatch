@@ -5,7 +5,7 @@ import sentry_sdk
 import os
 from .api_v1 import router as api_v1_router
 from fastapi_limiter import FastAPILimiter
-import aioredis
+import redis.asyncio as aioredis
 from fastapi.responses import JSONResponse
 from starlette.status import HTTP_429_TOO_MANY_REQUESTS
 import logging
