@@ -1,4 +1,4 @@
-import jwt_decode from "jwt-decode";
+import { jwtDecode } from "jwt-decode";
 
 export type User = {
   sub: string;
@@ -27,7 +27,7 @@ export function getUser(): User | null {
   const token = getToken();
   if (!token) return null;
   try {
-    const user = jwt_decode<User>(token);
+    const user = jwtDecode<User>(token);
     return user;
   } catch {
     return null;

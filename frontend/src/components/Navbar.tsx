@@ -1,3 +1,5 @@
+"use client";
+
 import Link from 'next/link'
 import { UserCircleIcon, Cog6ToothIcon, HomeIcon, DocumentTextIcon, ChartBarIcon, Squares2X2Icon, ArrowRightOnRectangleIcon } from '@heroicons/react/24/outline'
 import { useAuth } from '@/auth/AuthContext'
