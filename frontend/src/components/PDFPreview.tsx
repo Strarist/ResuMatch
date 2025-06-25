@@ -34,15 +34,17 @@ export default function PDFPreview({ file, className = '' }: PDFPreviewProps) {
       <Document
         file={url}
         loading={null}
-        error={() => setError('Error loading PDF')}
+        error="Error loading PDF"
         onLoadSuccess={() => setLoading(false)}
+        onLoadError={() => setError('Error loading PDF')}
         className="relative"
       >
         <Page
           pageNumber={1}
           width={300}
           loading={null}
-          error={() => setError('Error loading page')}
+          error="Error loading page"
+          onRenderError={() => setError('Error loading page')}
           className="rounded-lg overflow-hidden shadow-xl"
         />
       </Document>
