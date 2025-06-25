@@ -7,12 +7,12 @@ WORKDIR /app
 RUN apt-get update && apt-get install -y build-essential libpq-dev && rm -rf /var/lib/apt/lists/*
 
 # Install Python dependencies
-COPY backend/requirements-dev.txt ./requirements.txt
+COPY ../requirements-dev.txt ./requirements.txt
 RUN pip install --no-cache-dir -r requirements.txt
 
 # Copy backend code
-COPY backend/app ./app
-COPY backend/uploads ./uploads
+COPY app ./app
+COPY uploads ./uploads
 
 # Set environment variables
 ENV PYTHONUNBUFFERED=1 \
