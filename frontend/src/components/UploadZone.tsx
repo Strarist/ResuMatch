@@ -12,9 +12,8 @@ export default function UploadZone() {
   const [uploading, setUploading] = useState(false)
 
   const onDrop = useCallback((acceptedFiles: File[]) => {
-    const file = acceptedFiles[0]
-    setFile(file)
-    handleUpload(file)
+    setFile(acceptedFiles[0])
+    handleUpload(acceptedFiles[0])
   }, [])
 
   const { getRootProps, getInputProps, isDragActive } = useDropzone({
