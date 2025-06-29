@@ -1,187 +1,244 @@
-"use client"
+'use client';
 
-import { useState, useEffect } from 'react'
-import Link from 'next/link'
-import Image from 'next/image'
-import { 
-  ChartBarIcon, 
-  DocumentTextIcon, 
-  ArrowTrendingUpIcon,
-  BriefcaseIcon,
-  CheckCircleIcon,
-  ClockIcon
-} from '@heroicons/react/24/outline'
-import AnimatedCounter from '@/components/AnimatedCounter'
-import { useAuth } from "@/auth/AuthContext"
-import { useRouter } from "next/navigation"
+import React, { useState, useEffect } from 'react';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Button } from '@/components/ui/button';
+import { Badge } from '@/components/ui/badge';
+import { Alert, AlertDescription } from '@/components/ui/alert';
+import { Loader2, FileText, Plus, TrendingUp, Upload, AlertCircle } from 'lucide-react';
+import { useAuth } from '@/auth/AuthContext';
+import { useRouter } from 'next/navigation';
+import { toast } from 'sonner';
 
-// Mock data
-const recentActivity = [
-  { id: 1, type: 'match', text: 'New job match: Senior Frontend Developer', time: '2h ago', icon: BriefcaseIcon },
-  { id: 2, type: 'upload', text: 'Resume uploaded: Resume_June2024.pdf', time: '1d ago', icon: DocumentTextIcon },
-  { id: 3, type: 'analysis', text: 'Skills analysis completed', time: '2d ago', icon: ChartBarIcon },
-]
-
-type Stat = {
-  title: string;
-  value: number;
-  change: number;
-  color: string;
-  icon: React.ComponentType<{ className?: string }>;
-  details: string;
+interface Resume {
+  id: string;
+  filename: string;
+  upload_date: string;
+  file_size: number;
+  skills?: string[];
 }
 
-const stats: Stat[] = [
-  { title: 'Resume Matches', value: 12, change: 3, color: 'blue', icon: BriefcaseIcon, details: '3 new matches from top tech companies.' },
-  { title: 'Analysis Reports', value: 4, change: 1, color: 'purple', icon: ChartBarIcon, details: 'Your skills in React have improved.' },
-  { title: 'Recent Uploads', value: 3, change: 0, color: 'pink', icon: DocumentTextIcon, details: 'Your latest resume has been processed.' },
-]
-
-const TABS = [
-  { key: 'overview', label: 'Overview', icon: CheckCircleIcon },
-  { key: 'activity', label: 'Activity', icon: ClockIcon },
-]
-
 export default function DashboardPage() {
-  const { isAuthenticated, loading, user } = useAuth()
-  const router = useRouter()
-  const [activeTab, setActiveTab] = useState('overview')
-  const [selectedStat, setSelectedStat] = useState<Stat | null>(null)
+  const { isAuthenticated, loading } = useAuth();
+  const router = useRouter();
+  const [resumes, setResumes] = useState<Resume[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
     if (!loading && !isAuthenticated) {
-      router.replace("/login")
+      router.replace('/login');
     }
-  }, [isAuthenticated, loading, router])
+  }, [isAuthenticated, loading, router]);
+
+  useEffect(() => {
+    if (isAuthenticated) {
+      fetchResumes();
+    }
+  }, [isAuthenticated]);
+
+  const fetchResumes = async () => {
+    try {
+      const response = await fetch('/api/v1/resumes');
+      if (!response.ok) {
+        throw new Error('Failed to fetch resumes');
+      }
+      const data = await response.json();
+      setResumes(data.resumes || []);
+    } catch (err) {
+      setError('Failed to load resumes');
+      toast.error('Failed to load resumes');
+    } finally {
+      setIsLoading(false);
+    }
+  };
 
   if (loading || !isAuthenticated) {
     return (
-      <div className="flex items-center justify-center min-h-screen">
-        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-400" />
+      <div className="container mx-auto px-4 py-8">
+        <div className="flex items-center justify-center min-h-[400px]">
+          <Loader2 className="w-6 h-6 animate-spin" />
+        </div>
       </div>
-    )
+    );
   }
 
   return (
-    <main className="container mx-auto px-4 py-12 animate-fade-in">
-      {/* Header Section */}
-      <div className="flex flex-col md:flex-row justify-between items-start md:items-center mb-8 animate-slide-in-bottom" style={{ animationDelay: '0.2s' }}>
-        <div className="flex items-center gap-4 mb-4 md:mb-0">
-          {user?.profile_img ? (
-            <Image src={user.profile_img} alt={user.name || user.email} width={56} height={56} className="w-14 h-14 rounded-full border-2 border-blue-400 shadow-lg object-cover" />
-          ) : (
-            <div className="w-14 h-14 rounded-full bg-blue-900 flex items-center justify-center border-2 border-blue-400 shadow-lg">
-              <span className="text-2xl text-blue-300 font-bold">{user?.name?.[0] || user?.email?.[0]}</span>
-            </div>
-          )}
+    <div className="container mx-auto px-4 py-8">
+      <div className="max-w-6xl mx-auto space-y-6">
+        {/* Header */}
+        <div className="flex items-center justify-between">
           <div>
-            <h1 className="text-3xl font-bold text-white mb-1">Welcome back, {user?.name?.split(' ')[0] || user?.email}!</h1>
-            <div className="text-gray-400 text-sm">{user?.email}</div>
+            <h1 className="text-3xl font-bold mb-2">Dashboard</h1>
+            <p className="text-gray-600">
+              Manage your resumes and analyze job matches
+            </p>
+          </div>
+          <div className="flex gap-3">
+            <Button onClick={() => router.push('/upload')} className="flex items-center gap-2">
+              <Upload className="w-4 h-4" />
+              Upload Resume
+            </Button>
+            <Button onClick={() => router.push('/analysis')} variant="outline" className="flex items-center gap-2">
+              <TrendingUp className="w-4 h-4" />
+              Analyze
+            </Button>
           </div>
         </div>
-        <div className="mt-4 md:mt-0 flex gap-4">
-          <Link 
-            href="/upload" 
-            className="px-4 py-2 rounded-lg bg-blue-500 hover:bg-blue-600 text-white font-semibold shadow-lg transition-all hover-lift flex items-center gap-2"
-          >
-            <DocumentTextIcon className="h-5 w-5" />
-            Upload Resume
-          </Link>
-        </div>
-      </div>
 
-      {/* Tabs */}
-      <div className="flex gap-4 mb-8">
-        {TABS.map((tab) => (
-          <button
-            key={tab.key}
-            className={`flex items-center gap-2 px-4 py-2 rounded-lg font-semibold transition-all ${activeTab === tab.key ? 'bg-blue-600 text-white' : 'bg-gray-800 text-gray-300 hover:bg-gray-700'}`}
-            onClick={() => setActiveTab(tab.key)}
-          >
-            <tab.icon className="h-5 w-5" />
-            {tab.label}
-          </button>
-        ))}
-      </div>
+        {/* Stats Cards */}
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+          <Card>
+            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+              <CardTitle className="text-sm font-medium">Total Resumes</CardTitle>
+              <FileText className="h-4 w-4 text-muted-foreground" />
+            </CardHeader>
+            <CardContent>
+              <div className="text-2xl font-bold">{resumes.length}</div>
+              <p className="text-xs text-muted-foreground">
+                {resumes.length === 1 ? 'resume uploaded' : 'resumes uploaded'}
+              </p>
+            </CardContent>
+          </Card>
 
-      {/* Stats Grid */}
-      {activeTab === 'overview' && (
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-12">
-          {stats.map((stat) => (
-            <div 
-              key={stat.title}
-              className={`rounded-xl bg-${stat.color}-500/20 p-6 shadow-lg backdrop-blur-md border border-${stat.color}-500/30 hover-scale animate-fade-in cursor-pointer`}
-              onClick={() => setSelectedStat(stat)}
-            >
-              <div className="flex items-start justify-between">
-                <div>
-                  <h2 className={`text-lg font-bold text-${stat.color}-300 mb-2`}>{stat.title}</h2>
-                  <AnimatedCounter end={stat.value} className="text-3xl font-extrabold text-white" />
-                </div>
-                <stat.icon className={`h-6 w-6 text-${stat.color}-400`} />
+          <Card>
+            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+              <CardTitle className="text-sm font-medium">Skills Detected</CardTitle>
+              <TrendingUp className="h-4 w-4 text-muted-foreground" />
+            </CardHeader>
+            <CardContent>
+              <div className="text-2xl font-bold">
+                {resumes.reduce((total, resume) => total + (resume.skills?.length || 0), 0)}
               </div>
-              <div className="mt-2 flex items-center gap-1 text-sm">
-                <ArrowTrendingUpIcon className="h-4 w-4 text-green-400" />
-                <span className="text-green-400">+{stat.change}</span>
-                <span className="text-gray-400">vs last week</span>
-              </div>
-              {selectedStat?.title === stat.title && (
-                <p className="mt-4 text-sm text-gray-300 animate-fade-in">{stat.details}</p>
-              )}
-            </div>
-          ))}
-        </div>
-      )}
+              <p className="text-xs text-muted-foreground">
+                total skills across all resumes
+              </p>
+            </CardContent>
+          </Card>
 
-      {/* Main Content */}
-      <div className="grid md:grid-cols-3 gap-8">
-        {/* Activity Feed */}
-        {(activeTab === 'overview' || activeTab === 'activity') && (
-          <div className="md:col-span-2 rounded-xl bg-gray-900/60 p-6 shadow-lg backdrop-blur-md border border-gray-800 animate-slide-in-left" style={{ animationDelay: '1s' }}>
-            <h3 className="text-xl font-bold text-white mb-6">Recent Activity</h3>
-            <div className="space-y-6">
-              {recentActivity.map((activity) => (
-                <div 
-                  key={activity.id}
-                  className="flex gap-4 items-start group hover-lift"
-                >
-                  <div className={`p-2 rounded-lg bg-gray-800 group-hover:bg-${activity.type === 'match' ? 'blue' : activity.type === 'upload' ? 'purple' : 'pink'}-500/20 transition-colors`}>
-                    <activity.icon className="h-5 w-5 text-gray-400 group-hover:text-white transition-colors" />
+          <Card>
+            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+              <CardTitle className="text-sm font-medium">Recent Activity</CardTitle>
+              <Plus className="h-4 w-4 text-muted-foreground" />
+            </CardHeader>
+            <CardContent>
+              <div className="text-2xl font-bold">
+                {resumes.length > 0 ? new Date(resumes[0].upload_date).toLocaleDateString() : 'None'}
+              </div>
+              <p className="text-xs text-muted-foreground">
+                last resume uploaded
+              </p>
+            </CardContent>
+          </Card>
+        </div>
+
+        {/* Error Display */}
+        {error && (
+          <Alert variant="destructive">
+            <AlertCircle className="h-4 w-4" />
+            <AlertDescription>{error}</AlertDescription>
+          </Alert>
+        )}
+
+        {/* Resumes List */}
+        {isLoading ? (
+          <Card>
+            <CardContent className="flex items-center justify-center py-8">
+              <Loader2 className="w-6 h-6 animate-spin" />
+            </CardContent>
+          </Card>
+        ) : resumes.length === 0 ? (
+          <Card>
+            <CardHeader>
+              <CardTitle>No Resumes Yet</CardTitle>
+            </CardHeader>
+            <CardContent className="text-center py-8">
+              <FileText className="w-16 h-16 text-gray-400 mx-auto mb-4" />
+              <h3 className="text-lg font-semibold mb-2">Get Started</h3>
+              <p className="text-gray-600 mb-4">
+                Upload your first resume to start analyzing job matches
+              </p>
+              <Button onClick={() => router.push('/upload')} className="flex items-center gap-2">
+                <Upload className="w-4 h-4" />
+                Upload Resume
+              </Button>
+            </CardContent>
+          </Card>
+        ) : (
+          <Card>
+            <CardHeader>
+              <CardTitle>Your Resumes</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="space-y-4">
+                {resumes.map((resume) => (
+                  <div key={resume.id} className="flex items-center justify-between p-4 border rounded-lg">
+                    <div className="flex items-center gap-4">
+                      <FileText className="w-8 h-8 text-blue-500" />
+                      <div>
+                        <h4 className="font-semibold">{resume.filename}</h4>
+                        <p className="text-sm text-gray-600">
+                          Uploaded: {new Date(resume.upload_date).toLocaleDateString()} • 
+                          {(resume.file_size / 1024).toFixed(1)} KB
+                        </p>
+                        {resume.skills && resume.skills.length > 0 && (
+                          <div className="flex flex-wrap gap-1 mt-2">
+                            {resume.skills.slice(0, 5).map((skill, index) => (
+                              <Badge key={index} variant="secondary" className="text-xs">
+                                {skill}
+                              </Badge>
+                            ))}
+                            {resume.skills.length > 5 && (
+                              <Badge variant="outline" className="text-xs">
+                                +{resume.skills.length - 5} more
+                              </Badge>
+                            )}
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                    <div className="flex gap-2">
+                      <Button 
+                        onClick={() => router.push(`/analysis?resume=${resume.id}`)}
+                        variant="outline"
+                        size="sm"
+                      >
+                        Analyze
+                      </Button>
+                    </div>
                   </div>
-                  <div>
-                    <p className="text-gray-300 group-hover:text-white transition-colors">{activity.text}</p>
-                    <p className="text-sm text-gray-500 flex items-center gap-1">
-                      <ClockIcon className="h-4 w-4 inline-block" />
-                      {activity.time}
-                    </p>
-                  </div>
-                </div>
-              ))}
-            </div>
-          </div>
+                ))}
+              </div>
+            </CardContent>
+          </Card>
         )}
 
         {/* Quick Actions */}
-        <div className="rounded-xl bg-gray-900/60 p-6 shadow-lg backdrop-blur-md border border-gray-800 animate-slide-in-right" style={{ animationDelay: '1.2s' }}>
-          <h3 className="text-xl font-bold text-white mb-6">Quick Actions</h3>
-          <div className="space-y-4">
-            {[
-              { text: 'View Job Matches', icon: BriefcaseIcon, href: '/matches' },
-              { text: 'Update Resume', icon: DocumentTextIcon, href: '/upload' },
-              { text: 'View Analytics', icon: ChartBarIcon, href: '/analysis' },
-            ].map((action) => (
-              <Link
-                key={action.text}
-                href={action.href}
-                className="flex items-center gap-3 p-3 rounded-lg hover:bg-gray-800/50 transition-colors group hover-lift"
+        <Card>
+          <CardHeader>
+            <CardTitle>Quick Actions</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <Button 
+                onClick={() => router.push('/upload')}
+                className="h-20 flex flex-col items-center justify-center gap-2"
               >
-                <action.icon className="h-5 w-5 text-gray-400 group-hover:text-blue-400 transition-colors" />
-                <span className="text-gray-300 group-hover:text-white transition-colors">{action.text}</span>
-              </Link>
-            ))}
-          </div>
-        </div>
+                <Upload className="w-6 h-6" />
+                <span>Upload New Resume</span>
+              </Button>
+              <Button 
+                onClick={() => router.push('/analysis')}
+                variant="outline"
+                className="h-20 flex flex-col items-center justify-center gap-2"
+              >
+                <TrendingUp className="w-6 h-6" />
+                <span>Analyze Job Matches</span>
+              </Button>
+            </div>
+          </CardContent>
+        </Card>
       </div>
-    </main>
-  )
+    </div>
+  );
 } 

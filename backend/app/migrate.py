@@ -34,6 +34,10 @@ async def run_migrations():
                 END IF;
             END$$;
         """))
+        # Add password_hash column to users table if not exists
+        await conn.execute(text("""
+            ALTER TABLE IF NOT EXISTS users ADD COLUMN IF NOT EXISTS password_hash VARCHAR;
+        """))
     print("Migrations complete.")
 
 if __name__ == "__main__":

@@ -1,15 +1,19 @@
 "use client";
 import React, { createContext, useContext, useEffect, useState, ReactNode } from "react";
 import * as auth from "./auth";
+import { apiClient, LoginRequest } from "./api";
+import { useRouter } from "next/navigation";
 
 interface AuthContextType {
   user: auth.User | null;
   isAuthenticated: boolean;
-  login: (token: string) => void;
-  logout: () => void;
+  login: (credentials: LoginRequest) => Promise<void>;
+  loginWithToken: (token: string) => void;
+  logout: () => Promise<void>;
   loading: boolean;
   sessionExpired: boolean;
   setUser: (user: auth.User | null) => void;
+  refreshUser: () => Promise<void>;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -18,46 +22,118 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<auth.User | null>(null);
   const [loading, setLoading] = useState(true);
   const [sessionExpired, setSessionExpired] = useState(false);
+  const router = useRouter();
 
+  // Initialize auth state
   useEffect(() => {
-    // Silent rehydration
-    const u = auth.getUser();
-    setUser(u);
-    setLoading(false);
-    if (u && auth.isTokenExpired()) {
-      setSessionExpired(true);
-      auth.logout();
-      setUser(null);
-    }
+    const initializeAuth = async () => {
+      try {
+        const isValid = await auth.validateAndRefreshToken();
+        if (isValid) {
+          const currentUser = auth.getUser();
+          setUser(currentUser);
+        } else {
+          setSessionExpired(true);
+          auth.logout();
+        }
+      } catch (error) {
+        console.error('Auth initialization failed:', error);
+        auth.logout();
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    initializeAuth();
   }, []);
 
-  const handleLogin = (token: string) => {
+  // Handle login with credentials
+  const handleLogin = async (credentials: LoginRequest) => {
+    try {
+      const response = await apiClient.login(credentials);
+      auth.login(response.access_token);
+      const user = auth.getUser();
+      setUser(user);
+      setSessionExpired(false);
+    } catch (error) {
+      console.error('Login failed:', error);
+      throw error;
+    }
+  };
+
+  // Handle login with token (for OAuth)
+  const handleLoginWithToken = (token: string) => {
     auth.login(token);
-    setUser(auth.getUser());
+    const user = auth.getUser();
+    setUser(user);
     setSessionExpired(false);
   };
 
-  const handleLogout = () => {
-    auth.logout();
-    setUser(null);
-    setSessionExpired(false);
+  // Handle logout
+  const handleLogout = async () => {
+    try {
+      await apiClient.logout();
+    } catch (error) {
+      console.error('Logout API call failed:', error);
+    } finally {
+      auth.logout();
+      setUser(null);
+      setSessionExpired(false);
+      router.push('/login');
+    }
   };
 
-  // Watch for token expiry while app is open
+  // Refresh user data from server
+  const refreshUser = async () => {
+    try {
+      const response = await apiClient.getProfile();
+      const currentUser = auth.getUser();
+      if (currentUser) {
+        setUser({
+          ...currentUser,
+          name: response.user.name,
+          profile_img: response.user.profile_img,
+        });
+      }
+    } catch (error) {
+      console.error('Failed to refresh user data:', error);
+    }
+  };
+
+  // Watch for token expiry and auto-refresh
   useEffect(() => {
     if (!user) return;
+
+    const checkTokenExpiry = async () => {
+      const isValid = await auth.validateAndRefreshToken();
+      if (!isValid) {
+        setSessionExpired(true);
+        await handleLogout();
+      } else {
+        const updatedUser = auth.getUser();
+        if (updatedUser) {
+          setUser(updatedUser);
+        }
+      }
+    };
+
+    // Check every minute
+    const interval = setInterval(checkTokenExpiry, 60 * 1000);
+    
+    // Also check when the token is about to expire
     const now = Date.now();
     const exp = user.exp * 1000;
-    if (exp <= now) {
-      setSessionExpired(true);
-      handleLogout();
-    } else {
-      const timeout = setTimeout(() => {
-        setSessionExpired(true);
-        handleLogout();
-      }, exp - now);
-      return () => clearTimeout(timeout);
+    const timeUntilExpiry = exp - now;
+    
+    if (timeUntilExpiry > 0) {
+      const timeout = setTimeout(checkTokenExpiry, timeUntilExpiry - 60000); // 1 minute before expiry
+      return () => {
+        clearInterval(interval);
+        clearTimeout(timeout);
+      };
     }
+
+    return () => clearInterval(interval);
   }, [user]);
 
   return (
@@ -66,10 +142,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         user,
         isAuthenticated: !!user && !auth.isTokenExpired(),
         login: handleLogin,
+        loginWithToken: handleLoginWithToken,
         logout: handleLogout,
         loading,
         sessionExpired,
         setUser,
+        refreshUser,
       }}
     >
       {loading ? (
