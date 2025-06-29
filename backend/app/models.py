@@ -1,6 +1,9 @@
 from sqlalchemy import Column, Integer, String, Text, JSON, Float, ForeignKey, Table, DateTime, func
 from sqlalchemy.dialects.postgresql import ARRAY, JSONB
 from sqlalchemy.orm import declarative_base, relationship
+import enum
+from sqlalchemy import Enum
+from uuid import uuid4
 
 Base = declarative_base()
 
@@ -11,6 +14,7 @@ class User(Base):
     email = Column(String, unique=True, nullable=False, index=True)
     provider = Column(String, nullable=False)
     profile_img = Column(String, nullable=True)
+    password_hash = Column(String, nullable=True)  # For email/password auth
     resumes = relationship("Resume", back_populates="user")
 
 class Resume(Base):
@@ -38,4 +42,18 @@ class Match(Base):
     score = Column(Float, nullable=False)
     created_at = Column(DateTime(timezone=True), server_default=func.now())
     resume = relationship("Resume", back_populates="matches")
-    job = relationship("Job", back_populates="matches") 
+    job = relationship("Job", back_populates="matches")
+
+class SanitizationStatus(enum.Enum):
+    success = "success"
+    failure = "failure"
+
+class FileSanitizationAudit(Base):
+    __tablename__ = "file_sanitization_audit"
+    id = Column(String, primary_key=True, default=lambda: str(uuid4()))
+    user_id = Column(String, nullable=True)
+    filename = Column(String, nullable=False)
+    status = Column(Enum(SanitizationStatus), nullable=False)
+    timestamp = Column(DateTime(timezone=True), server_default=func.now())
+    reason = Column(Text, nullable=True)
+    session_id = Column(String, nullable=True) 

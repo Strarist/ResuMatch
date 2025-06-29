@@ -4,7 +4,15 @@ import Link from 'next/link'
 import { UserCircleIcon, Cog6ToothIcon, HomeIcon, DocumentTextIcon, ChartBarIcon, Squares2X2Icon, ArrowRightOnRectangleIcon } from '@heroicons/react/24/outline'
 import { useAuth } from '@/auth/AuthContext'
 import Image from 'next/image'
-import { useRouter } from 'next/navigation'
+import { useState } from 'react'
+import toast from 'react-hot-toast'
+
+const anchorLinks = [
+  { name: 'Hero', href: '#hero' },
+  { name: 'Features', href: '#features' },
+  { name: 'How it Works', href: '#how-it-works' },
+  { name: 'Footer', href: '#footer' },
+]
 
 const navLinks = [
   { name: 'Home', href: '/', icon: HomeIcon },
@@ -17,11 +25,21 @@ const navLinks = [
 
 export default function Navbar() {
   const { user, isAuthenticated, logout } = useAuth()
-  const router = useRouter()
+  const [isDropdownOpen, setIsDropdownOpen] = useState(false)
+  const [isLoggingOut, setIsLoggingOut] = useState(false)
 
-  const handleLogout = () => {
-    logout()
-    router.replace('/login')
+  const handleLogout = async () => {
+    setIsLoggingOut(true)
+    try {
+      await logout()
+      toast.success('Successfully logged out')
+    } catch (error) {
+      console.error('Logout failed:', error)
+      toast.error('Logout failed')
+    } finally {
+      setIsLoggingOut(false)
+      setIsDropdownOpen(false)
+    }
   }
 
   return (
@@ -31,6 +49,15 @@ export default function Navbar() {
           <span className="bg-gradient-to-r from-blue-400 via-purple-400 to-pink-400 bg-clip-text text-transparent">ResuMatch</span>
         </Link>
         <div className="flex gap-2 md:gap-4 items-center">
+          {anchorLinks.map(link => (
+            <a
+              key={link.name}
+              href={link.href}
+              className="px-3 py-2 rounded-lg text-gray-300 hover:text-white hover:bg-blue-500/20 transition-colors font-medium hidden md:inline"
+            >
+              {link.name}
+            </a>
+          ))}
           {navLinks.map(link => (
             <Link
               key={link.name}
@@ -43,27 +70,54 @@ export default function Navbar() {
           ))}
           {/* User Info / Auth Buttons */}
           {isAuthenticated && user ? (
-            <div className="relative group ml-4">
-              <button className="flex items-center gap-2 px-3 py-2 rounded-lg bg-gray-800/60 hover:bg-blue-500/20 text-white font-semibold shadow transition-all focus:outline-none focus:ring-2 focus:ring-blue-400" aria-haspopup="true" aria-expanded="false">
+            <div className="relative ml-4">
+              <button 
+                className="flex items-center gap-2 px-3 py-2 rounded-lg bg-gray-800/60 hover:bg-blue-500/20 text-white font-semibold shadow transition-all focus:outline-none focus:ring-2 focus:ring-blue-400" 
+                aria-haspopup="true" 
+                aria-expanded={isDropdownOpen}
+                onClick={() => setIsDropdownOpen(!isDropdownOpen)}
+              >
                 {user.profile_img ? (
                   <Image src={user.profile_img} alt={user.name || user.email} width={32} height={32} className="rounded-full border-2 border-blue-400" />
                 ) : (
                   <UserCircleIcon className="h-7 w-7 text-blue-400" />
                 )}
                 <span className="hidden sm:inline text-white font-medium">{user.name || user.email}</span>
-                <svg className="h-4 w-4 ml-1 text-gray-400 group-hover:text-white transition-colors" fill="none" viewBox="0 0 20 20"><path d="M6 8l4 4 4-4" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/></svg>
+                <svg className={`h-4 w-4 ml-1 text-gray-400 transition-transform ${isDropdownOpen ? 'rotate-180' : ''}`} fill="none" viewBox="0 0 20 20">
+                  <path d="M6 8l4 4 4-4" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
+                </svg>
               </button>
-              <div className="absolute right-0 mt-2 w-48 bg-gray-900 border border-gray-800 rounded-xl shadow-lg opacity-0 group-hover:opacity-100 transition-opacity z-50 py-2">
-                <Link href="/profile" className="block px-4 py-2 text-gray-300 hover:bg-blue-500/20 hover:text-white rounded-lg transition-colors">Profile</Link>
-                <Link href="/settings" className="block px-4 py-2 text-gray-300 hover:bg-blue-500/20 hover:text-white rounded-lg transition-colors">Settings</Link>
-                <div className="border-t border-gray-800 my-2" />
-                <button
-                  onClick={handleLogout}
-                  className="w-full flex items-center gap-2 px-4 py-2 text-left text-red-400 hover:bg-red-500/20 hover:text-white rounded-lg transition-colors font-semibold"
-                >
-                  <ArrowRightOnRectangleIcon className="h-5 w-5" /> Logout
-                </button>
-              </div>
+              {isDropdownOpen && (
+                <div className="absolute right-0 mt-2 w-48 bg-gray-900 border border-gray-800 rounded-xl shadow-lg z-50 py-2 animate-fade-in">
+                  <div className="px-4 py-2 border-b border-gray-800">
+                    <p className="text-sm text-gray-400">Signed in as</p>
+                    <p className="text-white font-medium truncate">{user.email}</p>
+                  </div>
+                  <Link 
+                    href="/profile" 
+                    className="block px-4 py-2 text-gray-300 hover:bg-blue-500/20 hover:text-white rounded-lg transition-colors"
+                    onClick={() => setIsDropdownOpen(false)}
+                  >
+                    Profile
+                  </Link>
+                  <Link 
+                    href="/settings" 
+                    className="block px-4 py-2 text-gray-300 hover:bg-blue-500/20 hover:text-white rounded-lg transition-colors"
+                    onClick={() => setIsDropdownOpen(false)}
+                  >
+                    Settings
+                  </Link>
+                  <div className="border-t border-gray-800 my-2" />
+                  <button
+                    onClick={handleLogout}
+                    disabled={isLoggingOut}
+                    className="w-full flex items-center gap-2 px-4 py-2 text-left text-red-400 hover:bg-red-500/20 hover:text-white rounded-lg transition-colors font-semibold disabled:opacity-50 disabled:cursor-not-allowed"
+                  >
+                    <ArrowRightOnRectangleIcon className="h-5 w-5" /> 
+                    {isLoggingOut ? 'Logging out...' : 'Logout'}
+                  </button>
+                </div>
+              )}
             </div>
           ) : (
             <Link
@@ -75,6 +129,13 @@ export default function Navbar() {
           )}
         </div>
       </div>
+      {/* Click outside to close dropdown */}
+      {isDropdownOpen && (
+        <div 
+          className="fixed inset-0 z-40" 
+          onClick={() => setIsDropdownOpen(false)}
+        />
+      )}
     </nav>
   )
 } 

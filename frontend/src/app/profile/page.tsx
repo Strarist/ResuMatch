@@ -1,37 +1,117 @@
 'use client'
 
-import Image from 'next/image'
-import { UserCircleIcon, PencilSquareIcon } from '@heroicons/react/24/outline'
+import React, { useState } from 'react'
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
+import { Button } from '@/components/ui/button'
+import { Alert, AlertDescription } from '@/components/ui/alert'
+import { Loader2, User, Mail, Shield, LogOut } from 'lucide-react'
 import { useAuth } from '@/auth/AuthContext'
+import { useRouter } from 'next/navigation'
+import { toast } from 'sonner'
 
 export default function ProfilePage() {
-  const { user } = useAuth();
-  return (
-    <main className="container mx-auto px-4 py-12 animate-fade-in">
-      <h1 className="text-3xl font-bold text-white mb-8 animate-slide-in-bottom flex items-center gap-2">
-        <UserCircleIcon className="h-7 w-7 text-blue-400" /> My Profile
-      </h1>
-      <div className="max-w-lg mx-auto bg-gray-900/60 p-8 rounded-xl border border-gray-800 shadow-lg flex flex-col items-center gap-6 animate-scale-in">
-        <div className="relative group">
-          {user?.profile_img ? (
-            <Image src={user.profile_img} alt={user.name || user.email} width={96} height={96} unoptimized className="rounded-full border-4 border-blue-500 shadow-lg group-hover:scale-105 transition-transform duration-300" />
-          ) : (
-            <div className="w-24 h-24 rounded-full bg-blue-900 flex items-center justify-center border-4 border-blue-500 shadow-lg">
-              <span className="text-3xl text-blue-300 font-bold">{user?.name?.[0] || user?.email?.[0]}</span>
-            </div>
-          )}
-          <button className="absolute bottom-0 right-0 bg-blue-500 hover:bg-blue-600 text-white rounded-full p-2 shadow-lg transition-all opacity-0 group-hover:opacity-100">
-            <PencilSquareIcon className="h-5 w-5" />
-          </button>
+  const { user, isAuthenticated, loading, logout } = useAuth()
+  const router = useRouter()
+  const [isUpdating, setIsUpdating] = useState(false)
+
+  React.useEffect(() => {
+    if (!loading && !isAuthenticated) {
+      router.replace('/login')
+    }
+  }, [isAuthenticated, loading, router])
+
+  const handleLogout = async () => {
+    try {
+      await logout()
+      toast.success('Logged out successfully')
+      router.push('/')
+    } catch (error) {
+      toast.error('Logout failed')
+    }
+  }
+
+  if (loading || !isAuthenticated) {
+    return (
+      <div className="container mx-auto px-4 py-8">
+        <div className="flex items-center justify-center min-h-[400px]">
+          <Loader2 className="w-6 h-6 animate-spin" />
         </div>
-        <div className="text-center">
-          <div className="text-xl font-bold text-white">{user?.name}</div>
-          <div className="text-gray-400">{user?.email}</div>
-        </div>
-        <button className="px-6 py-2 rounded-lg bg-blue-500 hover:bg-blue-600 text-white font-semibold shadow-lg transition-all hover-scale active:scale-95 flex items-center gap-2">
-          <PencilSquareIcon className="h-5 w-5" /> Edit Profile
-        </button>
       </div>
-    </main>
+    )
+  }
+
+  return (
+    <div className="container mx-auto px-4 py-8">
+      <div className="max-w-2xl mx-auto space-y-6">
+        {/* Header */}
+        <div className="text-center">
+          <h1 className="text-3xl font-bold mb-2">Profile</h1>
+          <p className="text-gray-600">
+            Manage your account settings and preferences
+          </p>
+        </div>
+
+        {/* Profile Info */}
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              <User className="w-5 h-5" />
+              Account Information
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            <div className="flex items-center gap-3 p-3 bg-gray-50 rounded-lg">
+              <User className="w-5 h-5 text-gray-500" />
+              <div>
+                <p className="font-medium">{user?.name || 'Not provided'}</p>
+                <p className="text-sm text-gray-600">Full Name</p>
+              </div>
+            </div>
+            
+            <div className="flex items-center gap-3 p-3 bg-gray-50 rounded-lg">
+              <Mail className="w-5 h-5 text-gray-500" />
+              <div>
+                <p className="font-medium">{user?.email}</p>
+                <p className="text-sm text-gray-600">Email Address</p>
+              </div>
+            </div>
+
+            <div className="flex items-center gap-3 p-3 bg-gray-50 rounded-lg">
+              <Shield className="w-5 h-5 text-gray-500" />
+              <div>
+                <p className="font-medium capitalize">{user?.provider || 'email'}</p>
+                <p className="text-sm text-gray-600">Authentication Method</p>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+
+        {/* Account Actions */}
+        <Card>
+          <CardHeader>
+            <CardTitle>Account Actions</CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            <Button 
+              onClick={handleLogout}
+              variant="outline"
+              className="w-full flex items-center gap-2"
+            >
+              <LogOut className="w-4 h-4" />
+              Sign Out
+            </Button>
+          </CardContent>
+        </Card>
+
+        {/* Security Notice */}
+        <Alert>
+          <Shield className="h-4 w-4" />
+          <AlertDescription>
+            Your account is secured with industry-standard encryption. 
+            All resume data is processed securely and never shared with third parties.
+          </AlertDescription>
+        </Alert>
+      </div>
+    </div>
   )
 } 

@@ -12,6 +12,11 @@ import logging
 from datetime import datetime, UTC
 from fastapi_limiter.depends import RateLimiter
 from contextlib import asynccontextmanager
+from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
+import time
+from typing import Optional
+from .db import get_db, engine
+from .models import Base
 
 # Sentry setup
 SENTRY_DSN = os.getenv("SENTRY_DSN")
@@ -41,7 +46,10 @@ app = FastAPI(
 # CORS best practice: allow only frontend origin in production
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://localhost:3000"],
+    allow_origins=[
+        "http://localhost:3000",
+        "https://resu-match-kgul-aditya-guptas-projects-3b73694b.vercel.app"
+    ],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -52,9 +60,84 @@ Instrumentator().instrument(app).expose(app, endpoint="/metrics")
 
 app.include_router(api_v1_router)
 
-@app.get("/v1/healthz", tags=["Health"])
-def health_check():
-    return {"status": "ok"}
+# Security
+security = HTTPBearer()
+
+@app.get("/")
+async def root():
+    return {
+        "message": "ResuMatch API",
+        "version": "1.0.0",
+        "status": "running",
+        "timestamp": datetime.utcnow().isoformat()
+    }
+
+@app.get("/health")
+async def health_check():
+    """Health check endpoint for monitoring and deployment validation"""
+    try:
+        # Check database connection
+        db = next(get_db())
+        db.execute("SELECT 1")
+        db.close()
+        
+        return {
+            "status": "healthy",
+            "timestamp": datetime.utcnow().isoformat(),
+            "version": "1.0.0",
+            "database": "connected",
+            "uptime": time.time()
+        }
+    except Exception as e:
+        return JSONResponse(
+            status_code=503,
+            content={
+                "status": "unhealthy",
+                "timestamp": datetime.utcnow().isoformat(),
+                "error": str(e),
+                "database": "disconnected"
+            }
+        )
+
+@app.get("/ready")
+async def readiness_check():
+    """Readiness check for Kubernetes/container orchestration"""
+    try:
+        # Check database connection
+        db = next(get_db())
+        db.execute("SELECT 1")
+        db.close()
+        
+        # Check environment variables
+        required_env_vars = [
+            "DATABASE_URL",
+            "SECRET_KEY",
+            "ALGORITHM"
+        ]
+        
+        missing_vars = [var for var in required_env_vars if not os.getenv(var)]
+        
+        if missing_vars:
+            return JSONResponse(
+                status_code=503,
+                content={
+                    "status": "not ready",
+                    "missing_environment_variables": missing_vars
+                }
+            )
+        
+        return {
+            "status": "ready",
+            "timestamp": datetime.utcnow().isoformat()
+        }
+    except Exception as e:
+        return JSONResponse(
+            status_code=503,
+            content={
+                "status": "not ready",
+                "error": str(e)
+            }
+        )
 
 @app.exception_handler(HTTP_429_TOO_MANY_REQUESTS)
 async def rate_limit_exceeded_handler(request: Request, exc):
