@@ -1,5 +1,5 @@
 "use client";
-import React, { createContext, useContext, useEffect, useState, ReactNode } from "react";
+import React, { createContext, useContext, useEffect, useState, ReactNode, useCallback } from "react";
 import * as auth from "./auth";
 import { apiClient, LoginRequest } from "./api";
 import { useRouter } from "next/navigation";
@@ -70,7 +70,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   };
 
   // Handle logout
-  const handleLogout = async () => {
+  const handleLogout = useCallback(async () => {
     try {
       await apiClient.logout();
     } catch (error) {
@@ -81,7 +81,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       setSessionExpired(false);
       router.push('/login');
     }
-  };
+  }, [router]);
 
   // Refresh user data from server
   const refreshUser = async () => {
@@ -134,7 +134,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
 
     return () => clearInterval(interval);
-  }, [user]);
+  }, [user, handleLogout]);
+
+  useEffect(() => {
+    if (sessionExpired) {
+      handleLogout();
+    }
+  }, [sessionExpired, handleLogout]);
 
   return (
     <AuthContext.Provider

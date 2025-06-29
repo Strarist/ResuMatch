@@ -1,176 +1,219 @@
 'use client'
 
-import { useState, useCallback } from 'react'
-import { useDropzone } from 'react-dropzone'
-import { ArrowUpTrayIcon, DocumentIcon, CheckCircleIcon, XCircleIcon } from '@heroicons/react/24/outline'
-import PDFPreview from './PDFPreview'
-import LoadingSkeleton from './LoadingSkeleton'
+import React, { useState, useCallback } from 'react'
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
+import { Button } from '@/components/ui/button'
+import { Progress } from '@/components/ui/progress'
+import { Alert, AlertDescription } from '@/components/ui/alert'
+import { Upload, FileText, CheckCircle, AlertCircle, X } from 'lucide-react'
 import { toast } from 'sonner'
-import { useRouter } from 'next/navigation'
 
-export default function UploadZone() {
-  const [file, setFile] = useState<File | null>(null)
+interface UploadZoneProps {
+  onUploadComplete?: (resumeId: string) => void
+}
+
+export default function UploadZone({ onUploadComplete }: UploadZoneProps) {
+  const [isDragging, setIsDragging] = useState(false)
   const [uploading, setUploading] = useState(false)
-  const [uploadProgress, setUploadProgress] = useState(0)
-  const [uploadStatus, setUploadStatus] = useState<'idle' | 'uploading' | 'processing' | 'success' | 'error'>('idle')
-  const router = useRouter()
+  const [progress, setProgress] = useState(0)
+  const [uploadedFile, setUploadedFile] = useState<File | null>(null)
+  const [error, setError] = useState<string | null>(null)
 
-  const onDrop = useCallback((acceptedFiles: File[]) => {
-    setFile(acceptedFiles[0])
-    handleUpload(acceptedFiles[0])
-  }, [])
+  const handleUpload = useCallback(async (file: File) => {
+    if (!file) return
 
-  const { getRootProps, getInputProps, isDragActive } = useDropzone({
-    onDrop,
-    accept: {
-      'application/pdf': ['.pdf']
-    },
-    maxFiles: 1,
-    multiple: false,
-    maxSize: 5 * 1024 * 1024 // 5MB
-  })
+    // Validate file type
+    if (file.type !== 'application/pdf') {
+      setError('Please upload a PDF file')
+      toast.error('Please upload a PDF file')
+      return
+    }
 
-  const handleUpload = async (file: File) => {
-    if (!file) return;
-    
+    // Validate file size (10MB limit)
+    if (file.size > 10 * 1024 * 1024) {
+      setError('File size must be less than 10MB')
+      toast.error('File size must be less than 10MB')
+      return
+    }
+
     setUploading(true)
-    setUploadStatus('uploading')
-    setUploadProgress(0)
-    
+    setProgress(0)
+    setError(null)
+    setUploadedFile(file)
+
+    const formData = new FormData()
+    formData.append('file', file)
+
     try {
-      // Create FormData
-      const formData = new FormData()
-      formData.append('file', file)
-      
-      // Upload file
-      const response = await fetch('/api/v1/resumes', {
+      const response = await fetch('/api/v1/resumes/upload', {
         method: 'POST',
-        body: formData,
+        headers: {
+          'Authorization': `Bearer ${localStorage.getItem('token')}`
+        },
+        body: formData
       })
-      
+
       if (!response.ok) {
-        const errorData = await response.json()
-        throw new Error(errorData.detail || 'Upload failed')
+        throw new Error('Upload failed')
       }
-      
-      setUploadProgress(50)
-      setUploadStatus('processing')
-      
-      const result = await response.json()
-      
-      // Simulate processing time
-      await new Promise(resolve => setTimeout(resolve, 2000))
-      
-      setUploadProgress(100)
-      setUploadStatus('success')
-      
+
+      const data = await response.json()
+      setProgress(100)
       toast.success('Resume uploaded successfully!')
       
-      // Redirect to analysis page after a short delay
-      setTimeout(() => {
-        router.push('/analysis')
-      }, 1500)
-      
-    } catch (error) {
-      console.error('Upload failed:', error)
-      setUploadStatus('error')
-      toast.error(error instanceof Error ? error.message : 'Upload failed')
+      if (onUploadComplete) {
+        onUploadComplete(data.resume_id)
+      }
+    } catch {
+      setError('Failed to upload resume. Please try again.')
+      toast.error('Upload failed')
     } finally {
       setUploading(false)
     }
-  }
+  }, [onUploadComplete])
 
-  const getStatusIcon = () => {
-    switch (uploadStatus) {
-      case 'success':
-        return <CheckCircleIcon className="mx-auto h-12 w-12 text-green-500" />
-      case 'error':
-        return <XCircleIcon className="mx-auto h-12 w-12 text-red-500" />
-      case 'uploading':
-      case 'processing':
-        return <LoadingSkeleton />
-      default:
-        return <ArrowUpTrayIcon className="mx-auto h-12 w-12 text-gray-400" />
-    }
-  }
+  const handleDragOver = useCallback((e: React.DragEvent) => {
+    e.preventDefault()
+    setIsDragging(true)
+  }, [])
 
-  const getStatusText = () => {
-    switch (uploadStatus) {
-      case 'success':
-        return 'Upload successful! Redirecting to analysis...'
-      case 'error':
-        return 'Upload failed. Please try again.'
-      case 'uploading':
-        return 'Uploading resume...'
-      case 'processing':
-        return 'Processing resume with AI...'
-      default:
-        return isDragActive ? 'Drop your resume here...' : 'Click to upload or drag and drop your resume'
+  const handleDragLeave = useCallback((e: React.DragEvent) => {
+    e.preventDefault()
+    setIsDragging(false)
+  }, [])
+
+  const handleDrop = useCallback((e: React.DragEvent) => {
+    e.preventDefault()
+    setIsDragging(false)
+    
+    const files = e.dataTransfer.files
+    if (files.length > 0) {
+      handleUpload(files[0])
     }
-  }
+  }, [handleUpload])
+
+  const handleFileSelect = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
+    const files = e.target.files
+    if (files && files.length > 0) {
+      handleUpload(files[0])
+    }
+  }, [handleUpload])
+
+  const resetUpload = useCallback(() => {
+    setUploadedFile(null)
+    setProgress(0)
+    setError(null)
+  }, [])
 
   return (
-    <div className="space-y-6">
-      <div
-        {...getRootProps()}
-        className={`
-          relative rounded-xl border-2 border-dashed p-12 text-center
-          transition-all duration-300 ease-in-out
-          ${isDragActive 
-            ? 'border-blue-500 bg-blue-500/10' 
-            : uploadStatus === 'success'
-            ? 'border-green-500 bg-green-500/10'
-            : uploadStatus === 'error'
-            ? 'border-red-500 bg-red-500/10'
-            : 'border-gray-700 hover:border-gray-600'
-          }
-          ${uploading ? 'pointer-events-none' : 'cursor-pointer'}
-          animate-slide-in
-        `}
-      >
-        <input {...getInputProps()} />
-        
-        <div className="space-y-4">
-          {getStatusIcon()}
-          
-          <div className="text-gray-300">
-            <p>{getStatusText()}</p>
+    <Card className="w-full max-w-2xl mx-auto">
+      <CardHeader>
+        <CardTitle className="flex items-center gap-2">
+          <Upload className="w-5 h-5" />
+          Upload Resume
+        </CardTitle>
+      </CardHeader>
+      <CardContent className="space-y-4">
+        {!uploadedFile ? (
+          <div
+            className={`border-2 border-dashed rounded-lg p-8 text-center transition-colors ${
+              isDragging 
+                ? 'border-blue-500 bg-blue-50' 
+                : 'border-gray-300 hover:border-gray-400'
+            }`}
+            onDragOver={handleDragOver}
+            onDragLeave={handleDragLeave}
+            onDrop={handleDrop}
+          >
+            <Upload className="w-12 h-12 text-gray-400 mx-auto mb-4" />
+            <h3 className="text-lg font-semibold mb-2">
+              Drop your resume here
+            </h3>
+            <p className="text-gray-600 mb-4">
+              or click to browse files
+            </p>
+            <Button 
+              onClick={() => document.getElementById('file-input')?.click()}
+              disabled={uploading}
+              className="flex items-center gap-2"
+            >
+              <FileText className="w-4 h-4" />
+              Choose File
+            </Button>
+            <input
+              id="file-input"
+              type="file"
+              accept=".pdf"
+              onChange={handleFileSelect}
+              className="hidden"
+              disabled={uploading}
+            />
+            <p className="text-sm text-gray-500 mt-4">
+              Supports PDF files up to 10MB
+            </p>
           </div>
-
-          {file && (
-            <div className="text-sm text-gray-400">
-              {file.name} ({(file.size / 1024 / 1024).toFixed(2)} MB)
+        ) : (
+          <div className="space-y-4">
+            {/* Upload Progress */}
+            <div className="flex items-center gap-3 p-4 bg-gray-50 rounded-lg">
+              <FileText className="w-8 h-8 text-blue-500" />
+              <div className="flex-1">
+                <p className="font-medium">{uploadedFile.name}</p>
+                <p className="text-sm text-gray-600">
+                  {(uploadedFile.size / 1024 / 1024).toFixed(2)} MB
+                </p>
+              </div>
+              {uploading ? (
+                <div className="flex items-center gap-2">
+                  <div className="w-4 h-4 border-2 border-blue-500 border-t-transparent rounded-full animate-spin" />
+                  <span className="text-sm text-gray-600">Uploading...</span>
+                </div>
+              ) : progress === 100 ? (
+                <CheckCircle className="w-6 h-6 text-green-500" />
+              ) : (
+                <X className="w-6 h-6 text-red-500" />
+              )}
             </div>
-          )}
 
-          {/* Progress bar */}
-          {(uploadStatus === 'uploading' || uploadStatus === 'processing') && (
-            <div className="w-full bg-gray-700 rounded-full h-2">
-              <div 
-                className="bg-blue-500 h-2 rounded-full transition-all duration-300"
-                style={{ width: `${uploadProgress}%` }}
-              />
+            {/* Progress Bar */}
+            {uploading && (
+              <div className="space-y-2">
+                <Progress value={progress} className="w-full" />
+                <p className="text-sm text-gray-600 text-center">
+                  {progress}% complete
+                </p>
+              </div>
+            )}
+
+            {/* Error Display */}
+            {error && (
+              <Alert variant="destructive">
+                <AlertCircle className="h-4 w-4" />
+                <AlertDescription>{error}</AlertDescription>
+              </Alert>
+            )}
+
+            {/* Actions */}
+            <div className="flex gap-2">
+              <Button 
+                onClick={resetUpload}
+                variant="outline"
+                className="flex-1"
+              >
+                Upload Another
+              </Button>
+              {progress === 100 && (
+                <Button 
+                  onClick={() => onUploadComplete && onUploadComplete('')}
+                  className="flex-1"
+                >
+                  Continue
+                </Button>
+              )}
             </div>
-          )}
-        </div>
-      </div>
-
-      {file && file.type === 'application/pdf' && uploadStatus === 'idle' && (
-        <div className="flex justify-center animate-fade-in">
-          <PDFPreview file={file} className="w-[300px]" />
-        </div>
-      )}
-
-      {/* Upload guidelines */}
-      <div className="bg-blue-900/30 border border-blue-700 rounded-lg p-4 text-blue-200 text-sm">
-        <strong>Upload Guidelines:</strong>
-        <ul className="mt-2 space-y-1">
-          <li>• PDF format only (max 5MB)</li>
-          <li>• No personal information (SSN, address)</li>
-          <li>• All files are deeply sanitized for security</li>
-          <li>• AI will extract skills, education, and experience</li>
-        </ul>
-      </div>
-    </div>
+          </div>
+        )}
+      </CardContent>
+    </Card>
   )
 } 

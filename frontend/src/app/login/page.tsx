@@ -4,7 +4,7 @@ import Image from "next/image";
 import { ArrowRightIcon } from "@heroicons/react/24/outline";
 import Link from "next/link";
 import { useAuth } from "@/auth/AuthContext";
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { apiClient } from "@/auth/api";
 import toast from "react-hot-toast";
@@ -19,24 +19,11 @@ function LoginContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
 
-  // Handle OAuth callback
-  useEffect(() => {
-    const token = searchParams.get('token');
-    const error = searchParams.get('error');
-    
-    if (error) {
-      toast.error(error === 'access_denied' ? 'Login was cancelled' : 'OAuth login failed');
-      return;
-    }
-    
-    if (token) {
-      handleOAuthSuccess(token);
-    }
-  }, [searchParams]);
-
-  const handleOAuthSuccess = async (token: string) => {
+  const handleOAuthSuccess = useCallback(async (code: string, state: string) => {
     try {
-      loginWithToken(token);
+      // Exchange code for token
+      const response = await apiClient.exchangeCodeForToken(code, state);
+      loginWithToken(response.access_token);
       const redirectTo = sessionStorage.getItem('redirectAfterLogin') || '/dashboard';
       sessionStorage.removeItem('redirectAfterLogin');
       router.push(redirectTo);
@@ -45,7 +32,17 @@ function LoginContent() {
       console.error('OAuth login failed:', error);
       toast.error('Failed to complete login');
     }
-  };
+  }, [loginWithToken, router]);
+
+  // Handle OAuth callback
+  useEffect(() => {
+    const code = searchParams.get('code');
+    const state = searchParams.get('state');
+    
+    if (code && state) {
+      handleOAuthSuccess(code, state);
+    }
+  }, [searchParams, handleOAuthSuccess]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
