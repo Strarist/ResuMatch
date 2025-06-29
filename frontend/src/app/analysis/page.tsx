@@ -51,7 +51,7 @@ export default function AnalysisPage() {
       }
       const data = await response.json();
       setResumes(data.resumes || []);
-    } catch (err) {
+    } catch {
       setError('Failed to load resumes');
       toast.error('Failed to load resumes');
     } finally {

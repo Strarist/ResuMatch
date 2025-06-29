@@ -1,64 +1,46 @@
 'use client';
 
 import React, { useState } from 'react';
-import { Card, CardContent, CardHeader, CardTitle } from './ui/card';
-import { Button } from './ui/button';
-import { Textarea } from './ui/textarea';
-import { Badge } from './ui/badge';
-import { Progress } from './ui/progress';
-import { Alert, AlertDescription } from './ui/alert';
-import { Loader2, TrendingUp, TrendingDown, CheckCircle, XCircle, AlertTriangle } from 'lucide-react';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Button } from '@/components/ui/button';
+import { Textarea } from '@/components/ui/textarea';
+import { Badge } from '@/components/ui/badge';
+import { Progress } from '@/components/ui/progress';
+import { Alert, AlertDescription } from '@/components/ui/alert';
+import { 
+  TrendingUp, 
+  TrendingDown, 
+  Loader2, 
+  CheckCircle, 
+  AlertCircle,
+  Target,
+  Award,
+  BookOpen,
+  Briefcase
+} from 'lucide-react';
 import { toast } from 'sonner';
 
-interface ResumeAnalysisProps {
-  resumeId: string;
-  resumeName: string;
-}
-
 interface AnalysisResult {
-  resume_id: string;
-  resume_filename: string;
-  overall_match_score: number;
-  detailed_scores: {
-    skills_score: number;
-    experience_score: number;
-    education_score: number;
-  };
-  resume_analysis: {
-    extracted_skills: string[];
-    skill_confidence_scores: Record<string, number>;
-    education: string[];
-    experience: string[];
-    metadata: Record<string, any>;
-  };
-  job_analysis: {
-    required_skills: string[];
-    required_education: string[];
-    required_experience: string[];
-  };
-  skill_matching: {
-    skill_matches: Array<{
-      resume_skill: string;
-      job_skill: string;
-      similarity_score: number;
-      is_good_match: boolean;
-    }>;
+  overall_score: number;
+  skills_match: {
+    matched_skills: string[];
     missing_skills: string[];
-    extra_skills: string[];
-    match_percentage: number;
+    skill_scores: Record<string, number>;
   };
-  recommendations: Array<{
-    type: string;
-    title: string;
-    description: string;
-    priority: 'high' | 'medium' | 'low';
-  }>;
+  experience_score: number;
+  education_score: number;
+  recommendations: string[];
 }
 
-export default function ResumeAnalyzer({ resumeId, resumeName }: ResumeAnalysisProps) {
+interface ResumeAnalyzerProps {
+  resumeId: string;
+  resumeName?: string;
+}
+
+export default function ResumeAnalyzer({ resumeId }: ResumeAnalyzerProps) {
   const [jobDescription, setJobDescription] = useState('');
   const [isAnalyzing, setIsAnalyzing] = useState(false);
-  const [analysisResult, setAnalysisResult] = useState<AnalysisResult | null>(null);
+  const [result, setResult] = useState<AnalysisResult | null>(null);
   const [error, setError] = useState<string | null>(null);
 
   const handleAnalyze = async () => {
@@ -69,27 +51,29 @@ export default function ResumeAnalyzer({ resumeId, resumeName }: ResumeAnalysisP
 
     setIsAnalyzing(true);
     setError(null);
+    setResult(null);
 
     try {
       const response = await fetch('/api/v1/analyze', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
+          'Authorization': `Bearer ${localStorage.getItem('token')}`
         },
         body: JSON.stringify({
           resume_id: resumeId,
-          job_description: jobDescription,
-        }),
+          job_description: jobDescription
+        })
       });
 
       if (!response.ok) {
         throw new Error('Analysis failed');
       }
 
-      const result = await response.json();
-      setAnalysisResult(result);
+      const data = await response.json();
+      setResult(data);
       toast.success('Analysis completed successfully!');
-    } catch (err) {
+    } catch {
       setError('Failed to analyze resume. Please try again.');
       toast.error('Analysis failed');
     } finally {
@@ -98,24 +82,15 @@ export default function ResumeAnalyzer({ resumeId, resumeName }: ResumeAnalysisP
   };
 
   const getScoreColor = (score: number) => {
-    if (score >= 0.8) return 'text-green-600';
-    if (score >= 0.6) return 'text-yellow-600';
+    if (score >= 80) return 'text-green-600';
+    if (score >= 60) return 'text-yellow-600';
     return 'text-red-600';
   };
 
   const getScoreIcon = (score: number) => {
-    if (score >= 0.8) return <CheckCircle className="w-5 h-5 text-green-600" />;
-    if (score >= 0.6) return <AlertTriangle className="w-5 h-5 text-yellow-600" />;
-    return <XCircle className="w-5 h-5 text-red-600" />;
-  };
-
-  const getPriorityColor = (priority: string) => {
-    switch (priority) {
-      case 'high': return 'bg-red-100 text-red-800 border-red-200';
-      case 'medium': return 'bg-yellow-100 text-yellow-800 border-yellow-200';
-      case 'low': return 'bg-green-100 text-green-800 border-green-200';
-      default: return 'bg-gray-100 text-gray-800 border-gray-200';
-    }
+    if (score >= 80) return <TrendingUp className="w-4 h-4" />;
+    if (score >= 60) return <Target className="w-4 h-4" />;
+    return <TrendingDown className="w-4 h-4" />;
   };
 
   return (
@@ -123,253 +98,169 @@ export default function ResumeAnalyzer({ resumeId, resumeName }: ResumeAnalysisP
       {/* Job Description Input */}
       <Card>
         <CardHeader>
-          <CardTitle className="flex items-center gap-2">
-            <TrendingUp className="w-5 h-5" />
-            Resume Analysis
-          </CardTitle>
+          <CardTitle>Job Description</CardTitle>
         </CardHeader>
-        <CardContent className="space-y-4">
-          <div>
-            <label className="block text-sm font-medium mb-2">
-              Job Description
-            </label>
+        <CardContent>
+          <div className="space-y-4">
             <Textarea
-              placeholder="Paste the job description here to analyze how well your resume matches..."
+              placeholder="Paste the job description here..."
               value={jobDescription}
               onChange={(e) => setJobDescription(e.target.value)}
-              rows={6}
-              className="resize-none"
+              className="min-h-[200px]"
+              disabled={isAnalyzing}
             />
+            <Button 
+              onClick={handleAnalyze} 
+              disabled={isAnalyzing || !jobDescription.trim()}
+              className="w-full"
+            >
+              {isAnalyzing ? (
+                <>
+                  <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                  Analyzing...
+                </>
+              ) : (
+                <>
+                  <TrendingUp className="w-4 h-4 mr-2" />
+                  Analyze Match
+                </>
+              )}
+            </Button>
           </div>
-          <Button 
-            onClick={handleAnalyze} 
-            disabled={isAnalyzing || !jobDescription.trim()}
-            className="w-full"
-          >
-            {isAnalyzing ? (
-              <>
-                <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-                Analyzing...
-              </>
-            ) : (
-              'Analyze Resume'
-            )}
-          </Button>
         </CardContent>
       </Card>
 
       {/* Error Display */}
       {error && (
         <Alert variant="destructive">
-          <XCircle className="h-4 w-4" />
+          <AlertCircle className="h-4 w-4" />
           <AlertDescription>{error}</AlertDescription>
         </Alert>
       )}
 
-      {/* Analysis Results */}
-      {analysisResult && (
+      {/* Results */}
+      {result && (
         <div className="space-y-6">
           {/* Overall Score */}
           <Card>
             <CardHeader>
-              <CardTitle>Overall Match Score</CardTitle>
+              <CardTitle className="flex items-center gap-2">
+                <CheckCircle className="w-5 h-5 text-green-600" />
+                Overall Match Score
+              </CardTitle>
             </CardHeader>
             <CardContent>
-              <div className="flex items-center gap-4">
-                <div className="flex-1">
-                  <div className="flex items-center gap-2 mb-2">
-                    {getScoreIcon(analysisResult.overall_match_score)}
-                    <span className={`text-2xl font-bold ${getScoreColor(analysisResult.overall_match_score)}`}>
-                      {Math.round(analysisResult.overall_match_score * 100)}%
-                    </span>
-                  </div>
-                  <Progress value={analysisResult.overall_match_score * 100} className="h-3" />
+              <div className="text-center space-y-4">
+                <div className="flex items-center justify-center gap-2">
+                  {getScoreIcon(result.overall_score)}
+                  <span className={`text-4xl font-bold ${getScoreColor(result.overall_score)}`}>
+                    {result.overall_score}%
+                  </span>
                 </div>
-                <div className="text-right">
-                  <p className="text-sm text-gray-600">Resume: {analysisResult.resume_filename}</p>
-                  <p className="text-xs text-gray-500">Analyzed at {new Date().toLocaleTimeString()}</p>
-                </div>
+                <Progress value={result.overall_score} className="w-full" />
+                <p className="text-gray-600">
+                  {result.overall_score >= 80 ? 'Excellent match!' : 
+                   result.overall_score >= 60 ? 'Good match' : 
+                   'Needs improvement'}
+                </p>
               </div>
+            </CardContent>
+          </Card>
+
+          {/* Skills Analysis */}
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <Award className="w-5 h-5" />
+                Skills Analysis
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              {/* Matched Skills */}
+              {result.skills_match.matched_skills.length > 0 && (
+                <div>
+                  <h4 className="font-semibold text-green-600 mb-2">Matched Skills</h4>
+                  <div className="flex flex-wrap gap-2">
+                    {result.skills_match.matched_skills.map((skill, index) => (
+                      <Badge key={index} variant="default" className="bg-green-100 text-green-800">
+                        {skill}
+                      </Badge>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {/* Missing Skills */}
+              {result.skills_match.missing_skills.length > 0 && (
+                <div>
+                  <h4 className="font-semibold text-red-600 mb-2">Missing Skills</h4>
+                  <div className="flex flex-wrap gap-2">
+                    {result.skills_match.missing_skills.map((skill, index) => (
+                      <Badge key={index} variant="destructive">
+                        {skill}
+                      </Badge>
+                    ))}
+                  </div>
+                </div>
+              )}
             </CardContent>
           </Card>
 
           {/* Detailed Scores */}
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
             <Card>
-              <CardHeader className="pb-2">
-                <CardTitle className="text-sm">Skills Match</CardTitle>
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2">
+                  <Briefcase className="w-5 h-5" />
+                  Experience Score
+                </CardTitle>
               </CardHeader>
               <CardContent>
-                <div className="flex items-center gap-2">
-                  {getScoreIcon(analysisResult.detailed_scores.skills_score)}
-                  <span className={`text-xl font-semibold ${getScoreColor(analysisResult.detailed_scores.skills_score)}`}>
-                    {Math.round(analysisResult.detailed_scores.skills_score * 100)}%
-                  </span>
+                <div className="text-center">
+                  <div className={`text-2xl font-bold ${getScoreColor(result.experience_score)}`}>
+                    {result.experience_score}%
+                  </div>
+                  <Progress value={result.experience_score} className="mt-2" />
                 </div>
               </CardContent>
             </Card>
 
             <Card>
-              <CardHeader className="pb-2">
-                <CardTitle className="text-sm">Experience Match</CardTitle>
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2">
+                  <BookOpen className="w-5 h-5" />
+                  Education Score
+                </CardTitle>
               </CardHeader>
               <CardContent>
-                <div className="flex items-center gap-2">
-                  {getScoreIcon(analysisResult.detailed_scores.experience_score)}
-                  <span className={`text-xl font-semibold ${getScoreColor(analysisResult.detailed_scores.experience_score)}`}>
-                    {Math.round(analysisResult.detailed_scores.experience_score * 100)}%
-                  </span>
-                </div>
-              </CardContent>
-            </Card>
-
-            <Card>
-              <CardHeader className="pb-2">
-                <CardTitle className="text-sm">Education Match</CardTitle>
-              </CardHeader>
-              <CardContent>
-                <div className="flex items-center gap-2">
-                  {getScoreIcon(analysisResult.detailed_scores.education_score)}
-                  <span className={`text-xl font-semibold ${getScoreColor(analysisResult.detailed_scores.education_score)}`}>
-                    {Math.round(analysisResult.detailed_scores.education_score * 100)}%
-                  </span>
+                <div className="text-center">
+                  <div className={`text-2xl font-bold ${getScoreColor(result.education_score)}`}>
+                    {result.education_score}%
+                  </div>
+                  <Progress value={result.education_score} className="mt-2" />
                 </div>
               </CardContent>
             </Card>
           </div>
-
-          {/* Skills Analysis */}
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-            {/* Required Skills */}
-            <Card>
-              <CardHeader>
-                <CardTitle className="text-lg">Required Skills</CardTitle>
-              </CardHeader>
-              <CardContent>
-                <div className="space-y-3">
-                  {analysisResult.job_analysis.required_skills.map((skill, index) => {
-                    const match = analysisResult.skill_matching.skill_matches.find(
-                      m => m.job_skill === skill
-                    );
-                    const isMatched = match && match.is_good_match;
-                    
-                    return (
-                      <div key={index} className="flex items-center justify-between p-2 bg-gray-50 rounded">
-                        <span className="font-medium">{skill}</span>
-                        {isMatched ? (
-                          <CheckCircle className="w-4 h-4 text-green-600" />
-                        ) : (
-                          <XCircle className="w-4 h-4 text-red-600" />
-                        )}
-                      </div>
-                    );
-                  })}
-                </div>
-              </CardContent>
-            </Card>
-
-            {/* Your Skills */}
-            <Card>
-              <CardHeader>
-                <CardTitle className="text-lg">Your Skills</CardTitle>
-              </CardHeader>
-              <CardContent>
-                <div className="space-y-3">
-                  {analysisResult.resume_analysis.extracted_skills.map((skill, index) => {
-                    const match = analysisResult.skill_matching.skill_matches.find(
-                      m => m.resume_skill === skill
-                    );
-                    const isMatched = match && match.is_good_match;
-                    
-                    return (
-                      <div key={index} className="flex items-center justify-between p-2 bg-gray-50 rounded">
-                        <span className="font-medium">{skill}</span>
-                        {isMatched ? (
-                          <CheckCircle className="w-4 h-4 text-green-600" />
-                        ) : (
-                          <XCircle className="w-4 h-4 text-red-600" />
-                        )}
-                      </div>
-                    );
-                  })}
-                </div>
-              </CardContent>
-            </Card>
-          </div>
-
-          {/* Missing Skills */}
-          {analysisResult.skill_matching.missing_skills.length > 0 && (
-            <Card>
-              <CardHeader>
-                <CardTitle className="text-lg text-red-600">Missing Skills</CardTitle>
-              </CardHeader>
-              <CardContent>
-                <div className="flex flex-wrap gap-2">
-                  {analysisResult.skill_matching.missing_skills.map((skill, index) => (
-                    <Badge key={index} variant="destructive">
-                      {skill}
-                    </Badge>
-                  ))}
-                </div>
-              </CardContent>
-            </Card>
-          )}
 
           {/* Recommendations */}
-          {analysisResult.recommendations.length > 0 && (
+          {result.recommendations.length > 0 && (
             <Card>
               <CardHeader>
-                <CardTitle className="text-lg">Recommendations</CardTitle>
+                <CardTitle>Recommendations</CardTitle>
               </CardHeader>
               <CardContent>
-                <div className="space-y-4">
-                  {analysisResult.recommendations.map((rec, index) => (
-                    <div key={index} className="p-4 border rounded-lg">
-                      <div className="flex items-start justify-between mb-2">
-                        <h4 className="font-semibold">{rec.title}</h4>
-                        <Badge className={getPriorityColor(rec.priority)}>
-                          {rec.priority} priority
-                        </Badge>
-                      </div>
-                      <p className="text-gray-600">{rec.description}</p>
-                    </div>
+                <ul className="space-y-2">
+                  {result.recommendations.map((recommendation, index) => (
+                    <li key={index} className="flex items-start gap-2">
+                      <CheckCircle className="w-4 h-4 text-green-600 mt-0.5 flex-shrink-0" />
+                      <span>{recommendation}</span>
+                    </li>
                   ))}
-                </div>
+                </ul>
               </CardContent>
             </Card>
           )}
-
-          {/* Detailed Skill Matches */}
-          <Card>
-            <CardHeader>
-              <CardTitle className="text-lg">Detailed Skill Matches</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <div className="space-y-3">
-                {analysisResult.skill_matching.skill_matches.map((match, index) => (
-                  <div key={index} className="flex items-center justify-between p-3 bg-gray-50 rounded">
-                    <div className="flex-1">
-                      <div className="flex items-center gap-2">
-                        <span className="font-medium">{match.resume_skill}</span>
-                        <span className="text-gray-400">→</span>
-                        <span className="font-medium">{match.job_skill}</span>
-                      </div>
-                    </div>
-                    <div className="flex items-center gap-2">
-                      <span className={`text-sm font-semibold ${getScoreColor(match.similarity_score)}`}>
-                        {Math.round(match.similarity_score * 100)}%
-                      </span>
-                      {match.is_good_match ? (
-                        <CheckCircle className="w-4 h-4 text-green-600" />
-                      ) : (
-                        <XCircle className="w-4 h-4 text-red-600" />
-                      )}
-                    </div>
-                  </div>
-                ))}
-              </div>
-            </CardContent>
-          </Card>
         </div>
       )}
     </div>
