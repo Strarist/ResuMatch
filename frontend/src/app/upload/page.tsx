@@ -1,3 +1,5 @@
+"use client"
+
 import UploadZone from '@/components/UploadZone'
 import { useAuth } from '@/auth/AuthContext'
 import { useRouter } from 'next/navigation'
@@ -38,4 +40,4 @@ export default function UploadPage() {
       </div>
     </main>
   )
-} 
+}
