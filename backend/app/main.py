@@ -29,27 +29,28 @@ if SENTRY_DSN:
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    redis = await aioredis.from_url(os.getenv("REDIS_URL", "redis://localhost:6379"), encoding="utf-8", decode_responses=True)
-    await FastAPILimiter.init(redis)
+    redis_url = os.getenv("REDIS_URL", "redis://localhost:6379")
+    try:
+        redis = await aioredis.from_url(redis_url, encoding="utf-8", decode_responses=True)
+        await FastAPILimiter.init(redis)
+    except Exception as e:
+        logging.warning(f"Redis connection failed: {e}")
     yield
 
 app = FastAPI(
     title="ResuMatch API",
     version="1.0.0",
-    openapi_url="/v1/openapi.json",
-    docs_url="/v1/docs",
-    redoc_url="/v1/redoc",
+    openapi_url="/openapi.json",
+    docs_url="/docs",
+    redoc_url="/redoc",
     dependencies=[Depends(RateLimiter(times=1000, seconds=3600))],
     lifespan=lifespan
 )
 
-# CORS best practice: allow only frontend origin in production
+# CORS configuration - allow all origins for now, can be restricted later
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=[
-        "http://localhost:3000",
-        "https://resu-match-kgul-aditya-guptas-projects-3b73694b.vercel.app"
-    ],
+    allow_origins=["*"],  # Allow all origins for now
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -76,16 +77,34 @@ async def root():
 async def health_check():
     """Health check endpoint for monitoring and deployment validation"""
     try:
-        # Check database connection
-        db = next(get_db())
-        db.execute("SELECT 1")
-        db.close()
+        # Check if database URL is configured
+        database_url = os.getenv("DATABASE_URL")
+        if not database_url:
+            return JSONResponse(
+                status_code=503,
+                content={
+                    "status": "unhealthy",
+                    "timestamp": datetime.utcnow().isoformat(),
+                    "version": "1.0.0",
+                    "error": "DATABASE_URL not configured",
+                    "database": "not configured"
+                }
+            )
+        
+        # Try database connection
+        try:
+            db = next(get_db())
+            db.execute("SELECT 1")
+            db.close()
+            db_status = "connected"
+        except Exception as db_error:
+            db_status = f"error: {str(db_error)}"
         
         return {
             "status": "healthy",
             "timestamp": datetime.utcnow().isoformat(),
             "version": "1.0.0",
-            "database": "connected",
+            "database": db_status,
             "uptime": time.time()
         }
     except Exception as e:
@@ -94,8 +113,9 @@ async def health_check():
             content={
                 "status": "unhealthy",
                 "timestamp": datetime.utcnow().isoformat(),
+                "version": "1.0.0",
                 "error": str(e),
-                "database": "disconnected"
+                "database": "unknown"
             }
         )
 
@@ -103,16 +123,11 @@ async def health_check():
 async def readiness_check():
     """Readiness check for Kubernetes/container orchestration"""
     try:
-        # Check database connection
-        db = next(get_db())
-        db.execute("SELECT 1")
-        db.close()
-        
         # Check environment variables
         required_env_vars = [
             "DATABASE_URL",
-            "SECRET_KEY",
-            "ALGORITHM"
+            "JWT_SECRET",
+            "JWT_ALGORITHM"
         ]
         
         missing_vars = [var for var in required_env_vars if not os.getenv(var)]
@@ -123,6 +138,20 @@ async def readiness_check():
                 content={
                     "status": "not ready",
                     "missing_environment_variables": missing_vars
+                }
+            )
+        
+        # Try database connection
+        try:
+            db = next(get_db())
+            db.execute("SELECT 1")
+            db.close()
+        except Exception as e:
+            return JSONResponse(
+                status_code=503,
+                content={
+                    "status": "not ready",
+                    "error": f"Database connection failed: {str(e)}"
                 }
             )
         
