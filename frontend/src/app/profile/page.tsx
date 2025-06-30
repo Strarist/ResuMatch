@@ -65,11 +65,13 @@ export default function ProfilePage() {
               <Badge variant="secondary">Verified</Badge>
             </div>
             
+            {/*
             <div className="flex items-center gap-3">
               <Calendar className="w-4 h-4 text-gray-500" />
               <span className="font-medium">Member since:</span>
               <span>{user.created_at ? new Date(user.created_at).toLocaleDateString() : 'N/A'}</span>
             </div>
+            */}
 
             {user.provider && (
               <div className="flex items-center gap-3">
