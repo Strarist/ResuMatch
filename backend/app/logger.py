@@ -8,7 +8,7 @@ LOG_DIR = os.getenv("LOG_DIR", "logs")
 LOG_FILE = os.path.join(LOG_DIR, "sanitizer.log")
 LOG_LEVEL = os.getenv("LOG_LEVEL", "INFO")
 LOG_ROTATION = os.getenv("LOG_ROTATION", "10 MB")
-LOG_RETENTION = os.getenv("LOG_RETENTION", "10 files")
+LOG_RETENTION = os.getenv("LOG_RETENTION", "10 days")
 EXTERNAL_LOG_SINK = os.getenv("EXTERNAL_LOG_SINK")  # e.g., URL or file path
 
 os.makedirs(LOG_DIR, exist_ok=True)
