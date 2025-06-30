@@ -8,6 +8,7 @@ export type User = {
   name?: string;
   profile_img?: string;
   exp: number;
+  created_at?: string;
 };
 
 const TOKEN_KEY = "access_token";
