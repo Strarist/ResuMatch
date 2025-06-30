@@ -209,7 +209,7 @@ export default function SettingsPage() {
                 <p className="text-sm text-gray-600">When you joined ResuMatch</p>
               </div>
               <span className="text-sm text-gray-600">
-                {new Date(user.created_at).toLocaleDateString()}
+                {user.created_at ? new Date(user.created_at).toLocaleDateString() : 'N/A'}
               </span>
             </div>
           </CardContent>
