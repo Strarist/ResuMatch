@@ -11,7 +11,7 @@ import toast from "react-hot-toast";
 import ProtectedRoute from '@/components/ProtectedRoute';
 
 function LoginContent() {
-  const { sessionExpired, loginWithToken } = useAuth();
+  const { sessionExpired, loginWithToken, login } = useAuth();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState("");
