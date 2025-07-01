@@ -1,3 +1,38 @@
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
+
+/* Theme transitions */
+html, body {
+  transition: background 0.5s cubic-bezier(0.4,0,0.2,1), color 0.5s cubic-bezier(0.4,0,0.2,1);
+}
+
+/* Animated theme toggle icons */
+.animate-spin-slow {
+  animation: spin 2s linear infinite;
+}
+.animate-pulse {
+  animation: pulse 1.5s infinite;
+}
+@keyframes spin {
+  100% { transform: rotate(360deg); }
+}
+@keyframes pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.5; }
+}
+
+/* Hover lift effect */
+.hover-lift:hover {
+  transform: translateY(-4px) scale(1.03);
+  box-shadow: 0 8px 32px 0 rgba(0,0,0,0.15);
+  transition: transform 0.2s cubic-bezier(0.4,0,0.2,1), box-shadow 0.2s cubic-bezier(0.4,0,0.2,1);
+}
+
+/* Glassmorphism utility */
+.glass {
+  background: rgba(255,255,255,0.08);
+  backdrop-filter: blur(12px) saturate(120%);
+  border-radius: 1rem;
+  border: 1px solid rgba(255,255,255,0.12);
+}

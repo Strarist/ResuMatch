@@ -1,11 +1,12 @@
 "use client";
 
 import Link from 'next/link'
-import { UserCircleIcon, Cog6ToothIcon, HomeIcon, DocumentTextIcon, ChartBarIcon, Squares2X2Icon, ArrowRightOnRectangleIcon } from '@heroicons/react/24/outline'
+import { UserCircleIcon, Cog6ToothIcon, HomeIcon, DocumentTextIcon, ChartBarIcon, Squares2X2Icon, ArrowRightOnRectangleIcon, SunIcon, MoonIcon } from '@heroicons/react/24/outline'
 import { useAuth } from '@/auth/AuthContext'
 import Image from 'next/image'
 import { useState } from 'react'
 import toast from 'react-hot-toast'
+import { useTheme } from '@/auth/ThemeContext'
 
 const navLinks = [
   { name: 'Home', href: '/', icon: HomeIcon },
@@ -20,6 +21,7 @@ export default function Navbar() {
   const { user, isAuthenticated, logout } = useAuth()
   const [isDropdownOpen, setIsDropdownOpen] = useState(false)
   const [isLoggingOut, setIsLoggingOut] = useState(false)
+  const { theme, toggleTheme } = useTheme()
 
   const handleLogout = async () => {
     setIsLoggingOut(true)
@@ -39,6 +41,7 @@ export default function Navbar() {
     <nav className="sticky top-0 z-50 w-full bg-gray-900/60 backdrop-blur-md border-b border-gray-800 shadow-lg">
       <div className="container mx-auto flex items-center justify-between px-4 py-3">
         <Link href="/" className="flex items-center gap-2 text-white font-bold text-xl tracking-tight">
+          <img src="/logo.svg" alt="ResuMatch Logo" className="h-8 w-8 mr-2" />
           <span className="bg-gradient-to-r from-blue-400 via-purple-400 to-pink-400 bg-clip-text text-transparent">ResuMatch</span>
         </Link>
         <div className="flex gap-2 md:gap-4 items-center">
@@ -111,6 +114,18 @@ export default function Navbar() {
               Sign In
             </Link>
           )}
+          {/* Theme Toggle Button */}
+          <button
+            onClick={toggleTheme}
+            className="ml-2 p-2 rounded-full bg-gray-800/60 hover:bg-blue-500/20 text-white transition-colors focus:outline-none focus:ring-2 focus:ring-blue-400"
+            aria-label="Toggle theme"
+          >
+            {theme === 'dark' ? (
+              <SunIcon className="h-5 w-5 animate-spin-slow" />
+            ) : (
+              <MoonIcon className="h-5 w-5 animate-pulse" />
+            )}
+          </button>
         </div>
       </div>
       {/* Click outside to close dropdown */}
