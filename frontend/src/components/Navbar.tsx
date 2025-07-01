@@ -7,20 +7,13 @@ import Image from 'next/image'
 import { useState } from 'react'
 import toast from 'react-hot-toast'
 
-const anchorLinks = [
-  { name: 'Hero', href: '#hero' },
-  { name: 'Features', href: '#features' },
-  { name: 'How it Works', href: '#how-it-works' },
-  { name: 'Footer', href: '#footer' },
-]
-
 const navLinks = [
   { name: 'Home', href: '/', icon: HomeIcon },
   { name: 'Dashboard', href: '/dashboard', icon: Squares2X2Icon },
+  { name: 'Upload', href: '/upload', icon: DocumentTextIcon },
   { name: 'Resumes', href: '/resumes', icon: DocumentTextIcon },
   { name: 'Analysis', href: '/analysis', icon: ChartBarIcon },
-  { name: 'Settings', href: '/settings', icon: Cog6ToothIcon },
-  { name: 'My Profile', href: '/profile', icon: UserCircleIcon },
+  { name: 'Profile', href: '/profile', icon: UserCircleIcon },
 ]
 
 export default function Navbar() {
@@ -49,15 +42,6 @@ export default function Navbar() {
           <span className="bg-gradient-to-r from-blue-400 via-purple-400 to-pink-400 bg-clip-text text-transparent">ResuMatch</span>
         </Link>
         <div className="flex gap-2 md:gap-4 items-center">
-          {anchorLinks.map(link => (
-            <a
-              key={link.name}
-              href={link.href}
-              className="px-3 py-2 rounded-lg text-gray-300 hover:text-white hover:bg-blue-500/20 transition-colors font-medium hidden md:inline"
-            >
-              {link.name}
-            </a>
-          ))}
           {navLinks.map(link => (
             <Link
               key={link.name}
