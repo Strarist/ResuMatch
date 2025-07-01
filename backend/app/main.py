@@ -47,12 +47,12 @@ app = FastAPI(
     lifespan=lifespan
 )
 
-# CORS configuration - allow only the Vercel frontend domain for security
+# CORS configuration - allow only the deployed Vercel frontend domain and localhost:3000 for local development
 app.add_middleware(
     CORSMiddleware,
     allow_origins=[
         "https://resu-match-one.vercel.app",
-        # Add more allowed origins if needed
+        "http://localhost:3000"
     ],
     allow_credentials=True,
     allow_methods=["*"],
