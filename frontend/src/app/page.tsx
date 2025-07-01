@@ -6,6 +6,7 @@ import AnimatedCounter from '@/components/AnimatedCounter'
 import TiltCard from '@/components/TiltCard'
 import Hero from '@/components/Hero'
 import Footer from '@/components/Footer'
+import Image from 'next/image'
 
 export default function Home() {
   return (
@@ -15,7 +16,7 @@ export default function Home() {
         {/* Hero Section */}
         <section id="hero" className="text-center space-y-8 max-w-3xl relative scroll-mt-24">
           {/* Animated Logo */}
-          <img src="/logo.svg" alt="ResuMatch Logo" className="h-16 w-16 mx-auto mb-4 animate-fade-in" style={{ animationDelay: '0.1s' }} />
+          <Image src="/logo.svg" alt="ResuMatch Logo" width={64} height={64} className="h-16 w-16 mx-auto mb-4 animate-fade-in" style={{ animationDelay: '0.1s' }} />
 
           {/* Animated Background Elements */}
           <div className="absolute inset-0 -z-10">
