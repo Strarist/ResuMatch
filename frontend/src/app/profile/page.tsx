@@ -64,7 +64,7 @@ export default function ProfilePage() {
               <span>{user.email}</span>
               <Badge variant="secondary">Verified</Badge>
             </div>
-            
+
             {user.provider && (
               <div className="flex items-center gap-3">
                 <span className="font-medium">Login method:</span>

@@ -98,7 +98,7 @@ class ApiClient {
     });
   }
 
-  getOAuthUrl(provider: 'google' | 'linkedin'): string {
+  getOAuthUrl(provider: 'google'): string {
     return `${this.baseUrl}/v1/auth/${provider}/login`;
   }
 
@@ -108,7 +108,7 @@ class ApiClient {
    * @param state The state parameter (may include provider info)
    * @param provider The OAuth provider (default: 'google')
    */
-  async exchangeCodeForToken(code: string, state: string, provider: 'google' | 'linkedin' = 'google'): Promise<OAuthResponse> {
+  async exchangeCodeForToken(code: string, state: string, provider: 'google' = 'google'): Promise<OAuthResponse> {
     // If provider is encoded in state, extract it (optional, for future-proofing)
     // For now, default to google unless specified
     const endpoint = `/v1/auth/${provider}/callback?code=${encodeURIComponent(code)}&state=${encodeURIComponent(state)}`;
