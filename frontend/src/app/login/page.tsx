@@ -64,8 +64,8 @@ function LoginContent() {
     }
   };
 
-  const handleOAuthLogin = (provider: 'google' | 'linkedin') => {
-    const oauthUrl = apiClient.getOAuthUrl(provider);
+  const handleOAuthLogin = () => {
+    const oauthUrl = apiClient.getOAuthUrl('google');
     window.location.href = oauthUrl;
   };
 
@@ -92,19 +92,11 @@ function LoginContent() {
         </div>
         <div className="flex flex-col gap-4 w-full animate-fade-in" style={{ animationDelay: '0.4s' }}>
           <button
-            onClick={() => handleOAuthLogin('google')}
+            onClick={handleOAuthLogin}
             className="flex items-center justify-center gap-3 px-6 py-3 rounded-lg bg-gradient-to-r from-blue-500 to-purple-500 hover:from-blue-600 hover:to-purple-600 text-white font-semibold shadow-lg transition-all hover:scale-105 active:scale-95 focus:outline-none focus:ring-2 focus:ring-blue-400 group"
           >
             <Image src="/google.svg" alt="Google" width={24} height={24} className="transition-transform group-hover:scale-110" />
             Sign in with Google
-            <ArrowRightIcon className="h-5 w-5 ml-2 transition-transform group-hover:translate-x-1" />
-          </button>
-          <button
-            onClick={() => handleOAuthLogin('linkedin')}
-            className="flex items-center justify-center gap-3 px-6 py-3 rounded-lg bg-gradient-to-r from-blue-600 to-blue-700 hover:from-blue-700 hover:to-blue-800 text-white font-semibold shadow-lg transition-all hover:scale-105 active:scale-95 focus:outline-none focus:ring-2 focus:ring-blue-400 group"
-          >
-            <Image src="/linkedin.svg" alt="LinkedIn" width={24} height={24} className="transition-transform group-hover:scale-110" />
-            Sign in with LinkedIn
             <ArrowRightIcon className="h-5 w-5 ml-2 transition-transform group-hover:translate-x-1" />
           </button>
           <div className="relative my-4">

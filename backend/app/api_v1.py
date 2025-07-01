@@ -41,18 +41,6 @@ oauth.register(
     client_kwargs={'scope': 'openid email profile'}
 )
 
-oauth.register(
-    name='linkedin',
-    client_id=os.getenv('LINKEDIN_CLIENT_ID'),
-    client_secret=os.getenv('LINKEDIN_CLIENT_SECRET'),
-    access_token_url='https://www.linkedin.com/oauth/v2/accessToken',
-    access_token_params=None,
-    authorize_url='https://www.linkedin.com/oauth/v2/authorization',
-    authorize_params=None,
-    api_base_url='https://api.linkedin.com/v2/',
-    client_kwargs={'scope': 'r_liteprofile r_emailaddress'},
-)
-
 JWT_SECRET = os.getenv('JWT_SECRET', 'changeme')
 JWT_ALGORITHM = 'HS256'
 JWT_EXPIRE_MINUTES = 60 * 24 * 7  # 7 days
@@ -229,38 +217,6 @@ async def google_callback(request: Request, db: AsyncSession = Depends(get_db)):
             email=user_info.get('email'),
             provider='google',
             profile_img=user_info.get('picture')
-        )
-        db.add(user)
-        await db.commit()
-        await db.refresh(user)
-    
-    access_token = create_jwt(user)
-    refresh_token = create_jwt(user, is_refresh_token=True)
-    
-    # Redirect to frontend with token
-    frontend_url = os.getenv('FRONTEND_URL', 'http://localhost:3000')
-    redirect_url = f"{frontend_url}/login?token={access_token}"
-    return Response(status_code=302, headers={"Location": redirect_url})
-
-@router.get('/auth/linkedin/login', dependencies=[Depends(RateLimiter(times=10, seconds=60))])
-async def linkedin_login(request: Request):
-    redirect_uri = os.getenv('LINKEDIN_REDIRECT_URI', 'http://localhost:3000/login')
-    return await oauth.linkedin.authorize_redirect(request, redirect_uri)
-
-@router.get('/auth/linkedin/callback')
-async def linkedin_callback(request: Request, db: AsyncSession = Depends(get_db)):
-    token = await oauth.linkedin.authorize_access_token(request)
-    resp = await oauth.linkedin.get('me', token=token)
-    user_info = resp.json()
-    
-    result = await db.execute(select(User).where(User.email == user_info.get('email')))
-    user = result.scalar_one_or_none()
-    if not user:
-        user = User(
-            name=user_info.get('localizedFirstName', '') + ' ' + user_info.get('localizedLastName', ''),
-            email=user_info.get('email'),
-            provider='linkedin',
-            profile_img=user_info.get('profilePicture', {}).get('displayImage')
         )
         db.add(user)
         await db.commit()
