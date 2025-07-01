@@ -54,7 +54,7 @@ export default function ResumeAnalyzer({ resumeId }: ResumeAnalyzerProps) {
     setResult(null);
 
     try {
-      const response = await fetch('/api/v1/analyze', {
+      const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/v1/analyze`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
