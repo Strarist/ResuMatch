@@ -5,6 +5,7 @@ import { useAuth } from "@/auth/AuthContext";
 import { apiClient } from "@/auth/api";
 import { ArrowRightIcon } from "@heroicons/react/24/outline";
 import { Button } from "@/components/ui/button";
+import Image from "next/image";
 
 export default function SignupPage() {
   const [name, setName] = useState("");
@@ -45,7 +46,7 @@ export default function SignupPage() {
   return (
     <div className="flex flex-col items-center justify-center min-h-screen bg-gradient-to-br from-blue-900 via-purple-900 to-gray-900">
       <div className="backdrop-blur-md bg-white/10 border border-white/20 p-8 rounded-2xl shadow-2xl max-w-md w-full mx-auto flex flex-col items-center gap-8 animate-slide-in-bottom transition-all duration-300">
-        <img src="/logo.svg" alt="ResuMatch Logo" className="h-12 w-12 mb-2 animate-fade-in" />
+        <Image src="/logo.svg" alt="ResuMatch Logo" width={48} height={48} className="h-12 w-12 mb-2 animate-fade-in" />
         <h1 className="text-3xl font-extrabold text-white mb-2 animate-slide-in-bottom font-[Poppins,Inter,sans-serif] tracking-tight">Sign Up</h1>
         <p className="text-gray-300 mb-4 text-center animate-fade-in text-base font-medium" style={{ animationDelay: '0.2s' }}>
           Create your account to match your resume to jobs, visualize your skills, and land your dream role.

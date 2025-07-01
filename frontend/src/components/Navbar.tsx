@@ -1,7 +1,7 @@
 "use client";
 
 import Link from 'next/link'
-import { UserCircleIcon, Cog6ToothIcon, HomeIcon, DocumentTextIcon, ChartBarIcon, Squares2X2Icon, ArrowRightOnRectangleIcon, SunIcon, MoonIcon } from '@heroicons/react/24/outline'
+import { UserCircleIcon, HomeIcon, DocumentTextIcon, ChartBarIcon, Squares2X2Icon, ArrowRightOnRectangleIcon, SunIcon, MoonIcon } from '@heroicons/react/24/outline'
 import { useAuth } from '@/auth/AuthContext'
 import Image from 'next/image'
 import { useState } from 'react'
@@ -41,7 +41,7 @@ export default function Navbar() {
     <nav className="sticky top-0 z-50 w-full bg-gray-900/60 backdrop-blur-md border-b border-gray-800 shadow-lg">
       <div className="container mx-auto flex items-center justify-between px-4 py-3">
         <Link href="/" className="flex items-center gap-2 text-white font-bold text-xl tracking-tight">
-          <img src="/logo.svg" alt="ResuMatch Logo" className="h-8 w-8 mr-2" />
+          <Image src="/logo.svg" alt="ResuMatch Logo" width={32} height={32} className="h-8 w-8 mr-2" />
           <span className="bg-gradient-to-r from-blue-400 via-purple-400 to-pink-400 bg-clip-text text-transparent">ResuMatch</span>
         </Link>
         <div className="flex gap-2 md:gap-4 items-center">
