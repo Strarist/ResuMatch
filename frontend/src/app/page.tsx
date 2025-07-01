@@ -14,6 +14,9 @@ export default function Home() {
       <main className="flex flex-col items-center justify-center min-h-[80vh] px-4 scroll-smooth">
         {/* Hero Section */}
         <section id="hero" className="text-center space-y-8 max-w-3xl relative scroll-mt-24">
+          {/* Animated Logo */}
+          <img src="/logo.svg" alt="ResuMatch Logo" className="h-16 w-16 mx-auto mb-4 animate-fade-in" style={{ animationDelay: '0.1s' }} />
+
           {/* Animated Background Elements */}
           <div className="absolute inset-0 -z-10">
             <div className="absolute top-10 left-10 w-32 h-32 bg-blue-500/20 rounded-full blur-3xl animate-glow"></div>
@@ -79,10 +82,10 @@ export default function Home() {
           ].map((feature) => (
             <TiltCard key={feature.title}>
               <div 
-                className="h-full group rounded-xl glass p-8 shadow-lg animate-fade-in"
+                className={`h-full group rounded-xl glass p-8 shadow-lg animate-fade-in hover-lift border-2 border-${feature.color}-400/30`}
                 style={{ animationDelay: feature.delay }}
               >
-                <div className={`text-${feature.color}-400 mb-4 text-2xl font-bold`}>{feature.title}</div>
+                <div className={`text-${feature.color}-400 mb-4 text-2xl font-bold drop-shadow`}>{feature.title}</div>
                 <p className="text-gray-300 group-hover:text-white transition-colors">{feature.description}</p>
               </div>
             </TiltCard>
@@ -90,7 +93,7 @@ export default function Home() {
         </section>
 
         {/* Stats Section */}
-        <section className="mt-24 w-full bg-gray-900/50 py-16 scroll-mt-24">
+        <section className="mt-24 w-full bg-gray-900/50 py-16 scroll-mt-24 rounded-2xl shadow-xl glass animate-fade-in" style={{ animationDelay: '1.3s' }}>
           <div className="max-w-6xl mx-auto grid grid-cols-2 md:grid-cols-4 gap-8 px-4">
             {[
               { number: 95, suffix: '%', label: 'Match Accuracy' },

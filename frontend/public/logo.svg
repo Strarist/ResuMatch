@@ -1,25 +1,11 @@
 <?xml version="1.0" encoding="UTF-8"?>
-<svg width="180" height="48" viewBox="0 0 180 48" fill="none" xmlns="http://www.w3.org/2000/svg">
-  <g>
-    <!-- Document outline -->
-    <rect x="8" y="8" width="32" height="40" rx="6" fill="#18181B" stroke="#6366F1" stroke-width="2.5"/>
-    <rect x="16" y="16" width="16" height="4" rx="2" fill="#6366F1"/>
-    <rect x="16" y="24" width="12" height="3" rx="1.5" fill="#6366F1"/>
-    <rect x="16" y="31" width="10" height="3" rx="1.5" fill="#6366F1"/>
-    <!-- AI chip/brain: stylized neural net -->
-    <circle cx="36" cy="36" r="7" fill="#fff" fill-opacity="0.08" stroke="#6366F1" stroke-width="2"/>
-    <circle cx="36" cy="36" r="2.5" fill="#6366F1"/>
-    <line x1="36" y1="29" x2="36" y2="33.5" stroke="#6366F1" stroke-width="1.5"/>
-    <line x1="36" y1="38.5" x2="36" y2="43" stroke="#6366F1" stroke-width="1.5"/>
-    <line x1="29" y1="36" x2="33.5" y2="36" stroke="#6366F1" stroke-width="1.5"/>
-    <line x1="38.5" y1="36" x2="43" y2="36" stroke="#6366F1" stroke-width="1.5"/>
-    <circle cx="36" cy="29" r="1.2" fill="#6366F1"/>
-    <circle cx="36" cy="43" r="1.2" fill="#6366F1"/>
-    <circle cx="29" cy="36" r="1.2" fill="#6366F1"/>
-    <circle cx="43" cy="36" r="1.2" fill="#6366F1"/>
-  </g>
-  <!-- Brand text -->
-  <text x="56" y="36" font-family="'Inter', 'Poppins', Arial, sans-serif" font-size="32" font-weight="bold" fill="#fff" letter-spacing="0.5">
-    <tspan fill="#6366F1">Resu</tspan>Match
-  </text>
+<svg width="40" height="40" viewBox="0 0 40 40" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <rect width="40" height="40" rx="12" fill="url(#paint0_linear)"/>
+  <path d="M12 28V12h16v16H12zm2-2h12V14H14v12zm2-2v-8h8v8h-8z" fill="#fff"/>
+  <defs>
+    <linearGradient id="paint0_linear" x1="0" y1="0" x2="40" y2="40" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#60A5FA"/>
+      <stop offset="1" stop-color="#A78BFA"/>
+    </linearGradient>
+  </defs>
 </svg> 
