@@ -45,7 +45,7 @@ export default function AnalysisPage() {
 
   const fetchResumes = async () => {
     try {
-      const response = await fetch('/api/v1/resumes');
+      const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/v1/resumes`);
       if (!response.ok) {
         throw new Error('Failed to fetch resumes');
       }

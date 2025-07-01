@@ -45,7 +45,7 @@ export default function UploadZone({ onUploadComplete }: UploadZoneProps) {
     formData.append('file', file)
 
     try {
-      const response = await fetch('/api/v1/resumes/upload', {
+      const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/v1/resumes/upload`, {
         method: 'POST',
         headers: {
           'Authorization': `Bearer ${localStorage.getItem('token')}`

@@ -9,7 +9,7 @@ export default function AuthCallback() {
   const { setUser } = useAuth();
 
   useEffect(() => {
-    fetch('https://resumatch-7nr2.onrender.com/v1/auth/me', {
+    fetch(`${process.env.NEXT_PUBLIC_API_URL}/v1/auth/me`, {
       credentials: 'include',
     })
       .then(async (res) => {
