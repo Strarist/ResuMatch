@@ -1,59 +1,78 @@
-from sqlalchemy import Column, Integer, String, Text, JSON, Float, ForeignKey, Table, DateTime, func
-from sqlalchemy.dialects.postgresql import ARRAY, JSONB
-from sqlalchemy.orm import declarative_base, relationship
-import enum
-from sqlalchemy import Enum
-from uuid import uuid4
+"""SQLAlchemy ORM models. All entities use UUID primary keys."""
 
-Base = declarative_base()
+import enum
+import uuid
+
+from sqlalchemy import Column, Enum, Float, ForeignKey, String, Text, DateTime, func
+from sqlalchemy.dialects.postgresql import ARRAY, JSONB, UUID
+from sqlalchemy.orm import DeclarativeBase, relationship
+
+
+class Base(DeclarativeBase):
+    pass
+
 
 class User(Base):
     __tablename__ = "users"
-    id = Column(Integer, primary_key=True, index=True)
+
+    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
     name = Column(String, nullable=False)
     email = Column(String, unique=True, nullable=False, index=True)
     provider = Column(String, nullable=False)
     profile_img = Column(String, nullable=True)
-    password_hash = Column(String, nullable=True)  # For email/password auth
-    resumes = relationship("Resume", back_populates="user")
+    password_hash = Column(String, nullable=True)
+
+    resumes = relationship("Resume", back_populates="user", cascade="all, delete-orphan")
+
 
 class Resume(Base):
     __tablename__ = "resumes"
-    id = Column(Integer, primary_key=True, index=True)
+
+    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
     filename = Column(String, nullable=False)
-    skills = Column(ARRAY(Text), index=True)
+    skills = Column(ARRAY(Text))
     uploaded_at = Column(DateTime(timezone=True), server_default=func.now())
-    user_id = Column(Integer, ForeignKey("users.id"), nullable=False)
+    user_id = Column(UUID(as_uuid=True), ForeignKey("users.id", ondelete="CASCADE"), nullable=False)
+
     user = relationship("User", back_populates="resumes")
-    matches = relationship("Match", back_populates="resume")
+    matches = relationship("Match", back_populates="resume", cascade="all, delete-orphan")
+
 
 class Job(Base):
     __tablename__ = "jobs"
-    id = Column(Integer, primary_key=True, index=True)
+
+    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
     title = Column(String, nullable=False)
     requirements = Column(JSONB, nullable=False)
-    matches = relationship("Match", back_populates="job")
+
+    matches = relationship("Match", back_populates="job", cascade="all, delete-orphan")
+
 
 class Match(Base):
     __tablename__ = "matches"
-    id = Column(Integer, primary_key=True, index=True)
-    resume_id = Column(Integer, ForeignKey("resumes.id"), nullable=False)
-    job_id = Column(Integer, ForeignKey("jobs.id"), nullable=False)
+
+    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    resume_id = Column(UUID(as_uuid=True), ForeignKey("resumes.id", ondelete="CASCADE"), nullable=False)
+    job_id = Column(UUID(as_uuid=True), ForeignKey("jobs.id", ondelete="CASCADE"), nullable=False)
     score = Column(Float, nullable=False)
     created_at = Column(DateTime(timezone=True), server_default=func.now())
+
     resume = relationship("Resume", back_populates="matches")
     job = relationship("Job", back_populates="matches")
+
 
 class SanitizationStatus(enum.Enum):
     success = "success"
     failure = "failure"
 
+
 class FileSanitizationAudit(Base):
     __tablename__ = "file_sanitization_audit"
-    id = Column(String, primary_key=True, default=lambda: str(uuid4()))
-    user_id = Column(String, nullable=True)
+
+    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    user_id = Column(UUID(as_uuid=True), nullable=True)
     filename = Column(String, nullable=False)
     status = Column(Enum(SanitizationStatus), nullable=False)
     timestamp = Column(DateTime(timezone=True), server_default=func.now())
     reason = Column(Text, nullable=True)
-    session_id = Column(String, nullable=True) 
+    session_id = Column(String, nullable=True)

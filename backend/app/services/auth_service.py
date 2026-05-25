@@ -1,6 +1,7 @@
 """Auth service — handles authentication logic independent of HTTP."""
 
 from datetime import datetime, timedelta
+from uuid import UUID
 
 from jose import jwt, JWTError
 from passlib.context import CryptContext
@@ -44,7 +45,7 @@ class AuthService:
         payload = self._decode_token(refresh_token)
         if payload.get("type") != "refresh":
             raise AuthenticationError("Invalid token type")
-        user = await self.user_repo.get_by_id(int(payload["sub"]))
+        user = await self.user_repo.get_by_id(UUID(payload["sub"]))
         if not user:
             raise AuthenticationError("User not found")
         return self._create_token(user), self._create_token(user, refresh=True)
@@ -54,7 +55,7 @@ class AuthService:
         payload = self._decode_token(token)
         if payload.get("type") == "refresh":
             raise AuthenticationError("Refresh token not allowed for access")
-        user = await self.user_repo.get_by_id(int(payload["sub"]))
+        user = await self.user_repo.get_by_id(UUID(payload["sub"]))
         if not user:
             raise AuthenticationError("User not found")
         return user
@@ -92,3 +93,4 @@ class AuthService:
             return payload
         except JWTError:
             raise AuthenticationError("Invalid token")
+

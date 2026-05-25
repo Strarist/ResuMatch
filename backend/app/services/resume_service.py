@@ -1,8 +1,8 @@
 """Resume service — handles resume upload, validation, and lifecycle."""
 
 import os
-import uuid
 from io import BytesIO
+from uuid import UUID
 
 from PyPDF2 import PdfReader
 
@@ -22,14 +22,17 @@ class ResumeService:
         self._settings = get_settings()
 
     async def upload(self, *, file_bytes: bytes, filename: str, content_type: str,
-                     user_id: int) -> str:
-        """Validate, sanitize, store PDF. Returns resume_id."""
+                     user_id: UUID) -> Resume:
+        """Validate, sanitize, store PDF. Returns the created Resume."""
         self._validate_pdf(file_bytes, content_type)
 
-        resume_id = uuid.uuid4().hex
+        # Create DB record first (model generates UUID)
+        resume = await self.resume_repo.create(filename=filename, user_id=user_id)
+
+        # Save file using the generated ID
         upload_dir = self._settings.upload_dir
         os.makedirs(upload_dir, exist_ok=True)
-        file_path = os.path.join(upload_dir, f"{resume_id}_{filename}")
+        file_path = os.path.join(upload_dir, f"{resume.id}_{filename}")
 
         with open(file_path, "wb") as f:
             f.write(file_bytes)
@@ -42,22 +45,21 @@ class ResumeService:
         except Exception:
             raise ExternalServiceError("PDF sanitization failed")
 
-        await self.resume_repo.create(id=resume_id, filename=filename, user_id=user_id)
-        return resume_id
+        return resume
 
-    async def list_for_user(self, user_id: int) -> list[Resume]:
+    async def list_for_user(self, user_id: UUID) -> list[Resume]:
         return await self.resume_repo.list_by_user(user_id)
 
-    async def get(self, resume_id: str, user_id: int) -> Resume:
+    async def get(self, resume_id: UUID, user_id: UUID) -> Resume:
         resume = await self.resume_repo.get_by_id(resume_id, user_id)
         if not resume:
             raise NotFoundError("Resume not found")
         return resume
 
-    async def delete(self, resume_id: str, user_id: int) -> None:
+    async def delete(self, resume_id: UUID, user_id: UUID) -> None:
         resume = await self.get(resume_id, user_id)
         file_path = os.path.join(
-            self._settings.upload_dir, f"{resume_id}_{resume.filename}"
+            self._settings.upload_dir, f"{resume.id}_{resume.filename}"
         )
         if os.path.exists(file_path):
             os.remove(file_path)

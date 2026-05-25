@@ -1,8 +1,9 @@
-"""Match repository — isolates match-related database operations."""
+"""Match repository — database queries only. Never commits."""
+
+from uuid import UUID
 
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy.orm import joinedload
 
 from app.models import Match, Resume
 
@@ -11,7 +12,7 @@ class MatchRepository:
     def __init__(self, db: AsyncSession):
         self.db = db
 
-    async def list_by_user(self, user_id: int) -> list[Match]:
+    async def list_by_user(self, user_id: UUID) -> list[Match]:
         result = await self.db.execute(
             select(Match)
             .join(Resume)

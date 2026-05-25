@@ -1,9 +1,10 @@
 """Analysis service — orchestrates the AI matching pipeline."""
 
 import os
+from uuid import UUID
 
 from app.config import get_settings
-from app.exceptions import NotFoundError, ExternalServiceError
+from app.exceptions import NotFoundError
 from app.models import Resume
 from app.repositories.resume_repo import ResumeRepository
 from app.utils.resume_parser import resume_parser
@@ -16,8 +17,7 @@ class AnalysisService:
         self.resume_repo = resume_repo
         self._settings = get_settings()
 
-    async def analyze(self, *, resume_id: str, job_description: str, user_id: int) -> dict:
-        """Run full analysis pipeline for a single job description."""
+    async def analyze(self, *, resume_id: UUID, job_description: str, user_id: UUID) -> dict:
         resume = await self._get_resume_with_file(resume_id, user_id)
         file_path = self._resume_path(resume)
 
@@ -32,7 +32,7 @@ class AnalysisService:
             await self.resume_repo.update_skills(resume, resume_analysis.get("skills", []))
 
         return {
-            "resume_id": resume_id,
+            "resume_id": str(resume_id),
             "resume_filename": resume.filename,
             "overall_match_score": scores["overall_score"],
             "detailed_scores": {
@@ -59,9 +59,8 @@ class AnalysisService:
             "recommendations": self._recommendations(detailed, scores),
         }
 
-    async def analyze_batch(self, *, resume_id: str, job_descriptions: list[str],
-                            user_id: int) -> dict:
-        """Run analysis against multiple job descriptions."""
+    async def analyze_batch(self, *, resume_id: UUID, job_descriptions: list[str],
+                            user_id: UUID) -> dict:
         resume = await self._get_resume_with_file(resume_id, user_id)
         file_path = self._resume_path(resume)
         resume_analysis = resume_parser.parse_resume(file_path)
@@ -83,9 +82,9 @@ class AnalysisService:
                 results.append({"job_index": i, "error": "Analysis failed"})
 
         results.sort(key=lambda x: x.get("overall_score", 0), reverse=True)
-        return {"resume_id": resume_id, "total_jobs_analyzed": len(job_descriptions), "results": results}
+        return {"resume_id": str(resume_id), "total_jobs_analyzed": len(job_descriptions), "results": results}
 
-    async def _get_resume_with_file(self, resume_id: str, user_id: int) -> Resume:
+    async def _get_resume_with_file(self, resume_id: UUID, user_id: UUID) -> Resume:
         resume = await self.resume_repo.get_by_id(resume_id, user_id)
         if not resume:
             raise NotFoundError("Resume not found")

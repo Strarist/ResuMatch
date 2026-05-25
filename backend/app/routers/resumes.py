@@ -1,5 +1,7 @@
 """Resume router — HTTP concerns only."""
 
+from uuid import UUID
+
 from fastapi import APIRouter, Depends, UploadFile, File, HTTPException, status
 from fastapi.responses import JSONResponse
 from fastapi_limiter.depends import RateLimiter
@@ -22,7 +24,7 @@ async def upload_resume(
 ):
     file_bytes = await file.read()
     try:
-        resume_id = await resume_service.upload(
+        resume = await resume_service.upload(
             file_bytes=file_bytes, filename=file.filename or "resume.pdf",
             content_type=file.content_type or "", user_id=current_user.id,
         )
@@ -31,10 +33,10 @@ async def upload_resume(
     except ExternalServiceError as e:
         raise HTTPException(status_code=500, detail=e.message)
 
-    process_pdf.delay(resume_id, f"{resume_id}_{file.filename}")
+    process_pdf.delay(str(resume.id), f"{resume.id}_{file.filename}")
     return JSONResponse(
         status_code=202,
-        content={"message": "Resume upload accepted for processing", "resume_id": resume_id},
+        content={"message": "Resume upload accepted for processing", "resume_id": str(resume.id)},
     )
 
 
@@ -54,7 +56,7 @@ async def list_resumes(
 
 @router.get("/{resume_id}", dependencies=[Depends(RateLimiter(times=10, seconds=60))])
 async def get_resume(
-    resume_id: str,
+    resume_id: UUID,
     current_user: User = Depends(get_current_user),
     resume_service: ResumeService = Depends(get_resume_service),
 ):
@@ -67,7 +69,7 @@ async def get_resume(
 
 @router.delete("/{resume_id}", dependencies=[Depends(RateLimiter(times=5, seconds=60))])
 async def delete_resume(
-    resume_id: str,
+    resume_id: UUID,
     current_user: User = Depends(get_current_user),
     resume_service: ResumeService = Depends(get_resume_service),
 ):
