@@ -2,7 +2,6 @@
 
 from fastapi import APIRouter, Depends, Request, HTTPException
 from fastapi.responses import JSONResponse, Response
-from fastapi_limiter.depends import RateLimiter
 
 from authlib.integrations.starlette_client import OAuth
 
@@ -99,7 +98,7 @@ async def update_profile(
     return {"message": "Profile updated successfully", "user": UserResponse.model_validate(user).model_dump()}
 
 
-@router.get("/google/login", dependencies=[Depends(RateLimiter(times=10, seconds=60))])
+@router.get("/google/login")
 async def google_login(request: Request):
     return await oauth.google.authorize_redirect(request, settings.oauth_redirect_uri)
 

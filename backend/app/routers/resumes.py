@@ -1,23 +1,34 @@
 """Resume router — HTTP concerns only."""
 
+import logging
 from uuid import UUID
 
-from fastapi import APIRouter, Depends, UploadFile, File, HTTPException, status
+from fastapi import APIRouter, BackgroundTasks, Depends, UploadFile, File, HTTPException, status
 from fastapi.responses import JSONResponse
-from fastapi_limiter.depends import RateLimiter
 
 from app.dependencies import get_current_user, get_resume_service
 from app.exceptions import NotFoundError, ValidationError, ExternalServiceError
 from app.models import User
 from app.schemas import ResumeResponse
 from app.services import ResumeService
-from app.tasks import process_pdf
+
+logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/v1/resumes", tags=["Resumes"])
 
 
-@router.post("", status_code=status.HTTP_202_ACCEPTED, dependencies=[Depends(RateLimiter(times=5, seconds=60))])
+async def _process_resume_background(resume_id: UUID, filename: str) -> None:
+    """Background task placeholder for post-upload processing.
+
+    In the future this will trigger skill extraction via the AI pipeline.
+    Currently a no-op since parsing happens synchronously during /analyze.
+    """
+    logger.info(f"Background processing queued for resume {resume_id} ({filename})")
+
+
+@router.post("", status_code=status.HTTP_202_ACCEPTED)
 async def upload_resume(
+    background_tasks: BackgroundTasks,
     file: UploadFile = File(...),
     current_user: User = Depends(get_current_user),
     resume_service: ResumeService = Depends(get_resume_service),
@@ -33,14 +44,14 @@ async def upload_resume(
     except ExternalServiceError as e:
         raise HTTPException(status_code=500, detail=e.message)
 
-    process_pdf.delay(str(resume.id), f"{resume.id}_{file.filename}")
+    background_tasks.add_task(_process_resume_background, resume.id, resume.filename)
     return JSONResponse(
         status_code=202,
         content={"message": "Resume upload accepted for processing", "resume_id": str(resume.id)},
     )
 
 
-@router.get("", dependencies=[Depends(RateLimiter(times=10, seconds=60))])
+@router.get("")
 async def list_resumes(
     current_user: User = Depends(get_current_user),
     resume_service: ResumeService = Depends(get_resume_service),
@@ -54,7 +65,7 @@ async def list_resumes(
     }
 
 
-@router.get("/{resume_id}", dependencies=[Depends(RateLimiter(times=10, seconds=60))])
+@router.get("/{resume_id}")
 async def get_resume(
     resume_id: UUID,
     current_user: User = Depends(get_current_user),
@@ -67,7 +78,7 @@ async def get_resume(
     return {"resume": ResumeResponse.model_validate(resume).model_dump()}
 
 
-@router.delete("/{resume_id}", dependencies=[Depends(RateLimiter(times=5, seconds=60))])
+@router.delete("/{resume_id}")
 async def delete_resume(
     resume_id: UUID,
     current_user: User = Depends(get_current_user),

@@ -30,9 +30,6 @@ class Settings(BaseSettings):
     # === Database (required) ===
     database_url: str = Field(..., alias="DATABASE_URL")
 
-    # === Redis ===
-    redis_url: str = Field(default="redis://localhost:6379", alias="REDIS_URL")
-
     # === JWT (required) ===
     jwt_secret: str = Field(..., alias="JWT_SECRET")
     jwt_algorithm: str = Field(default="HS256", alias="JWT_ALGORITHM")
@@ -51,10 +48,6 @@ class Settings(BaseSettings):
         default=["http://localhost:3000"],
         alias="CORS_ORIGINS",
     )
-
-    # === Celery ===
-    celery_broker_url: str = Field(default="redis://localhost:6379/0", alias="CELERY_BROKER_URL")
-    celery_result_backend: str = Field(default="redis://localhost:6379/0", alias="CELERY_RESULT_BACKEND")
 
     # === Observability ===
     sentry_dsn: str | None = Field(default=None, alias="SENTRY_DSN")

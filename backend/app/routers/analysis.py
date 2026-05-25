@@ -1,7 +1,6 @@
 """Analysis router — HTTP concerns only."""
 
 from fastapi import APIRouter, Depends, HTTPException
-from fastapi_limiter.depends import RateLimiter
 
 from app.dependencies import get_current_user, get_analysis_service
 from app.exceptions import NotFoundError
@@ -12,7 +11,7 @@ from app.services import AnalysisService
 router = APIRouter(prefix="/v1", tags=["Analysis"])
 
 
-@router.post("/analyze", dependencies=[Depends(RateLimiter(times=5, seconds=60))])
+@router.post("/analyze")
 async def analyze(
     body: AnalyzeRequest,
     current_user: User = Depends(get_current_user),
@@ -26,7 +25,7 @@ async def analyze(
         raise HTTPException(status_code=404, detail=e.message)
 
 
-@router.post("/analyze/batch", dependencies=[Depends(RateLimiter(times=3, seconds=60))])
+@router.post("/analyze/batch")
 async def analyze_batch(
     body: BatchAnalyzeRequest,
     current_user: User = Depends(get_current_user),
