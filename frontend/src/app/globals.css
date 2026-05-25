@@ -20,7 +20,7 @@
 
     --accent: 220 90% 56%;
     --accent-hover: 220 90% 64%;
-    --accent-subtle: 220 90% 56% / 0.12;
+    --accent-subtle: 220 90% 56%;
 
     --success: 142 70% 49%;
     --warning: 38 92% 50%;
@@ -47,7 +47,7 @@
 
     --accent: 220 90% 50%;
     --accent-hover: 220 90% 42%;
-    --accent-subtle: 220 90% 50% / 0.08;
+    --accent-subtle: 220 90% 50%;
 
     --success: 142 70% 40%;
     --warning: 38 92% 44%;
@@ -67,7 +67,6 @@
     font-feature-settings: 'cv02', 'cv03', 'cv04', 'cv11';
   }
 
-  /* Scrollbar */
   ::-webkit-scrollbar {
     width: 6px;
   }
@@ -78,12 +77,20 @@
     background: hsl(var(--border));
     border-radius: 3px;
   }
+
+  @media (prefers-reduced-motion: reduce) {
+    *, *::before, *::after {
+      animation-duration: 0.01ms !important;
+      animation-iteration-count: 1 !important;
+      transition-duration: 0.01ms !important;
+      scroll-behavior: auto !important;
+    }
+  }
 }
 
 @layer components {
-  /* Skeleton loading shimmer */
   .skeleton {
-    @apply relative overflow-hidden rounded-md bg-surface-raised;
+    @apply relative overflow-hidden rounded-md;
     background: linear-gradient(
       90deg,
       hsl(var(--surface-raised)) 25%,
@@ -96,21 +103,7 @@
 }
 
 @layer utilities {
-  /* Focus ring utility */
   .focus-ring {
     @apply outline-none ring-2 ring-accent/40 ring-offset-2 ring-offset-surface;
-  }
-}
-
-
-@layer base {
-  /* Reduced motion: disable all animations for accessibility */
-  @media (prefers-reduced-motion: reduce) {
-    *, *::before, *::after {
-      animation-duration: 0.01ms !important;
-      animation-iteration-count: 1 !important;
-      transition-duration: 0.01ms !important;
-      scroll-behavior: auto !important;
-    }
   }
 }

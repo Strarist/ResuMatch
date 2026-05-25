@@ -26,7 +26,7 @@ const config: Config = {
         accent: {
           DEFAULT: 'hsl(var(--accent))',
           hover: 'hsl(var(--accent-hover))',
-          subtle: 'hsl(var(--accent-subtle))',
+          subtle: 'hsl(var(--accent-subtle) / 0.12)',
         },
         success: 'hsl(var(--success))',
         warning: 'hsl(var(--warning))',
