@@ -1,42 +1,63 @@
 """FastAPI application entry point."""
 
+import logging
 from contextlib import asynccontextmanager
 
-import sentry_sdk
 from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
-from prometheus_fastapi_instrumentator import Instrumentator
 from sqlalchemy import text
 
 from app.config import get_settings
 from app.db import async_session_factory
-from app.middleware import ObservabilityMiddleware
-from app.observability import setup_logging
 from app.routers import api_router
-from app.security import SecurityHeadersMiddleware, RateLimitMiddleware
+
+# Optional: Sentry
+try:
+    import sentry_sdk
+except ImportError:
+    sentry_sdk = None
+
+# Optional: Prometheus
+try:
+    from prometheus_fastapi_instrumentator import Instrumentator
+    _instrumentator = Instrumentator()
+except ImportError:
+    _instrumentator = None
 
 settings = get_settings()
+
+# Optional observability setup
+from app.observability import setup_logging
 setup_logging()
 
-if settings.sentry_dsn:
+if sentry_sdk and settings.sentry_dsn:
     sentry_sdk.init(dsn=settings.sentry_dsn, traces_sample_rate=0.5, environment=settings.env.value)
 
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    from loguru import logger
-    logger.info("Application started", env=settings.env.value)
+    logging.info("Application started")
     yield
-    logger.info("Application shutting down")
+    logging.info("Application shutting down")
 
 
 app = FastAPI(title="ResuMatch API", version="1.0.0", docs_url="/docs", lifespan=lifespan)
 
-# Middleware (order matters: first added = outermost)
-app.add_middleware(SecurityHeadersMiddleware)
-app.add_middleware(RateLimitMiddleware)
-app.add_middleware(ObservabilityMiddleware)
+# Middleware
+try:
+    from app.middleware import ObservabilityMiddleware
+    app.add_middleware(ObservabilityMiddleware)
+except ImportError:
+    pass
+
+try:
+    from app.security import SecurityHeadersMiddleware, RateLimitMiddleware
+    app.add_middleware(SecurityHeadersMiddleware)
+    app.add_middleware(RateLimitMiddleware)
+except ImportError:
+    pass
+
 app.add_middleware(
     CORSMiddleware,
     allow_origins=settings.cors_origins,
@@ -45,7 +66,9 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-Instrumentator().instrument(app).expose(app, endpoint="/metrics")
+if _instrumentator:
+    _instrumentator.instrument(app).expose(app, endpoint="/metrics")
+
 app.include_router(api_router)
 
 

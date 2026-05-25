@@ -1,27 +1,38 @@
-# Generated from requirements.in
-# To regenerate: pip-compile requirements.in --output-file=requirements.txt
-fastapi==0.115.6
-uvicorn[standard]==0.32.1
-gunicorn==23.0.0
-sqlalchemy==2.0.36
-asyncpg==0.30.0
-psycopg2-binary==2.9.10
-alembic==1.14.1
-pydantic==2.10.4
-pydantic-settings==2.7.1
-python-jose[cryptography]==3.3.0
-passlib[bcrypt]==1.7.4
-authlib==1.4.0
-spacy==3.8.3
-sentence-transformers==3.3.1
-scikit-learn==1.6.1
-numpy==1.26.4
-PyPDF2==3.0.1
-pikepdf==9.4.2
-httpx==0.28.1
-python-multipart==0.0.20
-orjson==3.10.13
-sentry-sdk==2.19.2
-prometheus-fastapi-instrumentator==7.0.2
-prometheus_client==0.21.1
-loguru==0.7.3
+# Core
+fastapi>=0.115.0
+uvicorn[standard]>=0.32.0
+gunicorn>=23.0.0
+python-multipart>=0.0.12
+
+# Database
+sqlalchemy[asyncio]>=2.0.36
+asyncpg>=0.30.0
+alembic>=1.14.0
+
+# Validation
+pydantic>=2.7.4
+pydantic-settings>=2.4.0
+
+# Auth
+python-jose[cryptography]>=3.3.0
+passlib[bcrypt]>=1.7.4
+authlib>=1.3.0
+
+# AI/ML
+sentence-transformers>=2.2.0
+numpy>=1.26.0
+
+# PDF
+PyPDF2>=3.0.0
+pikepdf>=9.0.0
+
+# HTTP
+httpx>=0.27.0
+
+# Logging
+loguru>=0.7.0
+
+# Optional observability (install separately if needed)
+# sentry-sdk>=2.0.0
+# prometheus-fastapi-instrumentator>=7.0.0
+# prometheus-client>=0.21.0
