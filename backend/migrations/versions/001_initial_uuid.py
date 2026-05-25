@@ -69,6 +69,13 @@ def upgrade() -> None:
         sa.Column("session_id", sa.String(), nullable=True),
     )
 
+    # Indexes for query performance
+    op.create_index("ix_resumes_user_id_uploaded", "resumes", ["user_id", "uploaded_at"])
+    op.create_index("ix_resumes_parse_status", "resumes", ["parse_status"])
+    op.create_index("ix_matches_resume_id_score", "matches", ["resume_id", "score"])
+    op.create_index("ix_matches_job_id", "matches", ["job_id"])
+    op.create_index("ix_audit_user_id", "file_sanitization_audit", ["user_id"])
+
 
 def downgrade() -> None:
     op.drop_table("file_sanitization_audit")

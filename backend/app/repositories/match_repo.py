@@ -4,6 +4,7 @@ from uuid import UUID
 
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.orm import selectinload
 
 from app.models import Match, Resume
 
@@ -17,6 +18,8 @@ class MatchRepository:
             select(Match)
             .join(Resume)
             .where(Resume.user_id == user_id)
+            .options(selectinload(Match.resume), selectinload(Match.job))
             .order_by(Match.score.desc())
+            .limit(50)
         )
         return list(result.scalars().all())

@@ -1,13 +1,12 @@
 """Database engine and session lifecycle.
 
-Session lifecycle contract:
-- One session per request (injected via get_db dependency)
-- Commit happens once at the end of a successful request
-- Rollback happens automatically on any unhandled exception
-- Session is always closed in finally block
+Pool sizing: Render free tier PostgreSQL allows max 5 connections.
+pool_size=3 + max_overflow=2 = 5 max connections.
 
-Repositories MUST NOT call commit(). They call flush() if they need
-generated IDs. The session dependency owns the transaction boundary.
+Session lifecycle:
+- One session per request (injected via get_db dependency)
+- Commit on success, rollback on exception, close always
+- Repositories use flush() for generated IDs, never commit()
 """
 
 from collections.abc import AsyncGenerator
@@ -24,10 +23,10 @@ settings = get_settings()
 
 engine = create_async_engine(
     settings.database_url,
-    pool_size=20,
-    max_overflow=10,
+    pool_size=3,
+    max_overflow=2,
     pool_pre_ping=True,
-    pool_recycle=1800,
+    pool_recycle=600,  # Recycle connections every 10 min (Render may close idle)
     echo=False,
 )
 
@@ -39,12 +38,7 @@ async_session_factory = async_sessionmaker(
 
 
 async def get_db() -> AsyncGenerator[AsyncSession, None]:
-    """Request-scoped session with commit/rollback lifecycle.
-
-    On success: commits the transaction.
-    On exception: rolls back, then re-raises.
-    Always: closes the session.
-    """
+    """Request-scoped session with commit/rollback lifecycle."""
     session = async_session_factory()
     try:
         yield session
