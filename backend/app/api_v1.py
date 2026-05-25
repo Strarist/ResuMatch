@@ -5,7 +5,6 @@ import uuid
 from .tasks import process_pdf
 from PyPDF2 import PdfReader
 from authlib.integrations.starlette_client import OAuth
-from starlette.config import Config
 from sqlalchemy.ext.asyncio import AsyncSession
 from .db import get_db
 from .models import User, Resume, Job, Match
@@ -30,8 +29,7 @@ os.makedirs(UPLOAD_DIR, exist_ok=True)
 MAX_PDF_PAGES = 20
 MAX_TEXT_SIZE = 50 * 1024  # 50KB
 
-config = Config('.env')
-oauth = OAuth(config)
+oauth = OAuth()
 
 oauth.register(
     name='google',
@@ -41,8 +39,10 @@ oauth.register(
     client_kwargs={'scope': 'openid email profile'}
 )
 
-JWT_SECRET = os.getenv('JWT_SECRET', 'changeme')
-JWT_ALGORITHM = 'HS256'
+JWT_SECRET = os.getenv('JWT_SECRET')
+if not JWT_SECRET:
+    raise RuntimeError("JWT_SECRET environment variable is required")
+JWT_ALGORITHM = os.getenv('JWT_ALGORITHM', 'HS256')
 JWT_EXPIRE_MINUTES = 60 * 24 * 7  # 7 days
 REFRESH_TOKEN_EXPIRE_DAYS = 30
 

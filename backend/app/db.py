@@ -2,10 +2,12 @@ import os
 from sqlalchemy.ext.asyncio import create_async_engine, AsyncSession
 from sqlalchemy.orm import sessionmaker
 
-POSTGRES_URL = os.getenv("POSTGRES_URL", "postgresql+asyncpg://postgres:postgres@localhost:5432/resumatch?sslmode=disable")
+DATABASE_URL = os.getenv("DATABASE_URL")
+if not DATABASE_URL:
+    raise RuntimeError("DATABASE_URL environment variable is required")
 
 engine = create_async_engine(
-    POSTGRES_URL,
+    DATABASE_URL,
     pool_size=20,
     max_overflow=10,
     pool_pre_ping=True,
@@ -20,4 +22,4 @@ AsyncSessionLocal = sessionmaker(
 
 async def get_db():
     async with AsyncSessionLocal() as session:
-        yield session 
+        yield session
