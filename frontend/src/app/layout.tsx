@@ -1,34 +1,28 @@
 import './globals.css';
 import type { Metadata } from 'next';
-import { Inter } from 'next/font/google';
-import Navbar from '@/components/Navbar';
+import { Inter, JetBrains_Mono } from 'next/font/google';
 import { AuthProvider } from '@/auth/AuthContext';
 import { ThemeProvider } from '@/auth/ThemeContext';
 import { Toaster } from 'react-hot-toast';
-import PageTransition from '@/components/PageTransition';
 import SessionManager from '@/components/SessionManager';
 
-const inter = Inter({ subsets: ['latin'] });
+const inter = Inter({ subsets: ['latin'], variable: '--font-sans' });
+const jetbrains = JetBrains_Mono({ subsets: ['latin'], variable: '--font-mono' });
 
 export const metadata: Metadata = {
   title: 'ResuMatch',
-  description: 'AI-powered resume matcher for recruiters and job seekers',
+  description: 'AI-powered resume intelligence platform',
 };
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
-    <html lang="en" className="h-full">
-      <body className={`${inter.className} min-h-screen bg-gradient-to-br from-slate-900 to-slate-800 text-white px-4 py-6`}>
+    <html lang="en" className={`${inter.variable} ${jetbrains.variable}`}>
+      <body className="font-sans">
         <ThemeProvider>
           <AuthProvider>
             <SessionManager />
-            <div className="min-h-screen flex flex-col">
-              <Navbar />
-              <main className="flex-1 max-w-5xl w-full mx-auto flex flex-col justify-center items-center">
-                <PageTransition>{children}</PageTransition>
-              </main>
-            </div>
-            <Toaster position="top-center" />
+            {children}
+            <Toaster position="bottom-right" />
           </AuthProvider>
         </ThemeProvider>
       </body>
