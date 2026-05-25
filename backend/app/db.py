@@ -1,13 +1,4 @@
-"""Database engine and session lifecycle.
-
-Pool sizing: Render free tier PostgreSQL allows max 5 connections.
-pool_size=3 + max_overflow=2 = 5 max connections.
-
-Session lifecycle:
-- One session per request (injected via get_db dependency)
-- Commit on success, rollback on exception, close always
-- Repositories use flush() for generated IDs, never commit()
-"""
+"""Database engine and session lifecycle."""
 
 from collections.abc import AsyncGenerator
 
@@ -21,14 +12,14 @@ from app.config import get_settings
 
 settings = get_settings()
 
-engine = create_async_engine(
-    settings.database_url,
-    pool_size=3,
-    max_overflow=2,
-    pool_pre_ping=True,
-    pool_recycle=600,  # Recycle connections every 10 min (Render may close idle)
-    echo=False,
-)
+# SQLite doesn't support pool_size/pool_pre_ping
+_is_sqlite = settings.database_url.startswith("sqlite")
+
+_engine_kwargs = {"echo": False}
+if not _is_sqlite:
+    _engine_kwargs.update(pool_size=3, max_overflow=2, pool_pre_ping=True, pool_recycle=600)
+
+engine = create_async_engine(settings.database_url, **_engine_kwargs)
 
 async_session_factory = async_sessionmaker(
     bind=engine,
