@@ -1,31 +1,30 @@
-from fastapi import FastAPI, Request, Depends
-from fastapi.middleware.cors import CORSMiddleware
-from prometheus_fastapi_instrumentator import Instrumentator
-import sentry_sdk
-import os
-from .api_v1 import router as api_v1_router
-from fastapi_limiter import FastAPILimiter
-import redis.asyncio as aioredis
-from fastapi.responses import JSONResponse
-from starlette.status import HTTP_429_TOO_MANY_REQUESTS
-import logging
-from datetime import datetime, UTC
-from fastapi_limiter.depends import RateLimiter
-from contextlib import asynccontextmanager
-from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
-import time
-from typing import Optional
-from .db import get_db, engine
-from .models import Base
+"""FastAPI application entry point."""
 
-# Sentry setup
+import logging
+import os
+import time
+from contextlib import asynccontextmanager
+from datetime import datetime, UTC
+
+import redis.asyncio as aioredis
+import sentry_sdk
+from fastapi import FastAPI, Request
+from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import JSONResponse
+from fastapi_limiter import FastAPILimiter
+from fastapi_limiter.depends import RateLimiter
+from prometheus_fastapi_instrumentator import Instrumentator
+from sqlalchemy import text
+from starlette.status import HTTP_429_TOO_MANY_REQUESTS
+
+from app.db import get_db, AsyncSessionLocal
+from app.routers import api_router
+
+# Sentry
 SENTRY_DSN = os.getenv("SENTRY_DSN")
 if SENTRY_DSN:
-    sentry_sdk.init(
-        dsn=SENTRY_DSN,
-        traces_sample_rate=0.5,
-        environment=os.getenv("ENV", "development"),
-    )
+    sentry_sdk.init(dsn=SENTRY_DSN, traces_sample_rate=0.5, environment=os.getenv("ENV", "development"))
+
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
@@ -37,149 +36,52 @@ async def lifespan(app: FastAPI):
         logging.warning(f"Redis connection failed: {e}")
     yield
 
+
 app = FastAPI(
     title="ResuMatch API",
     version="1.0.0",
-    openapi_url="/openapi.json",
     docs_url="/docs",
-    redoc_url="/redoc",
-    dependencies=[Depends(RateLimiter(times=1000, seconds=3600))],
-    lifespan=lifespan
+    lifespan=lifespan,
 )
 
-# CORS configuration - allow only the deployed Vercel frontend domain and localhost:3000 for local development
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=[
-        "https://resu-match-one.vercel.app",
-        "http://localhost:3000"
-    ],
+    allow_origins=["https://resu-match-one.vercel.app", "http://localhost:3000"],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
 )
 
-# Prometheus metrics
 Instrumentator().instrument(app).expose(app, endpoint="/metrics")
+app.include_router(api_router)
 
-app.include_router(api_v1_router)
-
-# Security
-security = HTTPBearer()
 
 @app.get("/")
 async def root():
-    return {
-        "message": "ResuMatch API",
-        "version": "1.0.0",
-        "status": "running",
-        "timestamp": datetime.utcnow().isoformat()
-    }
+    return {"message": "ResuMatch API", "version": "1.0.0", "status": "running"}
+
 
 @app.get("/health")
 async def health_check():
-    """Health check endpoint for monitoring and deployment validation"""
+    """Health check with async DB verification."""
     try:
-        # Check if database URL is configured
-        database_url = os.getenv("DATABASE_URL")
-        if not database_url:
-            return JSONResponse(
-                status_code=503,
-                content={
-                    "status": "unhealthy",
-                    "timestamp": datetime.utcnow().isoformat(),
-                    "version": "1.0.0",
-                    "error": "DATABASE_URL not configured",
-                    "database": "not configured"
-                }
-            )
-        
-        # Try database connection
-        try:
-            db = next(get_db())
-            db.execute("SELECT 1")
-            db.close()
+        async with AsyncSessionLocal() as session:
+            await session.execute(text("SELECT 1"))
             db_status = "connected"
-        except Exception as db_error:
-            db_status = f"error: {str(db_error)}"
-        
-        return {
-            "status": "healthy",
-            "timestamp": datetime.utcnow().isoformat(),
-            "version": "1.0.0",
-            "database": db_status,
-            "uptime": time.time()
-        }
     except Exception as e:
-        return JSONResponse(
-            status_code=503,
-            content={
-                "status": "unhealthy",
-                "timestamp": datetime.utcnow().isoformat(),
-                "version": "1.0.0",
-                "error": str(e),
-                "database": "unknown"
-            }
-        )
+        db_status = f"error: {e}"
 
-@app.get("/ready")
-async def readiness_check():
-    """Readiness check for Kubernetes/container orchestration"""
-    try:
-        # Check environment variables
-        required_env_vars = [
-            "DATABASE_URL",
-            "JWT_SECRET",
-            "JWT_ALGORITHM"
-        ]
-        
-        missing_vars = [var for var in required_env_vars if not os.getenv(var)]
-        
-        if missing_vars:
-            return JSONResponse(
-                status_code=503,
-                content={
-                    "status": "not ready",
-                    "missing_environment_variables": missing_vars
-                }
-            )
-        
-        # Try database connection
-        try:
-            db = next(get_db())
-            db.execute("SELECT 1")
-            db.close()
-        except Exception as e:
-            return JSONResponse(
-                status_code=503,
-                content={
-                    "status": "not ready",
-                    "error": f"Database connection failed: {str(e)}"
-                }
-            )
-        
-        return {
-            "status": "ready",
-            "timestamp": datetime.utcnow().isoformat()
-        }
-    except Exception as e:
-        return JSONResponse(
-            status_code=503,
-            content={
-                "status": "not ready",
-                "error": str(e)
-            }
-        )
+    healthy = db_status == "connected"
+    return JSONResponse(
+        status_code=200 if healthy else 503,
+        content={"status": "healthy" if healthy else "unhealthy", "database": db_status, "version": "1.0.0"},
+    )
+
 
 @app.exception_handler(HTTP_429_TOO_MANY_REQUESTS)
-async def rate_limit_exceeded_handler(request: Request, exc):
-    ip = request.client.host
-    endpoint = request.url.path
-    method = request.method
-    now = datetime.now(UTC).isoformat()
-    logging.warning(f"[RATE LIMIT] 429 - IP: {ip} - Endpoint: {endpoint} - Method: {method} - Time: {now}")
+async def rate_limit_handler(request: Request, exc):
     return JSONResponse(
         status_code=429,
         content={"error": "Too many requests. Please try again later."},
-        headers={"Retry-After": "60"}
-    ) 
+        headers={"Retry-After": "60"},
+    )
