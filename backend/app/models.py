@@ -31,6 +31,9 @@ class Resume(Base):
     id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
     filename = Column(String, nullable=False)
     skills = Column(ARRAY(Text))
+    raw_text = Column(Text)  # Extracted PDF text
+    parsed_data = Column(JSONB)  # Full ParsedResume as JSON
+    parse_status = Column(String, default="pending")  # pending | completed | failed
     uploaded_at = Column(DateTime(timezone=True), server_default=func.now())
     user_id = Column(UUID(as_uuid=True), ForeignKey("users.id", ondelete="CASCADE"), nullable=False)
 

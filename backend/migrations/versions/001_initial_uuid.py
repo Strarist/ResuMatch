@@ -35,6 +35,9 @@ def upgrade() -> None:
         sa.Column("id", postgresql.UUID(as_uuid=True), server_default=sa.text("uuid_generate_v4()"), primary_key=True),
         sa.Column("filename", sa.String(), nullable=False),
         sa.Column("skills", postgresql.ARRAY(sa.Text())),
+        sa.Column("raw_text", sa.Text()),
+        sa.Column("parsed_data", postgresql.JSONB()),
+        sa.Column("parse_status", sa.String(), server_default="pending"),
         sa.Column("uploaded_at", sa.DateTime(timezone=True), server_default=sa.func.now()),
         sa.Column("user_id", postgresql.UUID(as_uuid=True), sa.ForeignKey("users.id", ondelete="CASCADE"), nullable=False),
     )

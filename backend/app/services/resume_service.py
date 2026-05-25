@@ -10,6 +10,9 @@ from app.config import get_settings
 from app.exceptions import NotFoundError, ValidationError, ExternalServiceError
 from app.models import Resume
 from app.repositories.resume_repo import ResumeRepository
+from app.ai.resume_parser import parse_resume_ai
+from app.ai.skill_normalization import normalize_skills
+from app.ai.text_extraction import extract_text_from_pdf
 from app.utils.pdf_sanitizer import sanitize_pdf
 
 MAX_PDF_PAGES = 20
@@ -88,3 +91,41 @@ class ResumeService:
             raise
         except Exception as e:
             raise ValidationError(f"PDF parsing failed: {e}")
+
+
+    async def parse(self, resume_id: UUID, user_id: UUID) -> None:
+        """Run AI parsing pipeline on an uploaded resume.
+
+        Called as a background task after upload.
+        Updates the resume record with extracted data.
+        """
+        import logging
+        logger = logging.getLogger(__name__)
+
+        resume = await self.resume_repo.get_by_id(resume_id, user_id)
+        if not resume:
+            return
+
+        file_path = os.path.join(self._settings.upload_dir, f"{resume.id}_{resume.filename}")
+        if not os.path.exists(file_path):
+            return
+
+        try:
+            # Extract text
+            raw_text = extract_text_from_pdf(file_path)
+            resume.raw_text = raw_text
+
+            # AI parsing
+            parsed = await parse_resume_ai(file_path)
+            normalized_skills = normalize_skills(parsed.skills)
+
+            # Persist
+            resume.skills = normalized_skills
+            resume.parsed_data = parsed.model_dump()
+            resume.parse_status = "completed"
+            await self.resume_repo.db.flush()
+
+        except Exception as e:
+            logger.error(f"Resume parsing failed for {resume_id}: {e}")
+            resume.parse_status = "failed"
+            await self.resume_repo.db.flush()
