@@ -1,17 +1,26 @@
-"""Analysis router — HTTP concerns only."""
+"""Analysis router — HTTP + SSE streaming endpoints."""
 
 import asyncio
+import os
 from collections.abc import AsyncGenerator
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, HTTPException, Request
 
-from app.dependencies import get_current_user, get_analysis_service
+from app.ai.provider_factory import get_ai_provider
+from app.ai.resume_parser import parse_resume_ai
+from app.ai.scoring import score_match
+from app.ai.skill_normalization import normalize_skills
+from app.ai.text_extraction import extract_text_from_pdf
+from app.ai import AIMessage
+from app.config import get_settings
+from app.dependencies import get_current_user, get_analysis_service, get_resume_repo
 from app.exceptions import NotFoundError
-from app.models import User
+from app.models import User, Resume
+from app.repositories import ResumeRepository
 from app.schemas import AnalyzeRequest, BatchAnalyzeRequest
 from app.services import AnalysisService
-from app.sse import sse_event, sse_response, heartbeat_event
+from app.sse import sse_event, sse_response
 
 router = APIRouter(prefix="/v1", tags=["Analysis"])
 
@@ -35,55 +44,117 @@ async def analyze_stream(
     body: AnalyzeRequest,
     request: Request,
     current_user: User = Depends(get_current_user),
-    analysis_service: AnalysisService = Depends(get_analysis_service),
+    resume_repo: ResumeRepository = Depends(get_resume_repo),
 ):
-    """SSE streaming endpoint for real-time analysis progress."""
+    """SSE streaming endpoint — emits real progress as each pipeline stage completes."""
 
     async def _generate() -> AsyncGenerator[str, None]:
         resume_id = str(body.resume_id)
+        settings = get_settings()
 
         try:
-            # Stage 1: Parsing
+            # === Stage 1: Validate resume exists ===
             yield sse_event("analysis.progress", {
                 "resume_id": resume_id, "stage": "parsing",
-                "progress": 10, "message": "Parsing resume...",
+                "progress": 5, "message": "Loading resume...",
             })
 
-            result = await analysis_service.analyze(
-                resume_id=body.resume_id,
-                job_description=body.job_description,
-                user_id=current_user.id,
-            )
+            resume = await resume_repo.get_by_id(body.resume_id, current_user.id)
+            if not resume:
+                yield sse_event("analysis.error", {
+                    "resume_id": resume_id, "error": "Resume not found", "retryable": False,
+                })
+                return
 
-            # Stage 2: Matching
+            file_path = os.path.join(settings.upload_dir, f"{resume.id}_{resume.filename}")
+            if not os.path.exists(file_path):
+                yield sse_event("analysis.error", {
+                    "resume_id": resume_id, "error": "Resume file not found", "retryable": False,
+                })
+                return
+
+            # === Stage 2: Parse resume (or use cached) ===
+            yield sse_event("analysis.progress", {
+                "resume_id": resume_id, "stage": "parsing",
+                "progress": 15, "message": "Extracting resume data...",
+            })
+            await asyncio.sleep(0)
+
+            from app.ai.resume_parser import ParsedResume
+            if resume.parsed_data and resume.parse_status == "completed":
+                parsed = ParsedResume.model_validate(resume.parsed_data)
+            else:
+                parsed = await parse_resume_ai(file_path)
+                parsed.skills = normalize_skills(parsed.skills)
+                resume.parsed_data = parsed.model_dump()
+                resume.skills = parsed.skills
+                resume.parse_status = "completed"
+                await resume_repo.db.flush()
+
+            yield sse_event("analysis.progress", {
+                "resume_id": resume_id, "stage": "parsing",
+                "progress": 35, "message": f"Found {len(parsed.skills)} skills, {len(parsed.experience)} roles",
+            })
+            await asyncio.sleep(0)
+
+            # === Stage 3: Parse job description ===
             yield sse_event("analysis.progress", {
                 "resume_id": resume_id, "stage": "matching",
-                "progress": 50, "message": "Matching skills...",
+                "progress": 45, "message": "Analyzing job requirements...",
             })
-            await asyncio.sleep(0)  # yield control for disconnect check
 
-            # Stage 3: Scoring
+            provider = get_ai_provider()
+            job_data = await provider.generate_json([
+                AIMessage(role="system", content='Extract job requirements as JSON: {"skills": [...], "education": [...], "experience": [...], "title": "..."}'),
+                AIMessage(role="user", content=f"Extract requirements from:\n\n{body.job_description[:10000]}"),
+            ], temperature=0.1)
+
+            yield sse_event("analysis.progress", {
+                "resume_id": resume_id, "stage": "matching",
+                "progress": 60, "message": f"Found {len(job_data.get('skills', []))} required skills",
+            })
+            await asyncio.sleep(0)
+
+            # === Stage 4: Score match ===
             yield sse_event("analysis.progress", {
                 "resume_id": resume_id, "stage": "scoring",
-                "progress": 80, "message": "Calculating scores...",
+                "progress": 75, "message": "Computing semantic match scores...",
             })
 
-            # Stage 4: Complete
+            result = score_match(
+                resume_skills=parsed.skills,
+                job_skills=job_data.get("skills", []),
+                resume_experience=[e.model_dump() for e in parsed.experience],
+                job_experience=job_data.get("experience", []),
+                resume_education=[e.model_dump() for e in parsed.education],
+                job_education=job_data.get("education", []),
+                resume_titles=[e.title for e in parsed.experience],
+                job_title=job_data.get("title", ""),
+            )
+
+            yield sse_event("analysis.progress", {
+                "resume_id": resume_id, "stage": "recommendations",
+                "progress": 90, "message": "Generating recommendations...",
+            })
+            await asyncio.sleep(0)
+
+            # === Stage 5: Complete ===
             yield sse_event("analysis.complete", {
                 "resume_id": resume_id,
-                "overall_score": result["overall_match_score"],
-                "skills_score": result["detailed_scores"]["skills_score"],
-                "experience_score": result["detailed_scores"]["experience_score"],
-                "education_score": result["detailed_scores"]["education_score"],
+                "overall_score": result.overall_score,
+                "confidence": result.confidence,
+                "skills_score": round(result.signals[0].score * 100, 1),
+                "experience_score": round(result.signals[1].score * 100, 1),
+                "education_score": round(result.signals[2].score * 100, 1),
+                "seniority_score": round(result.signals[3].score * 100, 1),
+                "explanations": {s.name: s.explanation for s in result.signals},
+                "skill_matching": result.skill_matching,
+                "recommendations": result.recommendations,
             })
 
-        except NotFoundError as e:
+        except Exception as e:
             yield sse_event("analysis.error", {
-                "resume_id": resume_id, "error": e.message, "retryable": False,
-            })
-        except Exception:
-            yield sse_event("analysis.error", {
-                "resume_id": resume_id, "error": "Analysis failed", "retryable": True,
+                "resume_id": resume_id, "error": str(e)[:200], "retryable": True,
             })
 
     return sse_response(_generate(), request)
