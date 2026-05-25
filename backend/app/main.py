@@ -14,7 +14,7 @@ from sqlalchemy import text
 from starlette.status import HTTP_429_TOO_MANY_REQUESTS
 
 from app.config import get_settings
-from app.db import AsyncSessionLocal
+from app.db import async_session_factory
 from app.routers import api_router
 
 settings = get_settings()
@@ -56,7 +56,7 @@ async def root():
 @app.get("/health")
 async def health_check():
     try:
-        async with AsyncSessionLocal() as session:
+        async with async_session_factory() as session:
             await session.execute(text("SELECT 1"))
             db_status = "connected"
     except Exception as e:

@@ -1,4 +1,4 @@
-"""User repository — isolates all user-related database operations."""
+"""User repository — database queries only. Never commits."""
 
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -25,14 +25,12 @@ class UserRepository:
             password_hash=password_hash, profile_img=profile_img,
         )
         self.db.add(user)
-        await self.db.commit()
-        await self.db.refresh(user)
+        await self.db.flush()  # generates user.id without committing
         return user
 
     async def update(self, user: User, **fields: str | None) -> User:
         for key, value in fields.items():
             if value is not None:
                 setattr(user, key, value)
-        await self.db.commit()
-        await self.db.refresh(user)
+        await self.db.flush()
         return user
