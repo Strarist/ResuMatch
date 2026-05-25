@@ -1,12 +1,10 @@
 services:
   - type: web
     name: resumatch-backend
-    env: python
+    runtime: docker
     plan: starter
     region: oregon
-    rootDir: backend
-    buildCommand: pip install -r requirements.txt
-    startCommand: gunicorn -k uvicorn.workers.UvicornWorker app.main:app --bind 0.0.0.0:$PORT
+    dockerfilePath: ./Dockerfile
     healthCheckPath: /health
     envVars:
       - key: DATABASE_URL
@@ -15,17 +13,24 @@ services:
         sync: false
       - key: JWT_ALGORITHM
         value: HS256
-      - key: REDIS_URL
+      - key: GEMINI_API_KEY
         sync: false
       - key: GOOGLE_CLIENT_ID
         sync: false
       - key: GOOGLE_CLIENT_SECRET
         sync: false
-      - key: LINKEDIN_CLIENT_ID
-        sync: false
-      - key: LINKEDIN_CLIENT_SECRET
-        sync: false
+      - key: FRONTEND_URL
+        value: https://resu-match-one.vercel.app
+      - key: CORS_ORIGINS
+        value: '["https://resu-match-one.vercel.app"]'
       - key: UPLOAD_DIR
-        value: ./uploads
+        value: /app/uploads
       - key: ENV
-        value: production 
+        value: production
+      - key: SENTRY_DSN
+        sync: false
+
+databases:
+  - name: resumatch-db
+    plan: starter
+    region: oregon
