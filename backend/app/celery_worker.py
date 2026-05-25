@@ -1,16 +1,16 @@
-import os
-from celery import Celery
-from prometheus_client import start_http_server
-import threading
+"""Celery worker configuration."""
 
-CELERY_BROKER_URL = os.getenv("CELERY_BROKER_URL", "redis://localhost:6379/0")
-CELERY_RESULT_BACKEND = os.getenv("CELERY_RESULT_BACKEND", "redis://localhost:6379/0")
+from celery import Celery
+
+from app.config import get_settings
+
+settings = get_settings()
 
 celery_app = Celery(
     "resumatch",
-    broker=CELERY_BROKER_URL,
-    backend=CELERY_RESULT_BACKEND,
-    include=["app.tasks"]
+    broker=settings.celery_broker_url,
+    backend=settings.celery_result_backend,
+    include=["app.tasks"],
 )
 
 celery_app.conf.update(
@@ -22,8 +22,3 @@ celery_app.conf.update(
     task_track_started=True,
     broker_connection_retry_on_startup=True,
 )
-
-def start_prometheus_metrics_server():
-    start_http_server(9100)
-
-threading.Thread(target=start_prometheus_metrics_server, daemon=True).start() 

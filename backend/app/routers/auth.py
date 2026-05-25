@@ -3,33 +3,34 @@
 from fastapi import APIRouter, Depends, Request, HTTPException
 from fastapi.responses import JSONResponse, Response
 from fastapi_limiter.depends import RateLimiter
-import os
 
 from authlib.integrations.starlette_client import OAuth
 
-from app.dependencies import get_auth_service, get_current_user
+from app.config import get_settings
+from app.dependencies import get_auth_service, get_current_user, get_user_repo
 from app.exceptions import AuthenticationError, ConflictError
 from app.models import User
-from app.schemas import LoginRequest, RegisterRequest, ProfileUpdateRequest, UserResponse, AuthResponse
-from app.services import AuthService
 from app.repositories.user_repo import UserRepository
-from app.dependencies import get_user_repo
+from app.schemas import LoginRequest, RegisterRequest, ProfileUpdateRequest, UserResponse
+from app.services import AuthService
 
 router = APIRouter(prefix="/v1/auth", tags=["Auth"])
 
+settings = get_settings()
+
 # OAuth setup
 oauth = OAuth()
-oauth.register(
-    name="google",
-    client_id=os.getenv("GOOGLE_CLIENT_ID"),
-    client_secret=os.getenv("GOOGLE_CLIENT_SECRET"),
-    server_metadata_url="https://accounts.google.com/.well-known/openid-configuration",
-    client_kwargs={"scope": "openid email profile"},
-)
+if settings.google_client_id:
+    oauth.register(
+        name="google",
+        client_id=settings.google_client_id,
+        client_secret=settings.google_client_secret,
+        server_metadata_url="https://accounts.google.com/.well-known/openid-configuration",
+        client_kwargs={"scope": "openid email profile"},
+    )
 
 
 def _auth_response(message: str, access_token: str, refresh_token: str, user: User) -> JSONResponse:
-    """Build auth response with httponly cookies."""
     response = JSONResponse({
         "message": message,
         "access_token": access_token,
@@ -100,8 +101,7 @@ async def update_profile(
 
 @router.get("/google/login", dependencies=[Depends(RateLimiter(times=10, seconds=60))])
 async def google_login(request: Request):
-    redirect_uri = os.getenv("OAUTH_REDIRECT_URI", "http://localhost:3000/auth/callback")
-    return await oauth.google.authorize_redirect(request, redirect_uri)
+    return await oauth.google.authorize_redirect(request, settings.oauth_redirect_uri)
 
 
 @router.get("/google/callback")
@@ -111,5 +111,4 @@ async def google_callback(request: Request, auth_service: AuthService = Depends(
     user, access, refresh = await auth_service.oauth_login(
         email=user_info["email"], name=user_info.get("name", ""), profile_img=user_info.get("picture")
     )
-    frontend_url = os.getenv("FRONTEND_URL", "http://localhost:3000")
-    return Response(status_code=302, headers={"Location": f"{frontend_url}/login?token={access}"})
+    return Response(status_code=302, headers={"Location": f"{settings.frontend_url}/login?token={access}"})

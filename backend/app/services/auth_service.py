@@ -69,7 +69,10 @@ class AuthService:
         return user, self._create_token(user), self._create_token(user, refresh=True)
 
     def _create_token(self, user: User, refresh: bool = False) -> str:
-        expire_minutes = 30 * 24 * 60 if refresh else 7 * 24 * 60
+        expire_minutes = (
+            self._settings.jwt_refresh_expire_minutes if refresh
+            else self._settings.jwt_access_expire_minutes
+        )
         payload = {
             "sub": str(user.id),
             "email": user.email,
