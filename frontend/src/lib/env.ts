@@ -1,21 +1,19 @@
 /**
- * Runtime environment validation.
- * Fails loudly at module load if required env vars are missing.
- * This file is imported by the API client, ensuring validation
- * happens before any network requests.
+ * Runtime environment configuration.
+ * SSR-safe: provides fallback for development, warns instead of crashing.
  */
 
-function requireEnv(name: string): string {
+const getEnv = (name: string, fallback: string): string => {
   const value = process.env[name];
   if (!value) {
-    throw new Error(
-      `Missing required environment variable: ${name}. ` +
-        `Set it in .env.local (development) or your deployment platform (production).`
-    );
+    if (typeof window !== 'undefined') {
+      console.warn(`[env] ${name} not set, using fallback: ${fallback}`);
+    }
+    return fallback;
   }
   return value;
-}
+};
 
 export const env = {
-  NEXT_PUBLIC_API_URL: requireEnv('NEXT_PUBLIC_API_URL'),
+  NEXT_PUBLIC_API_URL: getEnv('NEXT_PUBLIC_API_URL', 'http://localhost:8000'),
 } as const;
