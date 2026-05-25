@@ -1,0 +1,8 @@
+{
+  "name": "resumatch",
+  "private": true,
+  "workspaces": [
+    "packages/*",
+    "frontend"
+  ]
+}
