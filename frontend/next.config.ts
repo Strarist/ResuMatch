@@ -1,27 +1,35 @@
 import type { NextConfig } from 'next';
 
 const nextConfig: NextConfig = {
-  // Strict React mode catches bugs early
   reactStrictMode: true,
-
-  // Reduce bundle: don't ship source maps to client
   productionBrowserSourceMaps: false,
-
-  // Optimize images
   images: {
     formats: ['image/avif', 'image/webp'],
   },
-
-  // Transpile workspace packages
   transpilePackages: ['@resumatch/types'],
 
-  // Headers for SSE and caching
   async headers() {
     return [
       {
-        source: '/api/:path*',
+        source: '/(.*)',
         headers: [
-          { key: 'X-DNS-Prefetch-Control', value: 'on' },
+          { key: 'X-Content-Type-Options', value: 'nosniff' },
+          { key: 'X-Frame-Options', value: 'DENY' },
+          { key: 'X-XSS-Protection', value: '0' },
+          { key: 'Referrer-Policy', value: 'strict-origin-when-cross-origin' },
+          { key: 'Permissions-Policy', value: 'camera=(), microphone=(), geolocation=()' },
+          {
+            key: 'Content-Security-Policy',
+            value: [
+              "default-src 'self'",
+              "script-src 'self' 'unsafe-inline' 'unsafe-eval'",  // Next.js requires these
+              "style-src 'self' 'unsafe-inline'",
+              "img-src 'self' data: https:",
+              "font-src 'self' https://fonts.gstatic.com",
+              "connect-src 'self' https://*.onrender.com",
+              "frame-ancestors 'none'",
+            ].join('; '),
+          },
         ],
       },
     ];

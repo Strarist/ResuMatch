@@ -14,6 +14,7 @@ from app.db import async_session_factory
 from app.middleware import ObservabilityMiddleware
 from app.observability import setup_logging
 from app.routers import api_router
+from app.security import SecurityHeadersMiddleware, RateLimitMiddleware
 
 settings = get_settings()
 setup_logging()
@@ -33,6 +34,8 @@ async def lifespan(app: FastAPI):
 app = FastAPI(title="ResuMatch API", version="1.0.0", docs_url="/docs", lifespan=lifespan)
 
 # Middleware (order matters: first added = outermost)
+app.add_middleware(SecurityHeadersMiddleware)
+app.add_middleware(RateLimitMiddleware)
 app.add_middleware(ObservabilityMiddleware)
 app.add_middleware(
     CORSMiddleware,
