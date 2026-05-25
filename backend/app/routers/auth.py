@@ -100,11 +100,15 @@ async def update_profile(
 
 @router.get("/google/login")
 async def google_login(request: Request):
+    if not settings.google_client_id:
+        raise HTTPException(status_code=501, detail="Google OAuth not configured")
     return await oauth.google.authorize_redirect(request, settings.oauth_redirect_uri)
 
 
 @router.get("/google/callback")
 async def google_callback(request: Request, auth_service: AuthService = Depends(get_auth_service)):
+    if not settings.google_client_id:
+        raise HTTPException(status_code=501, detail="Google OAuth not configured")
     token = await oauth.google.authorize_access_token(request)
     user_info = await oauth.google.parse_id_token(request, token)
     user, access, refresh = await auth_service.oauth_login(

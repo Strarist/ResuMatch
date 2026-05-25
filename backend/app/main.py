@@ -91,3 +91,16 @@ async def health_check():
         status_code=200 if healthy else 503,
         content={"status": "healthy" if healthy else "unhealthy", "database": db_status, "version": "1.0.0"},
     )
+
+
+@app.get("/health/providers")
+async def health_providers():
+    """Subsystem readiness check."""
+    import os
+    return {
+        "database": "configured" if settings.database_url else "missing",
+        "google_oauth": "configured" if settings.google_client_id else "not configured",
+        "gemini_ai": "configured" if os.getenv("GEMINI_API_KEY") else "not configured",
+        "ollama": "configured" if os.getenv("OLLAMA_URL") else "not configured",
+        "sentry": "configured" if settings.sentry_dsn else "not configured",
+    }
