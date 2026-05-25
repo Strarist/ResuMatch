@@ -8,6 +8,7 @@ from .cover_letter import router as cover_letter_router
 from .roadmap import router as roadmap_router
 from .intelligence import router as intelligence_router
 from .roadmap_intel import router as roadmap_intel_router
+from .recruiter import router as recruiter_router
 
 api_router = APIRouter()
 api_router.include_router(auth_router)
@@ -18,3 +19,4 @@ api_router.include_router(cover_letter_router)
 api_router.include_router(roadmap_router)
 api_router.include_router(intelligence_router)
 api_router.include_router(roadmap_intel_router)
+api_router.include_router(recruiter_router)
