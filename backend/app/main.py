@@ -1,6 +1,5 @@
 """FastAPI application entry point."""
 
-import logging
 from contextlib import asynccontextmanager
 
 import sentry_sdk
@@ -12,9 +11,12 @@ from sqlalchemy import text
 
 from app.config import get_settings
 from app.db import async_session_factory
+from app.middleware import ObservabilityMiddleware
+from app.observability import setup_logging
 from app.routers import api_router
 
 settings = get_settings()
+setup_logging()
 
 if settings.sentry_dsn:
     sentry_sdk.init(dsn=settings.sentry_dsn, traces_sample_rate=0.5, environment=settings.env.value)
@@ -22,12 +24,16 @@ if settings.sentry_dsn:
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    logging.info("Application startup complete")
+    from loguru import logger
+    logger.info("Application started", env=settings.env.value)
     yield
+    logger.info("Application shutting down")
 
 
 app = FastAPI(title="ResuMatch API", version="1.0.0", docs_url="/docs", lifespan=lifespan)
 
+# Middleware (order matters: first added = outermost)
+app.add_middleware(ObservabilityMiddleware)
 app.add_middleware(
     CORSMiddleware,
     allow_origins=settings.cors_origins,
