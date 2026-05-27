@@ -18,14 +18,11 @@ import {
   Target,
   AlertTriangle,
   CheckCircle,
-  Clock,
   TrendingUp,
   RefreshCw,
   Layers,
   Shield,
   Sparkles,
-  ChevronRight,
-  Send,
   BookOpen
 } from 'lucide-react';
 

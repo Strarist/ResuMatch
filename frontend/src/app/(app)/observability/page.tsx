@@ -4,8 +4,6 @@ import { useCallback, useEffect, useState } from 'react';
 import { env } from '@/lib/env';
 import {
   PageContainer,
-  DashboardGrid,
-  MetricCard,
   GlassPanel,
   SectionLabel,
   WorkspaceCard,
@@ -17,15 +15,10 @@ import {
   Activity,
   Zap,
   Target,
-  AlertTriangle,
   CheckCircle,
-  Clock,
-  TrendingUp,
   RefreshCw,
   Layers,
-  Sparkles,
-  Search,
-  BookOpen
+  Search
 } from 'lucide-react';
 
 interface OrchestrationHealth {
