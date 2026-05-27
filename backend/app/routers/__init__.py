@@ -17,6 +17,7 @@ from .opportunities import router as opportunities_router
 from .prediction import router as prediction_router
 from .explainability_v2 import router as explainability_v2_router
 from .synthesis import router as synthesis_router
+from .observability import router as observability_router
 
 api_router = APIRouter()
 api_router.include_router(auth_router)
@@ -36,4 +37,5 @@ api_router.include_router(opportunities_router)
 api_router.include_router(prediction_router)
 api_router.include_router(explainability_v2_router)
 api_router.include_router(synthesis_router)
+api_router.include_router(observability_router)
 

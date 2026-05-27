@@ -1,5 +1,5 @@
 import pytest
-from httpx import AsyncClient
+from httpx import ASGITransport, AsyncClient
 from app.main import app
 from app.core.dependencies import get_current_user, get_resume_service
 from app.models.user import User
@@ -21,7 +21,7 @@ async def test_rate_limit_on_resumes():
     app.dependency_overrides[get_current_user] = mock_get_current_user
     app.dependency_overrides[get_resume_service] = mock_get_resume_service
     try:
-        async with AsyncClient(app=app, base_url="http://test") as ac:
+        async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as ac:
             responses = []
             for _ in range(6):
                 resp = await ac.post(

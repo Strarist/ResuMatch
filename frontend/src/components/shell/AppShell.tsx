@@ -5,7 +5,7 @@ import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { useAuth } from '@/auth/AuthContext';
 import { motion, AnimatePresence } from 'framer-motion';
-import { LayoutDashboard, Brain, BarChart3, TrendingUp, Map, Radar, Compass, UserCheck, Globe, Award, MessageSquare, Upload, FileText, Settings, LogOut, ChevronLeft, Menu, Sparkles, Info } from 'lucide-react';
+import { LayoutDashboard, Brain, BarChart3, TrendingUp, Map, Radar, Compass, UserCheck, Globe, Award, MessageSquare, Upload, FileText, Settings, LogOut, ChevronLeft, Menu, Sparkles, Info, Shield } from 'lucide-react';
 import { Logo } from '@/branding/Logo';
 
 const navGroups = [
@@ -17,6 +17,7 @@ const navGroups = [
       { href: '/predictive', label: 'Predictive', icon: Sparkles },
       { href: '/explainability', label: 'Explainability', icon: Info },
       { href: '/executive', label: 'Executive', icon: BarChart3 },
+      { href: '/observability', label: 'Observability', icon: Shield },
       { href: '/progress', label: 'Progress', icon: TrendingUp },
     ],
   },
