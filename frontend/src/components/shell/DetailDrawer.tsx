@@ -1,7 +1,7 @@
 'use client';
 
 import { useWorkspace } from '@/lib/WorkspaceContext';
-import { Panel, SectionHeader, StreamingBlock } from '@/components/ds';
+import { SectionHeader, StreamingBlock } from '@/components/ds';
 import { cn } from '@/lib/utils';
 
 /**

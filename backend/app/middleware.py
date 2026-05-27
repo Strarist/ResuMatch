@@ -16,23 +16,40 @@ except ImportError:
 from app.observability import set_request_id, log_request
 
 
-class ObservabilityMiddleware(BaseHTTPMiddleware):
-    async def dispatch(self, request: Request, call_next: RequestResponseEndpoint) -> Response:
-        request_id = request.headers.get("X-Request-ID") or ""
+class ObservabilityMiddleware:
+    """Native ASGI observability middleware."""
+    def __init__(self, app):
+        self.app = app
+
+    async def __call__(self, scope, receive, send):
+        if scope["type"] != "http":
+            return await self.app(scope, receive, send)
+
+        headers = dict(scope.get("headers", []))
+        request_id = headers.get(b"x-request-id", b"").decode("utf-8")
         rid = set_request_id(request_id or None)
 
         start = time.perf_counter()
-        response = await call_next(request)
-        duration_ms = (time.perf_counter() - start) * 1000
+        status_code = 500
 
-        response.headers["X-Request-ID"] = rid
-        path = request.url.path
+        async def send_wrapper(message):
+            nonlocal status_code
+            if message["type"] == "http.response.start":
+                status_code = message.get("status", 200)
+                res_headers = message.setdefault("headers", [])
+                res_headers.append((b"x-request-id", rid.encode("utf-8")))
+            await send(message)
 
-        log_request(request.method, path, response.status_code, duration_ms)
+        try:
+            await self.app(scope, receive, send_wrapper)
+        finally:
+            duration_ms = (time.perf_counter() - start) * 1000
+            path = scope.get("path", "")
+            method = scope.get("method", "GET")
 
-        if REQUEST_COUNT:
-            REQUEST_COUNT.labels(method=request.method, path=path, status=response.status_code).inc()
-        if REQUEST_DURATION:
-            REQUEST_DURATION.labels(method=request.method, path=path).observe(duration_ms / 1000)
+            log_request(method, path, status_code, duration_ms)
 
-        return response
+            if REQUEST_COUNT:
+                REQUEST_COUNT.labels(method=method, path=path, status=status_code).inc()
+            if REQUEST_DURATION:
+                REQUEST_DURATION.labels(method=method, path=path).observe(duration_ms / 1000)

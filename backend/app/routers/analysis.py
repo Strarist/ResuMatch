@@ -3,7 +3,7 @@
 import asyncio
 import os
 from collections.abc import AsyncGenerator
-from uuid import UUID
+
 
 from fastapi import APIRouter, Depends, HTTPException, Request
 
@@ -14,9 +14,10 @@ from app.ai.skill_normalization import normalize_skills
 from app.ai.text_extraction import extract_text_from_pdf
 from app.ai import AIMessage
 from app.config import get_settings
-from app.dependencies import get_current_user, get_analysis_service, get_resume_repo
+from app.core.dependencies import get_current_user, get_analysis_service, get_resume_repo
 from app.exceptions import NotFoundError
-from app.models import User, Resume
+from app.models.user import User
+from app.models.resume import Resume
 from app.repositories import ResumeRepository
 from app.schemas import AnalyzeRequest, BatchAnalyzeRequest
 from app.services import AnalysisService
@@ -121,7 +122,7 @@ async def analyze_stream(
                 "progress": 75, "message": "Computing semantic match scores...",
             })
 
-            result = score_match(
+            result = await score_match(
                 resume_skills=parsed.skills,
                 job_skills=job_data.get("skills", []),
                 resume_experience=[e.model_dump() for e in parsed.experience],

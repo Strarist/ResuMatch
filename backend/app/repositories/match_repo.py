@@ -6,7 +6,9 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
-from app.models import Match, Resume
+from app.models.opportunity import Match
+
+from app.models.resume import Resume
 
 
 class MatchRepository:

@@ -1,0 +1,36 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "Topology",
+  "type": "object",
+  "properties": {
+    "nodes": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "id": { "type": "string" },
+          "label": { "type": "string" },
+          "domain": { "type": "string" },
+          "type": { "type": "string" }
+        },
+        "required": ["id"],
+        "additionalProperties": true
+      }
+    },
+    "edges": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "source": { "type": "string" },
+          "target": { "type": "string" },
+          "type": { "type": "string" },
+          "weight": { "type": "number" }
+        },
+        "required": ["source", "target", "type"],
+        "additionalProperties": true
+      }
+    }
+  },
+  "additionalProperties": true
+}

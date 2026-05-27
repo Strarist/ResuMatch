@@ -1,7 +1,4 @@
-const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL;
-if (!API_BASE_URL) {
-  throw new Error('NEXT_PUBLIC_API_URL is not defined. Please set it in your environment variables.');
-}
+const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
 
 export interface LoginRequest {
   email: string;
@@ -10,7 +7,7 @@ export interface LoginRequest {
 
 export interface LoginResponse {
   access_token: string;
-  token_type: string;
+  message: string;
   user: {
     id: string;
     email: string;
@@ -18,23 +15,6 @@ export interface LoginResponse {
     profile_img?: string;
     provider: string;
   };
-}
-
-export interface OAuthResponse {
-  access_token: string;
-  token_type: string;
-  user: {
-    id: string;
-    email: string;
-    name?: string;
-    profile_img?: string;
-    provider: string;
-  };
-}
-
-export interface ApiError {
-  detail: string;
-  status_code?: number;
 }
 
 class ApiClient {
@@ -44,35 +24,48 @@ class ApiClient {
     this.baseUrl = baseUrl;
   }
 
-  private async request<T>(
-    endpoint: string,
-    options: RequestInit = {}
-  ): Promise<T> {
+  private async request<T>(endpoint: string, options: RequestInit = {}): Promise<T> {
     const url = `${this.baseUrl}${endpoint}`;
-    
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 4000);
+
     const config: RequestInit = {
-      headers: {
-        'Content-Type': 'application/json',
-        ...options.headers,
-      },
+      headers: { 'Content-Type': 'application/json', ...options.headers },
       credentials: 'include',
+      signal: controller.signal,
       ...options,
     };
 
     try {
       const response = await fetch(url, config);
+      clearTimeout(timeoutId);
+
+      if (response.status === 401) {
+        return {
+          state: "ANONYMOUS",
+          user: null
+        } as unknown as T;
+      }
+
       const data = await response.json();
 
       if (!response.ok) {
         throw new Error(data.detail || `HTTP ${response.status}: ${response.statusText}`);
       }
-
       return data;
-    } catch (error) {
-      if (error instanceof Error) {
-        throw error;
+    } catch (error: unknown) {
+      clearTimeout(timeoutId);
+
+      // If the error is network-related (fetch failed) or timeout, we handle it
+      if (error instanceof Error && (error.name === 'AbortError' || error.message.includes('fetch') || error.message.includes('Network'))) {
+        if (process.env.NODE_ENV === 'development') {
+          console.warn(`[auth] backend unavailable - running in local mode (${endpoint})`);
+        }
+        throw new Error('BACKEND_OFFLINE');
       }
-      throw new Error('Network error occurred');
+
+      // Re-throw other API application errors
+      throw error;
     }
   }
 
@@ -84,39 +77,27 @@ class ApiClient {
   }
 
   async logout(): Promise<void> {
-    return this.request<void>('/v1/auth/logout', {
-      method: 'POST',
-    });
+    return this.request<void>('/v1/auth/logout', { method: 'POST' });
   }
 
   async refreshToken(): Promise<{ access_token: string }> {
-    return this.request<{ access_token: string }>('/v1/auth/refresh', {
-      method: 'POST',
-    });
+    return this.request<{ access_token: string }>('/v1/auth/refresh', { method: 'POST' });
   }
 
-  async getProfile(): Promise<{ user: LoginResponse['user'] }> {
-    return this.request<{ user: LoginResponse['user'] }>('/v1/auth/profile', {
-      method: 'GET',
-    });
+  async getProfile(): Promise<{ user: LoginResponse['user'] | null; offline?: boolean; state?: string }> {
+    try {
+      return await this.request<{ user: LoginResponse['user'] | null; state?: string }>('/v1/auth/profile');
+    } catch (error: unknown) {
+      if (error instanceof Error && error.message === 'BACKEND_OFFLINE') {
+        return { user: null, offline: true, state: 'ANONYMOUS' };
+      }
+      throw error;
+    }
   }
 
   getOAuthUrl(provider: 'google'): string {
     return `${this.baseUrl}/v1/auth/${provider}/login`;
   }
-
-  /**
-   * Exchange OAuth code for access token and user info
-   * @param code The OAuth code from the provider
-   * @param state The state parameter (may include provider info)
-   * @param provider The OAuth provider (default: 'google')
-   */
-  async exchangeCodeForToken(code: string, state: string, provider: 'google' = 'google'): Promise<OAuthResponse> {
-    // If provider is encoded in state, extract it (optional, for future-proofing)
-    // For now, default to google unless specified
-    const endpoint = `/v1/auth/${provider}/callback?code=${encodeURIComponent(code)}&state=${encodeURIComponent(state)}`;
-    return this.request<OAuthResponse>(endpoint, { method: 'GET' });
-  }
 }
 
-export const apiClient = new ApiClient(API_BASE_URL); 
+export const apiClient = new ApiClient(API_BASE_URL);

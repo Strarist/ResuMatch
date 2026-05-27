@@ -14,7 +14,7 @@ from app.ai.embeddings import embed_texts
 MATCH_THRESHOLD = 0.6  # Skills with similarity >= 0.6 are considered matches
 
 
-def compute_skill_similarity(resume_skills: list[str], job_skills: list[str]) -> dict:
+async def compute_skill_similarity(resume_skills: list[str], job_skills: list[str]) -> dict:
     """Compute semantic similarity between two skill sets.
 
     Returns:
@@ -33,8 +33,8 @@ def compute_skill_similarity(resume_skills: list[str], job_skills: list[str]) ->
             "match_percentage": 0.0,
         }
 
-    resume_embeddings = embed_texts(resume_skills)
-    job_embeddings = embed_texts(job_skills)
+    resume_embeddings = await embed_texts(resume_skills)
+    job_embeddings = await embed_texts(job_skills)
 
     # Cosine similarity matrix: (num_job_skills, num_resume_skills)
     # Since vectors are normalized, dot product = cosine similarity

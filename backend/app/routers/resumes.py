@@ -1,14 +1,15 @@
 """Resume router — HTTP concerns only."""
 
 import logging
-from uuid import UUID
 
 from fastapi import APIRouter, BackgroundTasks, Depends, UploadFile, File, HTTPException, status
 from fastapi.responses import JSONResponse
 
-from app.dependencies import get_current_user, get_resume_service
+from app.core.dependencies import get_db
+from sqlalchemy.ext.asyncio import AsyncSession
+from app.core.dependencies import get_current_user, get_resume_service
 from app.exceptions import NotFoundError, ValidationError, ExternalServiceError
-from app.models import User
+from app.models.user import User
 from app.schemas import ResumeResponse
 from app.services import ResumeService
 
@@ -17,7 +18,7 @@ logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/v1/resumes", tags=["Resumes"])
 
 
-async def _process_resume_background(resume_id: UUID, filename: str) -> None:
+async def _process_resume_background(resume_id: str, filename: str) -> None:
     """Background task placeholder for post-upload processing.
 
     In the future this will trigger skill extraction via the AI pipeline.
@@ -32,6 +33,7 @@ async def upload_resume(
     file: UploadFile = File(...),
     current_user: User = Depends(get_current_user),
     resume_service: ResumeService = Depends(get_resume_service),
+    db: AsyncSession = Depends(get_db),
 ):
     file_bytes = await file.read()
     try:
@@ -43,6 +45,7 @@ async def upload_resume(
         raise HTTPException(status_code=400, detail=e.message)
     except ExternalServiceError as e:
         raise HTTPException(status_code=500, detail=e.message)
+    await db.commit()
 
     background_tasks.add_task(_process_resume_background, resume.id, resume.filename)
     return JSONResponse(
@@ -67,7 +70,7 @@ async def list_resumes(
 
 @router.get("/{resume_id}")
 async def get_resume(
-    resume_id: UUID,
+    resume_id: str,
     current_user: User = Depends(get_current_user),
     resume_service: ResumeService = Depends(get_resume_service),
 ):
@@ -80,12 +83,14 @@ async def get_resume(
 
 @router.delete("/{resume_id}")
 async def delete_resume(
-    resume_id: UUID,
+    resume_id: str,
     current_user: User = Depends(get_current_user),
     resume_service: ResumeService = Depends(get_resume_service),
+    db: AsyncSession = Depends(get_db),
 ):
     try:
         await resume_service.delete(resume_id, current_user.id)
     except NotFoundError as e:
         raise HTTPException(status_code=404, detail=e.message)
+    await db.commit()
     return {"message": "Resume deleted successfully"}

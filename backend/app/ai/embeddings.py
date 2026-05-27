@@ -24,14 +24,20 @@ def _get_model():
     return _model
 
 
-def embed_texts(texts: list[str]) -> np.ndarray:
-    """Embed multiple texts. Returns (N, 384) normalized float32 array."""
+import asyncio
+
+def _embed_sync(texts: list[str]) -> np.ndarray:
     if not texts:
         return np.empty((0, 384), dtype=np.float32)
     model = _get_model()
     return model.encode(texts, normalize_embeddings=True, batch_size=64).astype(np.float32)
 
+async def embed_texts(texts: list[str]) -> np.ndarray:
+    """Embed multiple texts without blocking the event loop. Returns (N, 384) normalized float32 array."""
+    return await asyncio.to_thread(_embed_sync, texts)
 
-def embed_text(text: str) -> np.ndarray:
-    """Embed a single text. Returns (384,) normalized float32 vector."""
-    return embed_texts([text])[0]
+
+async def embed_text(text: str) -> np.ndarray:
+    """Embed a single text without blocking the event loop. Returns (384,) normalized float32 vector."""
+    res = await embed_texts([text])
+    return res[0]

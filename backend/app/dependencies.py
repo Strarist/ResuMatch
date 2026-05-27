@@ -4,7 +4,7 @@ from fastapi import Depends, Request, Cookie, HTTPException
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.db import get_db
-from app.models import User
+from app.models.user import User
 from app.repositories import UserRepository, ResumeRepository, MatchRepository
 from app.services import AuthService, ResumeService, AnalysisService
 from app.exceptions import AuthenticationError

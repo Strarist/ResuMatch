@@ -13,15 +13,15 @@ def sanitize_pdf(input_path: str, output_path: Optional[str] = None, user_id: Op
     """
     output_path = output_path or input_path
     start_time = time.time()
-    log_context = {
+    # Base logging context without the mutable status field
+    base_log_context = {
         "user_id": user_id,
         "session_hash": session_hash,
         "filename": input_path,
-        "sanitization_status": "started",
         "timestamp": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
-        "severity": "info"
     }
-    logger.bind(**log_context).info("Sanitization started")
+    # Log start of sanitization
+    logger.bind(**base_log_context, severity="info").info("Sanitization started")
     try:
         with pikepdf.open(input_path) as pdf:
             # Remove JavaScript
@@ -48,20 +48,22 @@ def sanitize_pdf(input_path: str, output_path: Optional[str] = None, user_id: Op
                     del pdf.Root[action_key]
             pdf.save(output_path)
         duration = time.time() - start_time
+        # Log successful completion
         logger.bind(
-            **log_context,
+            **base_log_context,
             sanitization_status="success",
             duration=duration,
-            severity="info"
+            severity="info",
         ).info("Sanitization successful")
         return True
     except Exception as e:
         duration = time.time() - start_time
+        # Log failure with error details
         logger.bind(
-            **log_context,
+            **base_log_context,
             sanitization_status="failed",
             failure_reason=str(e),
             duration=duration,
-            severity="error"
+            severity="error",
         ).exception("Sanitization failed")
-        return False 
+        return False

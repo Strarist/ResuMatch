@@ -49,7 +49,7 @@ class MatchResult:
     recommendations: list[dict]
 
 
-def score_match(
+async def score_match(
     resume_skills: list[str],
     job_skills: list[str],
     resume_experience: list[dict],
@@ -68,7 +68,7 @@ def score_match(
     total_possible = 4
 
     # === Signal 1: Skill Semantic Similarity ===
-    skill_result = compute_skill_similarity(resume_skills, job_skills)
+    skill_result = await compute_skill_similarity(resume_skills, job_skills)
     skill_score = skill_result["match_percentage"] / 100.0
     signals.append(SignalScore(
         name="skills",
@@ -81,7 +81,7 @@ def score_match(
         data_points += 1
 
     # === Signal 2: Experience Relevance ===
-    exp_score = _score_experience(resume_experience, job_experience, job_title)
+    exp_score = await _score_experience(resume_experience, job_experience, job_title)
     signals.append(SignalScore(
         name="experience",
         score=exp_score,
@@ -132,7 +132,7 @@ def score_match(
 # === Signal Scoring Functions ===
 
 
-def _score_experience(resume_exp: list[dict], job_requirements: list[str], job_title: str) -> float:
+async def _score_experience(resume_exp: list[dict], job_requirements: list[str], job_title: str) -> float:
     """Score experience relevance using semantic similarity of descriptions."""
     if not resume_exp or not job_title:
         return 0.5  # Neutral when data is missing
@@ -146,8 +146,8 @@ def _score_experience(resume_exp: list[dict], job_requirements: list[str], job_t
     if not resume_texts or not job_texts:
         return 0.5
 
-    resume_emb = embed_texts(resume_texts)
-    job_emb = embed_texts(job_texts)
+    resume_emb = await embed_texts(resume_texts)
+    job_emb = await embed_texts(job_texts)
 
     # Max similarity between any resume experience and job requirements
     sim_matrix = job_emb @ resume_emb.T

@@ -8,6 +8,12 @@ from sqlalchemy.ext.asyncio import (
     create_async_engine,
 )
 
+from app.models.user import User
+from app.models.opportunity import Job, Match
+from app.models.strategic_memory import StrategicMemoryEvent, MemoryCluster, CausalEdge, PropagationEvent, LeverageDecision, RuntimeMutation
+from app.models.agents import AgentRuntimeState, AgentDecision, AgentEvent, OrchestrationCycle, StrategicDirective
+from app.models.orchestration import ReplayEvent, ReplayCheckpoint, ReplayValidation, ReplayDrift
+
 from app.config import get_settings
 
 settings = get_settings()
@@ -33,7 +39,6 @@ async def get_db() -> AsyncGenerator[AsyncSession, None]:
     session = async_session_factory()
     try:
         yield session
-        await session.commit()
     except Exception:
         await session.rollback()
         raise

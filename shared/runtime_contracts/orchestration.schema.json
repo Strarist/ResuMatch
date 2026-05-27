@@ -1,0 +1,40 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "Orchestration",
+  "type": "object",
+  "properties": {
+    "directive": {
+      "type": ["object", "null"],
+      "properties": {
+        "directive_type": { "type": "string" },
+        "priority_level": { "type": "string" },
+        "description": { "type": "string" },
+        "rationale": { "type": "string" }
+      },
+      "additionalProperties": true
+    },
+    "topology": {
+      "type": "array",
+      "items": {
+        "$ref": "topology.schema.json"
+      }
+    },
+    "telemetry": {
+      "type": "array",
+      "items": {
+        "$ref": "telemetry.schema.json"
+      }
+    },
+    "agent_activity": {
+      "type": "array",
+      "items": {
+        "$ref": "telemetry.schema.json"
+      }
+    },
+    "constraints": {
+      "type": "array",
+      "items": { "type": "string" }
+    }
+  },
+  "additionalProperties": true
+}

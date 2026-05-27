@@ -12,8 +12,8 @@ from app.ai.resume_parser import ParsedResume
 from app.ai.skill_normalization import normalize_skills
 from app.ai.resume_parser import parse_resume_ai
 from app.config import get_settings
-from app.dependencies import get_current_user, get_resume_repo
-from app.models import User
+from app.core.dependencies import get_current_user, get_resume_repo
+from app.models.user import User
 from app.repositories import ResumeRepository
 from app.sse import sse_event, sse_response
 
@@ -60,7 +60,7 @@ async def stream_cover_letter_endpoint(
             resume.parsed_data = parsed.model_dump()
             resume.skills = parsed.skills
             resume.parse_status = "completed"
-            await resume_repo.db.flush()
+            await resume_repo.db.commit()
 
         yield sse_event("stream.token", {"content": "", "done": False})
 

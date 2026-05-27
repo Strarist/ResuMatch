@@ -1,17 +1,26 @@
 """Adaptive roadmap intelligence API."""
 
 from fastapi import APIRouter, Depends
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.db import get_db
-from app.dependencies import get_current_user
-from app.models import User
+from app.core.dependencies import get_db
+from app.core.dependencies import get_current_user
+from app.models.user import User
 from app.services.roadmap_intel import (
     get_or_create_roadmap, mutate_existing_roadmap, complete_node, defer_node, RoadmapRepository,
 )
 
 router = APIRouter(prefix="/v1/roadmap-intel", tags=["Roadmap Intelligence"])
+
+
+class CreateRoadmapRequest(BaseModel):
+    target_role: str = Field(min_length=2)
+    target_skills: list[str] = Field(min_length=1)
+
+
+class MutateRequest(BaseModel):
+    target_skills: list[str] = Field(min_length=1)
 
 
 class NodeActionRequest(BaseModel):
@@ -29,7 +38,7 @@ async def get_roadmap_state(
         return {"state": None}
     return {
         "state": {
-            "id": str(state.id),
+            "id": state.id,
             "target_role": state.target_role,
             "version": state.roadmap_version,
             "snapshot": state.roadmap_snapshot,
@@ -42,6 +51,42 @@ async def get_roadmap_state(
     }
 
 
+@router.post("/create")
+async def create_roadmap(
+    body: CreateRoadmapRequest,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    state = await get_or_create_roadmap(db, current_user.id, body.target_role, body.target_skills)
+    await db.commit()
+    return {
+        "state": {
+            "id": state.id,
+            "target_role": state.target_role,
+            "version": state.roadmap_version,
+            "snapshot": state.roadmap_snapshot,
+            "active_focus_areas": state.active_focus_areas,
+        }
+    }
+
+
+@router.post("/mutate")
+async def mutate_roadmap_endpoint(
+    body: MutateRequest,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    result = await mutate_existing_roadmap(db, current_user.id, body.target_skills)
+    if not result:
+        return {"mutations": [], "message": "No active roadmap found"}
+    await db.commit()
+    return {
+        "mutations": result["mutations"],
+        "new_focus_areas": result["new_focus_areas"],
+        "snapshot": result["snapshot"],
+    }
+
+
 @router.get("/timeline")
 async def get_roadmap_timeline(
     current_user: User = Depends(get_current_user),
@@ -51,7 +96,7 @@ async def get_roadmap_timeline(
     events = await repo.get_timeline(current_user.id)
     return {
         "events": [
-            {"id": str(e.id), "event_type": e.event_type, "payload": e.structured_payload, "created_at": e.created_at}
+            {"id": e.id, "event_type": e.event_type, "payload": e.structured_payload, "created_at": e.created_at}
             for e in events
         ]
     }
@@ -64,6 +109,7 @@ async def mark_node_complete(
     db: AsyncSession = Depends(get_db),
 ):
     await complete_node(db, current_user.id, body.skill)
+    await db.commit()
     return {"message": f"Node '{body.skill}' marked complete"}
 
 
@@ -74,4 +120,5 @@ async def mark_node_deferred(
     db: AsyncSession = Depends(get_db),
 ):
     await defer_node(db, current_user.id, body.skill)
+    await db.commit()
     return {"message": f"Node '{body.skill}' deferred"}

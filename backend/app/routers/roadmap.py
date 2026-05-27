@@ -16,8 +16,8 @@ from app.ai.skill_normalization import normalize_skills
 from app.ai import AIMessage
 from app.ai.provider_factory import get_ai_provider
 from app.config import get_settings
-from app.dependencies import get_current_user, get_resume_repo
-from app.models import User
+from app.core.dependencies import get_current_user, get_resume_repo
+from app.models.user import User
 from app.repositories import ResumeRepository
 from app.sse import sse_event, sse_response
 
@@ -62,7 +62,7 @@ async def stream_roadmap(
             resume.parsed_data = parsed.model_dump()
             resume.skills = parsed.skills
             resume.parse_status = "completed"
-            await resume_repo.db.flush()
+            await resume_repo.db.commit()
 
         yield sse_event("analysis.progress", {
             "resume_id": resume_id, "stage": "matching",
@@ -84,7 +84,7 @@ async def stream_roadmap(
         })
 
         # Compute match to get missing skills
-        result = score_match(
+        result = await score_match(
             resume_skills=parsed.skills, job_skills=job_skills,
             resume_experience=[], job_experience=[],
             resume_education=[], job_education=[],

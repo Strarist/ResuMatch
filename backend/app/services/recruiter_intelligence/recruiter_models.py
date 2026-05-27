@@ -2,10 +2,9 @@
 
 import uuid
 
-from sqlalchemy import Column, DateTime, Float, ForeignKey, Index, String, func
-from sqlalchemy.dialects.postgresql import JSONB, UUID
+from sqlalchemy import Column, DateTime, Float, ForeignKey, Index, JSON, String, func
 
-from app.models import Base
+from app.models.base import Base
 
 
 class RecruiterIntelligenceSnapshot(Base):
@@ -15,14 +14,14 @@ class RecruiterIntelligenceSnapshot(Base):
         Index("ix_recruiter_intel_analysis", "analysis_id"),
     )
 
-    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
-    user_id = Column(UUID(as_uuid=True), ForeignKey("users.id", ondelete="CASCADE"), nullable=False)
-    analysis_id = Column(UUID(as_uuid=True), nullable=False)
-    intelligence_summary = Column(JSONB, default=dict)
-    strength_signals = Column(JSONB, default=list)
-    risk_signals = Column(JSONB, default=list)
-    reasoning_traces = Column(JSONB, default=list)
-    confidence_snapshot = Column(JSONB, default=dict)
+    id = Column(String(36), primary_key=True, default=lambda: str(uuid.uuid4()))
+    user_id = Column(String(36), ForeignKey("users.id", ondelete="CASCADE"), nullable=False)
+    analysis_id = Column(String(36), nullable=False)
+    intelligence_summary = Column(JSON, default=dict)
+    strength_signals = Column(JSON, default=list)
+    risk_signals = Column(JSON, default=list)
+    reasoning_traces = Column(JSON, default=list)
+    confidence_snapshot = Column(JSON, default=dict)
     generated_at = Column(DateTime(timezone=True), server_default=func.now())
     created_at = Column(DateTime(timezone=True), server_default=func.now())
     updated_at = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
@@ -34,11 +33,11 @@ class ReasoningEvent(Base):
         Index("ix_reasoning_user_time", "user_id", "created_at"),
     )
 
-    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
-    user_id = Column(UUID(as_uuid=True), ForeignKey("users.id", ondelete="CASCADE"), nullable=False)
-    analysis_id = Column(UUID(as_uuid=True), nullable=False)
+    id = Column(String(36), primary_key=True, default=lambda: str(uuid.uuid4()))
+    user_id = Column(String(36), ForeignKey("users.id", ondelete="CASCADE"), nullable=False)
+    analysis_id = Column(String(36), nullable=False)
     reasoning_type = Column(String, nullable=False)
-    evidence_chain = Column(JSONB, nullable=False)
+    evidence_chain = Column(JSON, nullable=False)
     confidence_score = Column(Float, nullable=False)
-    reasoning_snapshot = Column(JSONB, default=dict)
+    reasoning_snapshot = Column(JSON, default=dict)
     created_at = Column(DateTime(timezone=True), server_default=func.now())

@@ -1,7 +1,5 @@
 """Roadmap repository — persistence operations."""
 
-from uuid import UUID
-
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -12,7 +10,7 @@ class RoadmapRepository:
     def __init__(self, db: AsyncSession):
         self.db = db
 
-    async def get_active(self, user_id: UUID, target_role: str | None = None) -> RoadmapState | None:
+    async def get_active(self, user_id: str, target_role: str | None = None) -> RoadmapState | None:
         q = select(RoadmapState).where(
             RoadmapState.user_id == user_id, RoadmapState.current_stage == "active"
         )
@@ -37,7 +35,7 @@ class RoadmapRepository:
         self.db.add(event)
         await self.db.flush()
 
-    async def get_timeline(self, user_id: UUID, limit: int = 30) -> list[RoadmapEvent]:
+    async def get_timeline(self, user_id: str, limit: int = 30) -> list[RoadmapEvent]:
         result = await self.db.execute(
             select(RoadmapEvent)
             .where(RoadmapEvent.user_id == user_id)

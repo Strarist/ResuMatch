@@ -45,6 +45,16 @@ def sse_event(event_type: str, data: dict[str, Any], event_id: str | None = None
     ]
     return "\n".join(lines) + "\n"
 
+def sse_delta_event(event_type: str, encoder: Any, new_state: dict[str, Any], event_id: str | None = None) -> str:
+    """Formats an SSE event using delta compression to minimize payload size."""
+    from app.services.runtime.compression.payload_minimizer import PayloadMinimizer, normalize_runtime_payload
+
+    delta_payload = encoder.encode(new_state)
+    minimized_payload = PayloadMinimizer.minimize(delta_payload)
+    normalized_payload = normalize_runtime_payload(minimized_payload)
+
+    return sse_event(event_type, normalized_payload, event_id)
+
 
 def sse_response(generator: AsyncGenerator[str, None], request: Request) -> StreamingResponse:
     """Create a StreamingResponse that terminates when client disconnects.
@@ -56,17 +66,33 @@ def sse_response(generator: AsyncGenerator[str, None], request: Request) -> Stre
     - Connection: keep-alive (keeps TCP open)
     """
 
-    async def _guarded_stream() -> AsyncGenerator[str, None]:
+    async def safe_event_stream() -> AsyncGenerator[str, None]:
+        import asyncio
+        import traceback
+
         try:
+            # We run the generator in a task so we can interleave heartbeats
+            # but for simplicity, if we just want to protect the stream:
             async for event in generator:
                 if await request.is_disconnected():
                     break
                 yield event
-        except Exception:
-            yield sse_event("analysis.error", {"error": "Internal error", "retryable": True, "resume_id": ""})
+        except Exception as e:
+            print(f"SSE Stream Error: {e}")
+            traceback.print_exc()
+            # Emit degraded runtime state
+            yield sse_event("runtime.degraded", {
+                "status": "DEGRADED",
+                "error": str(e)
+            })
+
+            # Keep stream alive safely
+            while not await request.is_disconnected():
+                yield heartbeat_event()
+                await asyncio.sleep(15)
 
     return StreamingResponse(
-        _guarded_stream(),
+        safe_event_stream(),
         media_type="text/event-stream",
         headers={
             "Cache-Control": "no-cache, no-store, must-revalidate",

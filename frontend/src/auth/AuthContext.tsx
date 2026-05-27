@@ -1,12 +1,20 @@
 "use client";
-import React, { createContext, useContext, useEffect, useState, ReactNode, useCallback } from "react";
+import React, { createContext, useContext, useEffect, useState, ReactNode, useCallback, useMemo } from "react";
 import * as auth from "./auth";
 import { apiClient, LoginRequest } from "./api";
 import { useRouter } from "next/navigation";
 
+export enum AuthRuntimeState {
+  INITIALIZING = "INITIALIZING",
+  AUTHENTICATED = "AUTHENTICATED",
+  ANONYMOUS = "ANONYMOUS",
+  DEGRADED = "DEGRADED"
+}
+
 interface AuthContextType {
   user: auth.User | null;
   isAuthenticated: boolean;
+  runtimeState: AuthRuntimeState;
   login: (credentials: LoginRequest) => Promise<void>;
   loginWithToken: (token: string) => void;
   logout: () => Promise<void>;
@@ -14,155 +22,97 @@ interface AuthContextType {
   sessionExpired: boolean;
   setUser: (user: auth.User | null) => void;
   refreshUser: () => Promise<void>;
+  isOffline: boolean;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<auth.User | null>(null);
-  const [loading, setLoading] = useState(true);
+  const [runtimeState, setRuntimeState] = useState<AuthRuntimeState>(AuthRuntimeState.INITIALIZING);
   const [sessionExpired, setSessionExpired] = useState(false);
   const router = useRouter();
 
-  // Initialize auth state
   useEffect(() => {
-    const initializeAuth = async () => {
+    async function checkAuth() {
       try {
-        const isValid = await auth.validateAndRefreshToken();
-        if (isValid) {
-          const currentUser = auth.getUser();
-          setUser(currentUser);
+        const response = await apiClient.getProfile();
+        if (response.offline) {
+          setUser(null);
+          setRuntimeState(AuthRuntimeState.DEGRADED);
+        } else if (response.user) {
+          setUser({
+            sub: response.user.id,
+            email: response.user.email,
+            provider: response.user.provider,
+            name: response.user.name,
+            profile_img: response.user.profile_img,
+            exp: Date.now() + 86400000,
+          });
+          setRuntimeState(AuthRuntimeState.AUTHENTICATED);
         } else {
-          setSessionExpired(true);
-          auth.logout();
+          setUser(null);
+          setRuntimeState(AuthRuntimeState.ANONYMOUS);
         }
-      } catch (error) {
-        console.error('Auth initialization failed:', error);
-        auth.logout();
-      } finally {
-        setLoading(false);
+      } catch {
+        // Unexpected errors (not 401 which are handled silently in api.ts)
+        setUser(null);
+        setRuntimeState(AuthRuntimeState.ANONYMOUS);
       }
-    };
-
-    initializeAuth();
+    }
+    checkAuth();
   }, []);
 
-  // Handle login with credentials
-  const handleLogin = async (credentials: LoginRequest) => {
-    try {
-      const response = await apiClient.login(credentials);
-      auth.login(response.access_token);
-      const user = auth.getUser();
-      setUser(user);
-      setSessionExpired(false);
-    } catch (error) {
-      console.error('Login failed:', error);
-      throw error;
-    }
-  };
-
-  // Handle login with token (for OAuth)
-  const handleLoginWithToken = (token: string) => {
-    auth.login(token);
-    const user = auth.getUser();
-    setUser(user);
+  const handleLogin = useCallback(async (credentials: LoginRequest) => {
+    const response = await apiClient.login(credentials);
+    setUser({
+      sub: response.user.id,
+      email: response.user.email,
+      provider: response.user.provider,
+      name: response.user.name,
+      profile_img: response.user.profile_img,
+      exp: Date.now() + 86400000,
+    });
     setSessionExpired(false);
-  };
+  }, []);
 
-  // Handle logout
+  const handleLoginWithToken = useCallback(() => {
+    // Legacy support for OAuth redirect if needed
+  }, []);
+
   const handleLogout = useCallback(async () => {
-    try {
-      await apiClient.logout();
-    } catch (error) {
-      console.error('Logout API call failed:', error);
-    } finally {
-      auth.logout();
-      setUser(null);
-      setSessionExpired(false);
-      router.push('/login');
-    }
+    try { await apiClient.logout(); } catch { /* non-critical */ }
+    setUser(null);
+    setSessionExpired(false);
+    router.push('/');
   }, [router]);
 
-  // Refresh user data from server
-  const refreshUser = async () => {
+  const refreshUser = useCallback(async () => {
     try {
       const response = await apiClient.getProfile();
-      const currentUser = auth.getUser();
-      if (currentUser) {
-        setUser({
-          ...currentUser,
-          name: response.user.name,
-          profile_img: response.user.profile_img,
-        });
+      if (response.user) {
+        setUser((prev) => prev ? { ...prev, name: response.user!.name, profile_img: response.user!.profile_img } : null);
       }
-    } catch (error) {
-      console.error('Failed to refresh user data:', error);
-    }
-  };
+    } catch { /* non-critical */ }
+  }, []);
 
-  // Watch for token expiry and auto-refresh
-  useEffect(() => {
-    if (!user) return;
-
-    const checkTokenExpiry = async () => {
-      const isValid = await auth.validateAndRefreshToken();
-      if (!isValid) {
-        setSessionExpired(true);
-        await handleLogout();
-      } else {
-        const updatedUser = auth.getUser();
-        if (updatedUser) {
-          setUser(updatedUser);
-        }
-      }
-    };
-
-    // Check every minute
-    const interval = setInterval(checkTokenExpiry, 60 * 1000);
-    
-    // Also check when the token is about to expire
-    const now = Date.now();
-    const exp = user.exp * 1000;
-    const timeUntilExpiry = exp - now;
-    
-    if (timeUntilExpiry > 0) {
-      const timeout = setTimeout(checkTokenExpiry, timeUntilExpiry - 60000); // 1 minute before expiry
-      return () => {
-        clearInterval(interval);
-        clearTimeout(timeout);
-      };
-    }
-
-    return () => clearInterval(interval);
-  }, [user, handleLogout]);
-
-  useEffect(() => {
-    if (sessionExpired) {
-      handleLogout();
-    }
-  }, [sessionExpired, handleLogout]);
+  const value = useMemo<AuthContextType>(() => ({
+    user,
+    isAuthenticated: !!user,
+    runtimeState,
+    login: handleLogin,
+    loginWithToken: handleLoginWithToken,
+    logout: handleLogout,
+    loading: runtimeState === AuthRuntimeState.INITIALIZING,
+    sessionExpired,
+    setUser,
+    refreshUser,
+    isOffline: runtimeState === AuthRuntimeState.DEGRADED,
+  }), [user, runtimeState, sessionExpired, handleLogin, handleLoginWithToken, handleLogout, refreshUser]);
 
   return (
-    <AuthContext.Provider
-      value={{
-        user,
-        isAuthenticated: !!user && !auth.isTokenExpired(),
-        login: handleLogin,
-        loginWithToken: handleLoginWithToken,
-        logout: handleLogout,
-        loading,
-        sessionExpired,
-        setUser,
-        refreshUser,
-      }}
-    >
-      {loading ? (
-        <div className="flex items-center justify-center min-h-screen">
-          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-400" />
-        </div>
-      ) : (
-        children
-      )}
+    <AuthContext.Provider value={value}>
+      {children}
     </AuthContext.Provider>
   );
 }
@@ -171,4 +121,4 @@ export function useAuth() {
   const context = useContext(AuthContext);
   if (!context) throw new Error('useAuth must be used within an AuthProvider');
   return context;
-} 
+}

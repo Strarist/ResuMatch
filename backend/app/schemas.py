@@ -1,7 +1,5 @@
 """Pydantic schemas for request validation and response serialization."""
 
-from uuid import UUID
-
 from pydantic import BaseModel, EmailStr, Field
 from datetime import datetime
 
@@ -26,7 +24,7 @@ class ProfileUpdateRequest(BaseModel):
 
 
 class UserResponse(BaseModel):
-    id: UUID
+    id: str
     name: str
     email: str
     profile_img: str | None
@@ -45,7 +43,7 @@ class AuthResponse(BaseModel):
 
 
 class ResumeResponse(BaseModel):
-    id: UUID
+    id: str
     filename: str
     skills: list[str] | None
     uploaded_at: datetime | None
@@ -61,10 +59,10 @@ class ResumeListResponse(BaseModel):
 
 
 class AnalyzeRequest(BaseModel):
-    resume_id: UUID
+    resume_id: str
     job_description: str = Field(min_length=10)
 
 
 class BatchAnalyzeRequest(BaseModel):
-    resume_id: UUID
+    resume_id: str
     job_descriptions: list[str] = Field(max_length=10)

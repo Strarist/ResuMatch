@@ -1,0 +1,6 @@
+INFO:     Started server process [7792]
+INFO:     Waiting for application startup.
+INFO:     Application startup complete.
+INFO:     Uvicorn running on http://0.0.0.0:8000 (Press CTRL+C to quit)
+[32m20:53:10[0m | [1mINFO   [0m | [36mapp.observability[0m:[36mlog_request[0m | request
+[32m21:06:38[0m | [1mINFO   [0m | [36mapp.observability[0m:[36mlog_request[0m | request

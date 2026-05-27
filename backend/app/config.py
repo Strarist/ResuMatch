@@ -6,9 +6,14 @@ Validates at import time — the app refuses to start with invalid config.
 
 from enum import Enum
 from functools import lru_cache
+from pathlib import Path
 
 from pydantic import Field, field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
+
+# Resolve .env relative to the backend root (parent of app/)
+_BACKEND_DIR = Path(__file__).resolve().parent.parent
+_ENV_FILE = _BACKEND_DIR / ".env"
 
 
 class Environment(str, Enum):
@@ -19,7 +24,8 @@ class Environment(str, Enum):
 
 class Settings(BaseSettings):
     model_config = SettingsConfigDict(
-        env_file=None,  # Never read .env files — env vars only
+        env_file=str(_ENV_FILE),
+        env_file_encoding="utf-8",
         extra="ignore",
         populate_by_name=True,
     )
@@ -39,7 +45,10 @@ class Settings(BaseSettings):
     # === OAuth (optional) ===
     google_client_id: str | None = Field(default=None, alias="GOOGLE_CLIENT_ID")
     google_client_secret: str | None = Field(default=None, alias="GOOGLE_CLIENT_SECRET")
-    oauth_redirect_uri: str = Field(default="http://localhost:3000/auth/callback", alias="OAUTH_REDIRECT_URI")
+    google_redirect_uri: str = Field(
+        default="http://localhost:8000/v1/auth/google/callback",
+        alias="GOOGLE_REDIRECT_URI",
+    )
 
     # === Application ===
     frontend_url: str = Field(default="http://localhost:3000", alias="FRONTEND_URL")
@@ -53,6 +62,9 @@ class Settings(BaseSettings):
     sentry_dsn: str | None = Field(default=None, alias="SENTRY_DSN")
     log_level: str = Field(default="INFO", alias="LOG_LEVEL")
     log_dir: str = Field(default="logs", alias="LOG_DIR")
+
+    # === Redis (optional) ===
+    redis_url: str | None = Field(default=None, alias="REDIS_URL")
 
     # === Validators ===
 

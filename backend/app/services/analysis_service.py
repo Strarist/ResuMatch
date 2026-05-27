@@ -5,7 +5,7 @@ from uuid import UUID
 
 from app.config import get_settings
 from app.exceptions import NotFoundError
-from app.models import Resume
+from app.models.resume import Resume
 from app.repositories.resume_repo import ResumeRepository
 from app.ai.resume_parser import parse_resume_ai, ParsedResume
 from app.ai.scoring import score_match, MatchResult
@@ -39,7 +39,7 @@ class AnalysisService:
         ], temperature=0.1)
 
         # Score the match
-        result = score_match(
+        result = await score_match(
             resume_skills=parsed.skills,
             job_skills=job_data.get("skills", []),
             resume_experience=[e.model_dump() for e in parsed.experience],
@@ -85,7 +85,7 @@ class AnalysisService:
         resume.parsed_data = parsed.model_dump()
         resume.skills = parsed.skills
         resume.parse_status = "completed"
-        await self.resume_repo.db.flush()
+        await self.resume_repo.db.commit()
         return parsed
 
     def _resume_path(self, resume: Resume) -> str:

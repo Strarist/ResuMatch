@@ -103,3 +103,9 @@ celerybeat.pid
 tmp/
 temp/
 filter-paths.txt
+
+# ===== ResuMatch Stabilization =====
+startup_stdout*
+startup_stderr*
+simulation_history.json
+scratch/

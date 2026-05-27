@@ -45,10 +45,10 @@ export default function UploadZone({ onUploadComplete }: UploadZoneProps) {
     formData.append('file', file)
 
     try {
-      const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/v1/resumes/upload`, {
+      const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/v1/resumes`, {
         method: 'POST',
         headers: {
-          'Authorization': `Bearer ${localStorage.getItem('token')}`
+          'Authorization': `Bearer ${localStorage.getItem('access_token')}`
         },
         body: formData
       })
@@ -60,7 +60,7 @@ export default function UploadZone({ onUploadComplete }: UploadZoneProps) {
       const data = await response.json()
       setProgress(100)
       toast.success('Resume uploaded successfully!')
-      
+
       if (onUploadComplete) {
         onUploadComplete(data.resume_id)
       }
@@ -85,17 +85,17 @@ export default function UploadZone({ onUploadComplete }: UploadZoneProps) {
   const handleDrop = useCallback((e: React.DragEvent) => {
     e.preventDefault()
     setIsDragging(false)
-    
+
     const files = e.dataTransfer.files
     if (files.length > 0) {
-      handleUpload(files[0])
+      handleUpload(files[0]!)
     }
   }, [handleUpload])
 
   const handleFileSelect = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
     const files = e.target.files
     if (files && files.length > 0) {
-      handleUpload(files[0])
+      handleUpload(files[0]!)
     }
   }, [handleUpload])
 
@@ -117,8 +117,8 @@ export default function UploadZone({ onUploadComplete }: UploadZoneProps) {
         {!uploadedFile ? (
           <div
             className={`border-2 border-dashed rounded-lg p-8 text-center transition-colors ${
-              isDragging 
-                ? 'border-blue-500 bg-blue-50' 
+              isDragging
+                ? 'border-blue-500 bg-blue-50'
                 : 'border-gray-300 hover:border-gray-400'
             }`}
             onDragOver={handleDragOver}
@@ -132,7 +132,7 @@ export default function UploadZone({ onUploadComplete }: UploadZoneProps) {
             <p className="text-gray-600 mb-4">
               or click to browse files
             </p>
-            <Button 
+            <Button
               onClick={() => document.getElementById('file-input')?.click()}
               disabled={uploading}
               className="flex items-center gap-2"
@@ -195,7 +195,7 @@ export default function UploadZone({ onUploadComplete }: UploadZoneProps) {
 
             {/* Actions */}
             <div className="flex gap-2">
-              <Button 
+              <Button
                 onClick={resetUpload}
                 variant="outline"
                 className="flex-1"
@@ -203,7 +203,7 @@ export default function UploadZone({ onUploadComplete }: UploadZoneProps) {
                 Upload Another
               </Button>
               {progress === 100 && (
-                <Button 
+                <Button
                   onClick={() => onUploadComplete && onUploadComplete('')}
                   className="flex-1"
                 >
@@ -216,4 +216,4 @@ export default function UploadZone({ onUploadComplete }: UploadZoneProps) {
       </CardContent>
     </Card>
   )
-} 
+}

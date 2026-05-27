@@ -7,10 +7,16 @@ from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 from sqlalchemy import text
+from starlette.middleware.sessions import SessionMiddleware
 
 from app.config import get_settings
 from app.db import async_session_factory
-from app.routers import api_router
+from app.routers import (
+    api_router,
+    onboarding,
+    explainability,
+    stream,
+)
 
 # Optional: Sentry
 try:
@@ -37,6 +43,23 @@ if sentry_sdk and settings.sentry_dsn:
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
+    # Import all models to register them with Base.metadata
+    from app.models.base import Base
+    from app.db import engine
+    import app.services.intelligence.intelligence_models  # noqa: F401
+    import app.services.intelligence.operational_events  # noqa: F401
+    import app.services.roadmap_intel.roadmap_models  # noqa: F401
+    import app.services.trajectory.models  # noqa: F401
+    import app.services.workspace.models  # noqa: F401
+    import app.services.portfolio.proof_engine  # noqa: F401
+    import app.services.storage  # noqa: F401
+    import app.services.scheduler  # noqa: F401
+    import app.services.jobs  # noqa: F401
+
+    # Create tables on startup (idempotent)
+    async with engine.begin() as conn:
+        await conn.run_sync(Base.metadata.create_all)
+    logging.info("Database tables verified")
     logging.info("Application started")
     yield
     logging.info("Application shutting down")
@@ -66,10 +89,53 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+# Session middleware for OAuth state (must be after CORS)
+app.add_middleware(SessionMiddleware, secret_key=settings.jwt_secret)
+
 if _instrumentator:
     _instrumentator.instrument(app).expose(app, endpoint="/metrics")
 
 app.include_router(api_router)
+app.include_router(onboarding.router)
+app.include_router(explainability.router)
+app.include_router(stream.router)
+
+
+# === Global exception handlers for typed error responses ===
+from app.exceptions import (
+    AuthenticationError, AuthorizationError, NotFoundError,
+    ConflictError, ValidationError, ExternalServiceError,
+)
+
+
+@app.exception_handler(AuthenticationError)
+async def auth_error_handler(request: Request, exc: AuthenticationError):
+    return JSONResponse(status_code=401, content={"error": "authentication_error", "detail": exc.message})
+
+
+@app.exception_handler(AuthorizationError)
+async def authz_error_handler(request: Request, exc: AuthorizationError):
+    return JSONResponse(status_code=403, content={"error": "authorization_error", "detail": exc.message})
+
+
+@app.exception_handler(NotFoundError)
+async def not_found_handler(request: Request, exc: NotFoundError):
+    return JSONResponse(status_code=404, content={"error": "not_found", "detail": exc.message})
+
+
+@app.exception_handler(ConflictError)
+async def conflict_handler(request: Request, exc: ConflictError):
+    return JSONResponse(status_code=409, content={"error": "conflict", "detail": exc.message})
+
+
+@app.exception_handler(ValidationError)
+async def validation_handler(request: Request, exc: ValidationError):
+    return JSONResponse(status_code=422, content={"error": "validation_error", "detail": exc.message})
+
+
+@app.exception_handler(ExternalServiceError)
+async def external_service_handler(request: Request, exc: ExternalServiceError):
+    return JSONResponse(status_code=502, content={"error": "external_service_error", "detail": exc.message})
 
 
 @app.get("/")
@@ -99,8 +165,34 @@ async def health_providers():
     import os
     return {
         "database": "configured" if settings.database_url else "missing",
-        "google_oauth": "configured" if settings.google_client_id else "not configured",
+        "google_oauth": "configured" if (settings.google_client_id and settings.google_client_secret) else "not configured",
+        "google_redirect_uri": settings.google_redirect_uri if settings.google_client_id else None,
         "gemini_ai": "configured" if os.getenv("GEMINI_API_KEY") else "not configured",
         "ollama": "configured" if os.getenv("OLLAMA_URL") else "not configured",
         "sentry": "configured" if settings.sentry_dsn else "not configured",
+    }
+
+
+@app.get("/health/auth")
+async def health_auth():
+    """Auth subsystem readiness."""
+    return {
+        "jwt": "configured" if settings.jwt_secret else "missing",
+        "jwt_algorithm": settings.jwt_algorithm,
+        "access_token_expiry_minutes": settings.jwt_access_expire_minutes,
+        "refresh_token_expiry_minutes": settings.jwt_refresh_expire_minutes,
+    }
+
+
+@app.get("/health/oauth")
+async def health_oauth():
+    """OAuth provider readiness."""
+    google_ready = bool(settings.google_client_id and settings.google_client_secret)
+    return {
+        "google": {
+            "status": "ready" if google_ready else "not_configured",
+            "client_id_set": bool(settings.google_client_id),
+            "client_secret_set": bool(settings.google_client_secret),
+            "redirect_uri": settings.google_redirect_uri if google_ready else None,
+        },
     }

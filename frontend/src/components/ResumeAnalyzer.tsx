@@ -7,11 +7,11 @@ import { Textarea } from '@/components/ui/textarea';
 import { Badge } from '@/components/ui/badge';
 import { Progress } from '@/components/ui/progress';
 import { Alert, AlertDescription } from '@/components/ui/alert';
-import { 
-  TrendingUp, 
-  TrendingDown, 
-  Loader2, 
-  CheckCircle, 
+import {
+  TrendingUp,
+  TrendingDown,
+  Loader2,
+  CheckCircle,
   AlertCircle,
   Target,
   Award,
@@ -58,7 +58,7 @@ export default function ResumeAnalyzer({ resumeId }: ResumeAnalyzerProps) {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          'Authorization': `Bearer ${localStorage.getItem('token')}`
+          'Authorization': `Bearer ${localStorage.getItem('access_token')}`
         },
         body: JSON.stringify({
           resume_id: resumeId,
@@ -109,8 +109,8 @@ export default function ResumeAnalyzer({ resumeId }: ResumeAnalyzerProps) {
               className="min-h-[200px]"
               disabled={isAnalyzing}
             />
-            <Button 
-              onClick={handleAnalyze} 
+            <Button
+              onClick={handleAnalyze}
               disabled={isAnalyzing || !jobDescription.trim()}
               className="w-full"
             >
@@ -159,8 +159,8 @@ export default function ResumeAnalyzer({ resumeId }: ResumeAnalyzerProps) {
                 </div>
                 <Progress value={result.overall_score} className="w-full" />
                 <p className="text-gray-600">
-                  {result.overall_score >= 80 ? 'Excellent match!' : 
-                   result.overall_score >= 60 ? 'Good match' : 
+                  {result.overall_score >= 80 ? 'Excellent match!' :
+                   result.overall_score >= 60 ? 'Good match' :
                    'Needs improvement'}
                 </p>
               </div>
@@ -265,4 +265,4 @@ export default function ResumeAnalyzer({ resumeId }: ResumeAnalyzerProps) {
       )}
     </div>
   );
-} 
+}

@@ -1,0 +1,77 @@
+INFO:     Started server process [4180]
+INFO:     Waiting for application startup.
+ERROR:    Traceback (most recent call last):
+  File "D:\ResuMatch\backend\venv\Lib\site-packages\starlette\routing.py", line 638, in lifespan
+    async with self.lifespan_context(app) as maybe_state:
+  File "C:\Users\adig1\AppData\Local\Programs\Python\Python311\Lib\contextlib.py", line 210, in __aenter__
+    return await anext(self.gen)
+           ^^^^^^^^^^^^^^^^^^^^^
+  File "D:\ResuMatch\backend\venv\Lib\site-packages\fastapi\routing.py", line 216, in merged_lifespan
+    async with original_context(app) as maybe_original_state:
+  File "C:\Users\adig1\AppData\Local\Programs\Python\Python311\Lib\contextlib.py", line 210, in __aenter__
+    return await anext(self.gen)
+           ^^^^^^^^^^^^^^^^^^^^^
+  File "D:\ResuMatch\backend\app\main.py", line 61, in lifespan
+    async with engine.begin() as conn:
+  File "C:\Users\adig1\AppData\Local\Programs\Python\Python311\Lib\contextlib.py", line 210, in __aenter__
+    return await anext(self.gen)
+           ^^^^^^^^^^^^^^^^^^^^^
+  File "D:\ResuMatch\backend\venv\Lib\site-packages\sqlalchemy\ext\asyncio\engine.py", line 1068, in begin
+    async with conn:
+  File "D:\ResuMatch\backend\venv\Lib\site-packages\sqlalchemy\ext\asyncio\base.py", line 121, in __aenter__
+    return await self.start(is_ctxmanager=True)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "D:\ResuMatch\backend\venv\Lib\site-packages\sqlalchemy\ext\asyncio\engine.py", line 275, in start
+    await greenlet_spawn(self.sync_engine.connect)
+  File "D:\ResuMatch\backend\venv\Lib\site-packages\sqlalchemy\util\_concurrency_py3k.py", line 190, in greenlet_spawn
+    result = context.switch(*args, **kwargs)
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "D:\ResuMatch\backend\venv\Lib\site-packages\sqlalchemy\engine\base.py", line 3295, in connect
+    return self._connection_cls(self)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "D:\ResuMatch\backend\venv\Lib\site-packages\sqlalchemy\engine\base.py", line 144, in __init__
+    self._dbapi_connection = engine.raw_connection()
+                             ^^^^^^^^^^^^^^^^^^^^^^^
+  File "D:\ResuMatch\backend\venv\Lib\site-packages\sqlalchemy\engine\base.py", line 3319, in raw_connection
+    return self.pool.connect()
+           ^^^^^^^^^^^^^^^^^^^
+  File "D:\ResuMatch\backend\venv\Lib\site-packages\sqlalchemy\pool\base.py", line 448, in connect
+    return _ConnectionFairy._checkout(self)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "D:\ResuMatch\backend\venv\Lib\site-packages\sqlalchemy\pool\base.py", line 1272, in _checkout
+    fairy = _ConnectionRecord.checkout(pool)
+            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "D:\ResuMatch\backend\venv\Lib\site-packages\sqlalchemy\pool\base.py", line 712, in checkout
+    rec = pool._do_get()
+          ^^^^^^^^^^^^^^
+  File "D:\ResuMatch\backend\venv\Lib\site-packages\sqlalchemy\pool\impl.py", line 178, in _do_get
+    with util.safe_reraise():
+  File "D:\ResuMatch\backend\venv\Lib\site-packages\sqlalchemy\util\langhelpers.py", line 122, in __exit__
+    raise exc_value.with_traceback(exc_tb)
+  File "D:\ResuMatch\backend\venv\Lib\site-packages\sqlalchemy\pool\impl.py", line 176, in _do_get
+    return self._create_connection()
+           ^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "D:\ResuMatch\backend\venv\Lib\site-packages\sqlalchemy\pool\base.py", line 389, in _create_connection
+    return _ConnectionRecord(self)
+           ^^^^^^^^^^^^^^^^^^^^^^^
+  File "D:\ResuMatch\backend\venv\Lib\site-packages\sqlalchemy\pool\base.py", line 674, in __init__
+    self.__connect()
+  File "D:\ResuMatch\backend\venv\Lib\site-packages\sqlalchemy\pool\base.py", line 900, in __connect
+    with util.safe_reraise():
+  File "D:\ResuMatch\backend\venv\Lib\site-packages\sqlalchemy\util\langhelpers.py", line 122, in __exit__
+    raise exc_value.with_traceback(exc_tb)
+  File "D:\ResuMatch\backend\venv\Lib\site-packages\sqlalchemy\pool\base.py", line 896, in __connect
+    self.dbapi_connection = connection = pool._invoke_creator(self)
+                                         ^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "D:\ResuMatch\backend\venv\Lib\site-packages\sqlalchemy\engine\create.py", line 667, in connect
+    return dialect.connect(*cargs_tup, **cparams)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "D:\ResuMatch\backend\venv\Lib\site-packages\sqlalchemy\engine\default.py", line 630, in connect
+    return self.loaded_dbapi.connect(*cargs, **cparams)  # type: ignore[no-any-return]  # NOQA: E501
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "D:\ResuMatch\backend\venv\Lib\site-packages\sqlalchemy\dialects\postgresql\asyncpg.py", line 955, in connect
+    await_only(creator_fn(*arg, **kw)),
+               ^^^^^^^^^^^^^^^^^^^^^^
+TypeError: connect() got an unexpected keyword argument 'sslmode'
+
+ERROR:    Application startup failed. Exiting.

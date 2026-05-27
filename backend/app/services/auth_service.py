@@ -1,14 +1,13 @@
 """Auth service — handles authentication logic independent of HTTP."""
 
 from datetime import datetime, timedelta
-from uuid import UUID
 
 from jose import jwt, JWTError
 from passlib.context import CryptContext
 
 from app.config import get_settings
 from app.exceptions import AuthenticationError, ConflictError
-from app.models import User
+from app.models.user import User
 from app.repositories.user_repo import UserRepository
 
 pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
@@ -45,7 +44,7 @@ class AuthService:
         payload = self._decode_token(refresh_token)
         if payload.get("type") != "refresh":
             raise AuthenticationError("Invalid token type")
-        user = await self.user_repo.get_by_id(UUID(payload["sub"]))
+        user = await self.user_repo.get_by_id(payload["sub"])
         if not user:
             raise AuthenticationError("User not found")
         return self._create_token(user), self._create_token(user, refresh=True)
@@ -55,15 +54,23 @@ class AuthService:
         payload = self._decode_token(token)
         if payload.get("type") == "refresh":
             raise AuthenticationError("Refresh token not allowed for access")
-        user = await self.user_repo.get_by_id(UUID(payload["sub"]))
+        user = await self.user_repo.get_by_id(payload["sub"])
         if not user:
             raise AuthenticationError("User not found")
         return user
 
     async def oauth_login(self, *, email: str, name: str, profile_img: str | None) -> tuple[User, str, str]:
-        """Login or register via OAuth. Returns (user, access_token, refresh_token)."""
+        """Login or register via OAuth. Upserts user profile. Returns (user, access_token, refresh_token)."""
         user = await self.user_repo.get_by_email(email)
-        if not user:
+        if user:
+            # Update OAuth metadata on existing user
+            await self.user_repo.update(
+                user,
+                name=name or user.name,
+                profile_img=profile_img or user.profile_img,
+                provider="google",
+            )
+        else:
             user = await self.user_repo.create(
                 name=name, email=email, provider="google", profile_img=profile_img
             )
@@ -93,4 +100,3 @@ class AuthService:
             return payload
         except JWTError:
             raise AuthenticationError("Invalid token")
-

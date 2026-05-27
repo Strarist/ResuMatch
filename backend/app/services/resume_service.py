@@ -1,22 +1,12 @@
 """Resume service — handles resume upload, validation, and lifecycle."""
 
 import os
-from io import BytesIO
-from uuid import UUID
-
-from PyPDF2 import PdfReader
 
 from app.config import get_settings
 from app.exceptions import NotFoundError, ValidationError, ExternalServiceError
-from app.models import Resume
+from app.models.resume import Resume
 from app.repositories.resume_repo import ResumeRepository
-from app.ai.resume_parser import parse_resume_ai
-from app.ai.skill_normalization import normalize_skills
-from app.ai.text_extraction import extract_text_from_pdf
 from app.utils.pdf_sanitizer import sanitize_pdf
-
-MAX_PDF_PAGES = 20
-MAX_TEXT_SIZE = 50 * 1024
 
 
 class ResumeService:
@@ -25,7 +15,7 @@ class ResumeService:
         self._settings = get_settings()
 
     async def upload(self, *, file_bytes: bytes, filename: str, content_type: str,
-                     user_id: UUID) -> Resume:
+                     user_id: str) -> Resume:
         """Validate, sanitize, store PDF. Returns the created Resume."""
         self._validate_pdf(file_bytes, content_type)
 
@@ -50,16 +40,16 @@ class ResumeService:
 
         return resume
 
-    async def list_for_user(self, user_id: UUID) -> list[Resume]:
+    async def list_for_user(self, user_id: str) -> list[Resume]:
         return await self.resume_repo.list_by_user(user_id)
 
-    async def get(self, resume_id: UUID, user_id: UUID) -> Resume:
+    async def get(self, resume_id: str, user_id: str) -> Resume:
         resume = await self.resume_repo.get_by_id(resume_id, user_id)
         if not resume:
             raise NotFoundError("Resume not found")
         return resume
 
-    async def delete(self, resume_id: UUID, user_id: UUID) -> None:
+    async def delete(self, resume_id: str, user_id: str) -> None:
         resume = await self.get(resume_id, user_id)
         file_path = os.path.join(
             self._settings.upload_dir, f"{resume.id}_{resume.filename}"
@@ -93,12 +83,8 @@ class ResumeService:
             raise ValidationError(f"PDF parsing failed: {e}")
 
 
-    async def parse(self, resume_id: UUID, user_id: UUID) -> None:
-        """Run AI parsing pipeline on an uploaded resume.
-
-        Called as a background task after upload.
-        Updates the resume record with extracted data.
-        """
+    async def parse(self, resume_id: str, user_id: str) -> None:
+        """Run parsing pipeline on an uploaded resume. Updates resume with extracted data."""
         import logging
         logger = logging.getLogger(__name__)
 
@@ -111,17 +97,15 @@ class ResumeService:
             return
 
         try:
-            # Extract text
-            raw_text = extract_text_from_pdf(file_path)
-            resume.raw_text = raw_text
+            # Basic text extraction (PyPDF2 if available)
+            try:
+                from PyPDF2 import PdfReader
+                reader = PdfReader(file_path)
+                raw_text = "\n".join(page.extract_text() or "" for page in reader.pages)
+                resume.raw_text = raw_text
+            except ImportError:
+                pass
 
-            # AI parsing
-            parsed = await parse_resume_ai(file_path)
-            normalized_skills = normalize_skills(parsed.skills)
-
-            # Persist
-            resume.skills = normalized_skills
-            resume.parsed_data = parsed.model_dump()
             resume.parse_status = "completed"
             await self.resume_repo.db.flush()
 

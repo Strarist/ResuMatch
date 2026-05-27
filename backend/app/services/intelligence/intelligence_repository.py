@@ -1,11 +1,9 @@
 """Intelligence repository — all DB operations for intelligence persistence."""
 
-from uuid import UUID
 from datetime import datetime, timezone
 
-from sqlalchemy import select, func as sa_func
+from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy.dialects.postgresql import insert as pg_insert
 
 from app.services.intelligence.intelligence_models import (
     UserSkillProfile, UserCareerProfile, AnalysisMemoryEvent,
@@ -16,37 +14,38 @@ class IntelligenceRepository:
     def __init__(self, db: AsyncSession):
         self.db = db
 
-    # === Skill Profiles ===
-
-    async def upsert_skills(self, user_id: UUID, skills: list[dict]) -> None:
-        """Batch upsert skill profiles. Each dict: {skill, confidence, proficiency, source}."""
+    async def upsert_skills(self, user_id: str, skills: list[dict]) -> None:
+        """Batch upsert skill profiles."""
         if not skills:
             return
         now = datetime.now(timezone.utc)
         for skill_data in skills:
-            stmt = pg_insert(UserSkillProfile).values(
-                user_id=user_id,
-                normalized_skill=skill_data["skill"],
-                confidence_score=skill_data.get("confidence", 0.5),
-                proficiency_estimate=skill_data.get("proficiency", 0.5),
-                occurrence_count=1,
-                evidence_sources=[skill_data.get("source", "analysis")],
-                first_seen_at=now,
-                last_seen_at=now,
-            ).on_conflict_do_update(
-                constraint="uq_user_skill",
-                set_={
-                    "confidence_score": skill_data.get("confidence", 0.5),
-                    "proficiency_estimate": skill_data.get("proficiency", 0.5),
-                    "occurrence_count": UserSkillProfile.occurrence_count + 1,
-                    "last_seen_at": now,
-                    "updated_at": now,
-                },
+            result = await self.db.execute(
+                select(UserSkillProfile).where(
+                    UserSkillProfile.user_id == user_id,
+                    UserSkillProfile.normalized_skill == skill_data["skill"],
+                )
             )
-            await self.db.execute(stmt)
+            existing = result.scalar_one_or_none()
+            if existing:
+                existing.confidence_score = skill_data.get("confidence", 0.5)
+                existing.proficiency_estimate = skill_data.get("proficiency", 0.5)
+                existing.occurrence_count += 1
+                existing.last_seen_at = now
+            else:
+                self.db.add(UserSkillProfile(
+                    user_id=user_id,
+                    normalized_skill=skill_data["skill"],
+                    confidence_score=skill_data.get("confidence", 0.5),
+                    proficiency_estimate=skill_data.get("proficiency", 0.5),
+                    occurrence_count=1,
+                    evidence_sources=[skill_data.get("source", "analysis")],
+                    first_seen_at=now,
+                    last_seen_at=now,
+                ))
         await self.db.flush()
 
-    async def get_user_skills(self, user_id: UUID) -> list[UserSkillProfile]:
+    async def get_user_skills(self, user_id: str) -> list[UserSkillProfile]:
         result = await self.db.execute(
             select(UserSkillProfile)
             .where(UserSkillProfile.user_id == user_id)
@@ -54,9 +53,7 @@ class IntelligenceRepository:
         )
         return list(result.scalars().all())
 
-    # === Career Profile ===
-
-    async def get_or_create_career_profile(self, user_id: UUID) -> UserCareerProfile:
+    async def get_or_create_career_profile(self, user_id: str) -> UserCareerProfile:
         result = await self.db.execute(
             select(UserCareerProfile).where(UserCareerProfile.user_id == user_id)
         )
@@ -73,15 +70,13 @@ class IntelligenceRepository:
         profile.updated_at = datetime.now(timezone.utc)
         await self.db.flush()
 
-    # === Memory Events ===
-
     async def append_events(self, events: list[AnalysisMemoryEvent]) -> None:
         if not events:
             return
         self.db.add_all(events)
         await self.db.flush()
 
-    async def get_timeline(self, user_id: UUID, limit: int = 50) -> list[AnalysisMemoryEvent]:
+    async def get_timeline(self, user_id: str, limit: int = 50) -> list[AnalysisMemoryEvent]:
         result = await self.db.execute(
             select(AnalysisMemoryEvent)
             .where(AnalysisMemoryEvent.user_id == user_id)
