@@ -84,9 +84,9 @@ class ApiClient {
     return this.request<{ access_token: string }>('/v1/auth/refresh', { method: 'POST' });
   }
 
-  async getProfile(): Promise<{ user: LoginResponse['user'] | null; offline?: boolean; state?: string }> {
+  async getProfile(): Promise<{ user: LoginResponse['user'] | null; offline?: boolean; state?: string; access_token?: string }> {
     try {
-      return await this.request<{ user: LoginResponse['user'] | null; state?: string }>('/v1/auth/profile');
+      return await this.request<{ user: LoginResponse['user'] | null; state?: string; access_token?: string }>('/v1/auth/profile');
     } catch (error: unknown) {
       if (error instanceof Error && error.message === 'BACKEND_OFFLINE') {
         return { user: null, offline: true, state: 'ANONYMOUS' };

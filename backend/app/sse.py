@@ -78,7 +78,7 @@ def sse_response(generator: AsyncGenerator[str, None], request: Request) -> Stre
                     break
                 yield event
         except Exception as e:
-            print(f"SSE Stream Error: {e}")
+            logger.error(f"SSE Stream Error: {e}")
             traceback.print_exc()
             # Emit degraded runtime state
             yield sse_event("runtime.degraded", {

@@ -47,6 +47,23 @@ export default function HeroV2() {
             Orchestrating skill intelligence, live recruiter signals, and market demand vectors into a self-compounding career runtime.
           </motion.p>
 
+          <motion.div
+            variants={fadeUp}
+            transition={{ duration: 0.6, ease: [0.16, 1, 0.3, 1] }}
+            className="flex flex-wrap gap-2 pt-1 font-mono text-[10px]"
+          >
+            <span className="flex items-center gap-1.5 px-2.5 py-1 rounded bg-[#0b101b] border border-blue-500/20 text-blue-300">
+              <span className="w-1.5 h-1.5 rounded-full bg-blue-400 animate-pulse" />
+              ORCHESTRATOR: ACTIVE
+            </span>
+            <span className="flex items-center gap-1.5 px-2.5 py-1 rounded bg-[#0b101b] border border-emerald-500/20 text-emerald-300">
+              RECRUITER ALIGNMENT: 94.0%
+            </span>
+            <span className="flex items-center gap-1.5 px-2.5 py-1 rounded bg-[#0b101b] border border-white/[0.06] text-white/55">
+              VELOCITY VECTOR: +12% QOQ
+            </span>
+          </motion.div>
+
           <motion.div variants={fadeUp} transition={{ duration: 0.6, ease: [0.16, 1, 0.3, 1] }} className="flex items-center gap-3 pt-2">
             <Link
               href="/signup"

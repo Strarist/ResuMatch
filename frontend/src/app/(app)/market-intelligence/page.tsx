@@ -4,6 +4,7 @@ import { useCallback, useEffect, useState } from 'react';
 import { Panel, SectionHeader, StatusBadge } from '@/components/ds';
 import { env } from '@/lib/env';
 import { useLivingSystem } from '@/context/LivingSystemContext';
+import { BarChart3 } from 'lucide-react';
 
 interface SkillDemand { skill: string; demand: number; trend: string; saturation: string; category: string; }
 interface RoiSkill { skill: string; roi_score: number; demand: number; trend: string; salary_premium: number; role_relevant: boolean; }
@@ -79,22 +80,62 @@ export default function MarketIntelligencePage() {
       }
     : data;
 
-  if (!activeData) {
-    return (
-      <div className="space-y-6">
-        <SectionHeader title="Market Intelligence" subtitle="Skill market analysis & opportunity detection" />
-        <Panel variant="inset" className="text-center py-12">
-          <p className="text-text-secondary">No data yet. Upload a resume and run an analysis to populate your skill profile.</p>
-        </Panel>
-      </div>
-    );
-  }
+  const isDormant = !activeData;
 
-  const { skill_demand, roi_skills, recruiter_attractiveness: attr, salary_trajectory: salary, high_value_missing } = activeData;
+  const fallbackMarketData: MarketData = {
+    skill_demand: [
+      { skill: 'Python Systems Development', demand: 0.78, trend: 'stable', saturation: 'medium', category: 'languages' },
+      { skill: 'Kubernetes Orchestration', demand: 0.85, trend: 'rising', saturation: 'high', category: 'infrastructure' },
+      { skill: 'Distributed Caching (Redis)', demand: 0.74, trend: 'rising', saturation: 'medium', category: 'distributed' },
+      { skill: 'Go Web Services', demand: 0.80, trend: 'stable', saturation: 'medium', category: 'languages' },
+    ],
+    roi_skills: [
+      { skill: 'Kubernetes Orchestration', roi_score: 0.82, demand: 0.85, trend: 'rising', salary_premium: 0.18, role_relevant: true },
+      { skill: 'Distributed Caching (Redis)', roi_score: 0.76, demand: 0.74, trend: 'rising', salary_premium: 0.14, role_relevant: true },
+      { skill: 'Go Concurrency model', roi_score: 0.84, demand: 0.80, trend: 'rising', salary_premium: 0.16, role_relevant: false },
+    ],
+    recruiter_attractiveness: {
+      overall_score: 0.42,
+      portfolio_strength: 0.35,
+      stack_coherence: 0.40,
+      specialization_maturity: 0.38,
+      growth_signal: 0.30,
+    },
+    salary_trajectory: {
+      seniority: 'Cloud Systems Engineer',
+      estimated_range: { low: 110000, high: 145000 },
+      premium_factor: 0.12,
+      growth_potential: 'stable',
+    },
+    high_value_missing: [
+      { skill: 'CUDA Kernel Optimization', roi_score: 0.95, demand: 0.94, trend: 'rising', salary_premium: 0.28, role_relevant: true },
+      { skill: 'Distributed consensus verification', roi_score: 0.89, demand: 0.85, trend: 'rising', salary_premium: 0.22, role_relevant: true },
+    ],
+  };
+
+  const marketDataToRender = activeData || fallbackMarketData;
+  const { skill_demand, roi_skills, recruiter_attractiveness: attr, salary_trajectory: salary, high_value_missing } = marketDataToRender;
 
   return (
     <div className="space-y-6">
       <SectionHeader title="Market Intelligence" subtitle={simulationActive ? "Skill market analysis & opportunity detection (Simulation Active)" : "Skill market analysis & opportunity detection"} />
+
+      {/* Dormant state banner */}
+      {isDormant && (
+        <div className="p-4 rounded-xl border border-blue-500/20 bg-blue-500/5 flex items-start gap-4 animate-fade-in">
+          <div className="p-2 rounded-lg bg-blue-500/10 text-blue-400">
+            <BarChart3 size={16} className="animate-pulse" />
+          </div>
+          <div>
+            <h3 className="text-xs font-semibold text-white mb-0.5">Market Telemetry in Standby Mode</h3>
+            <p className="text-[11px] text-white/50 leading-relaxed">
+              Awaiting profile calibration. Upload resume portfolio artifacts on the{' '}
+              <a href="/resumes" className="text-blue-400 underline hover:text-blue-300">Resumes & Portfolio</a>{' '}
+              view or toggle Simulation Mode in the sidebar footer to run live market intelligence vector calculations.
+            </p>
+          </div>
+        </div>
+      )}
 
       {/* Top metrics */}
       <div className="grid gap-4 sm:grid-cols-4">

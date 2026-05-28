@@ -31,6 +31,9 @@ export default function SignupPage() {
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.detail || "Registration failed");
+      if (data.access_token) {
+        localStorage.setItem('access_token', data.access_token);
+      }
       setUser(data.user);
       router.replace("/onboarding");
     } catch (err) {

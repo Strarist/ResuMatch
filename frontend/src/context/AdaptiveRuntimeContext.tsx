@@ -12,6 +12,7 @@ import { RuntimeStateReconciler } from '../utils/RuntimeStateReconciler';
 import { RuntimeStreamManager } from '@/runtime/stream/RuntimeStreamManager';
 import { StreamEvent, TransportState } from '@/runtime/stream/StreamLifecycle';
 import { useSimulationBoundary } from '@/runtime/stream/SimulationRuntimeBoundary';
+import { useAuth } from '@/auth/AuthContext';
 
 interface AdaptiveRuntimeContextType {
   status: TransportState;
@@ -30,6 +31,7 @@ export function AdaptiveRuntimeProvider({ children }: { children: ReactNode }) {
   const { directive, setDirective } = useStrategicDirective();
 
   const { isSimulationActive } = useSimulationBoundary();
+  const { isAuthenticated } = useAuth();
   const isSimulationActiveRef = useRef(isSimulationActive);
   useEffect(() => { isSimulationActiveRef.current = isSimulationActive; }, [isSimulationActive]);
 
@@ -133,13 +135,14 @@ export function AdaptiveRuntimeProvider({ children }: { children: ReactNode }) {
     }
   }, []);
 
-  const initializedRef = useRef(false);
-
   useEffect(() => {
-    if (initializedRef.current) return;
-    initializedRef.current = true;
-
     const manager = RuntimeStreamManager.getInstance();
+
+    if (!isAuthenticated) {
+      manager.safeDestroy();
+      setStatus('OFFLINE');
+      return;
+    }
 
     const handleStreamEvent = (event: StreamEvent) => {
       if (event.event === 'transport_state') {
@@ -160,7 +163,7 @@ export function AdaptiveRuntimeProvider({ children }: { children: ReactNode }) {
     return () => {
       manager.unregisterListener(handleStreamEvent);
     };
-  }, [handlePayload]);
+  }, [isAuthenticated, handlePayload]);
 
   const value = React.useMemo(() => ({ status }), [status]);
 

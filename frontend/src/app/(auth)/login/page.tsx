@@ -26,12 +26,15 @@ export default function LoginPage() {
     try {
       const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/v1/auth/login`, {
         method: "POST",
-        headers: { "Content-Type": "application/x-www-form-urlencoded" },
+        headers: { "Content-Type": "application/json" },
         credentials: "include",
-        body: new URLSearchParams({ username: email, password }),
+        body: JSON.stringify({ email, password }),
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.detail || "Login failed");
+      if (data.access_token) {
+        localStorage.setItem('access_token', data.access_token);
+      }
       setUser(data.user);
       router.replace("/dashboard");
     } catch (err) {

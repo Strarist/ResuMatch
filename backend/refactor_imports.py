@@ -1,5 +1,5 @@
 import os
-import re
+from app.logger import logger
 
 MAPPINGS = {
     "Base": "app.models.base",
@@ -51,7 +51,7 @@ def process_file(filepath):
     if new_content != content:
         with open(filepath, 'w', encoding='utf-8') as f:
             f.write(new_content)
-        print(f"Refactored: {filepath}")
+        logger.info(f"Refactored: {filepath}")
 
 def main():
     backend_dir = r"d:\ResuMatch\backend"

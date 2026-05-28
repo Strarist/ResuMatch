@@ -41,6 +41,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           setUser(null);
           setRuntimeState(AuthRuntimeState.DEGRADED);
         } else if (response.user) {
+          if (response.access_token) {
+            auth.login(response.access_token);
+          }
           setUser({
             sub: response.user.id,
             email: response.user.email,
@@ -65,6 +68,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const handleLogin = useCallback(async (credentials: LoginRequest) => {
     const response = await apiClient.login(credentials);
+    if (response.access_token) {
+      auth.login(response.access_token);
+    }
     setUser({
       sub: response.user.id,
       email: response.user.email,
@@ -76,12 +82,19 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setSessionExpired(false);
   }, []);
 
-  const handleLoginWithToken = useCallback(() => {
-    // Legacy support for OAuth redirect if needed
+  const handleLoginWithToken = useCallback((token: string) => {
+    auth.login(token);
+    const decoded = auth.getUser();
+    if (decoded) {
+      setUser(decoded);
+      setRuntimeState(AuthRuntimeState.AUTHENTICATED);
+      setSessionExpired(false);
+    }
   }, []);
 
   const handleLogout = useCallback(async () => {
     try { await apiClient.logout(); } catch { /* non-critical */ }
+    auth.logout();
     setUser(null);
     setSessionExpired(false);
     router.push('/');

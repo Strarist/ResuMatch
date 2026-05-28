@@ -40,6 +40,7 @@ if settings.google_client_id and settings.google_client_secret:
 def _auth_response(message: str, access_token: str, refresh_token: str, user: User) -> JSONResponse:
     response = JSONResponse({
         "message": message,
+        "access_token": access_token,
         "user": UserResponse.model_validate(user).model_dump(),
     })
     response.set_cookie(key="access_token", value=access_token, httponly=True, secure=_COOKIE_SECURE, samesite="lax")
@@ -97,8 +98,17 @@ async def get_me(current_user: User = Depends(get_current_user)):
 
 
 @router.get("/profile")
-async def get_profile(current_user: User = Depends(get_current_user)):
-    return {"user": UserResponse.model_validate(current_user).model_dump()}
+async def get_profile(request: Request, current_user: User = Depends(get_current_user)):
+    token = None
+    auth_header = request.headers.get("Authorization")
+    if auth_header and auth_header.startswith("Bearer "):
+        token = auth_header.split(" ", 1)[1]
+    else:
+        token = request.cookies.get("access_token")
+    return {
+        "user": UserResponse.model_validate(current_user).model_dump(),
+        "access_token": token
+    }
 
 
 @router.put("/profile")

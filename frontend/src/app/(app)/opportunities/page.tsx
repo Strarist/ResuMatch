@@ -2,7 +2,6 @@
 
 import { useCallback, useEffect, useState } from 'react';
 import { Panel, SectionHeader, StatusBadge } from '@/components/ds';
-import { EmptyState } from '@/components/workspace';
 import { env } from '@/lib/env';
 import { useLivingSystem } from '@/context/LivingSystemContext';
 import { Radar, ArrowDown, ArrowUp } from 'lucide-react';
@@ -110,18 +109,69 @@ export default function OpportunitiesPage() {
       }
     : apiRadar;
 
-  if (activeMatches.length === 0) {
-    return (
-      <div className="space-y-6">
-        <SectionHeader title="Opportunities" subtitle="Real-world career acceleration" />
-        <EmptyState
-          icon={Radar}
-          title="Telemetry Standby"
-          description="Build out your career graph vectors or start simulated telemetries to scan recruiter opportunities."
-        />
-      </div>
-    );
-  }
+  const isDormant = !simulationActive && apiMatches.length === 0;
+
+  const fallbackMatches: Match[] = [
+    {
+      type: 'full_time',
+      title: 'Principal AI Platform Architect (Target)',
+      company: 'Vercel (Standby)',
+      alignment_score: 0.72,
+      confidence: 0.65,
+      estimated_career_impact: '$220k - $270k',
+      matching_signals: ['System standby mode'],
+      missing_requirements: ['CUDA Kernel Optimization', 'vLLM Serving Orchestration'],
+      proof_gaps: ['WASM optimization proof'],
+      urgency: 'low',
+    },
+    {
+      type: 'full_time',
+      title: 'Distributed Infrastructure Lead (Target)',
+      company: 'Stripe (Standby)',
+      alignment_score: 0.68,
+      confidence: 0.60,
+      estimated_career_impact: '$195k - $240k',
+      matching_signals: ['System standby mode'],
+      missing_requirements: ['Raft consensus protocols'],
+      proof_gaps: ['Distributed transactional ledger validation'],
+      urgency: 'low',
+    }
+  ];
+
+  const fallbackGaps: Gap[] = [
+    {
+      target_role: 'Principal AI Platform Architect (Target)',
+      readiness_percentage: 72,
+      missing_skills: ['CUDA Kernel Optimization', 'vLLM Serving Orchestration'],
+      missing_proof: ['WASM optimization proof'],
+      estimated_completion_time: 'Awaiting Ingestion',
+    },
+    {
+      target_role: 'Distributed Infrastructure Lead (Target)',
+      readiness_percentage: 68,
+      missing_skills: ['Raft consensus protocols'],
+      missing_proof: ['Distributed transactional ledger validation'],
+      estimated_completion_time: 'Awaiting Ingestion',
+    }
+  ];
+
+  const fallbackRadar: MarketRadar = {
+    emerging_domains: ['GPU compute optimization', 'Consensus databases', 'LLM edge routers'],
+    high_roi_skills: [
+      { skill: 'CUDA Kernel Tuning', roi: 0.94, trend: 'rising' },
+      { skill: 'Raft consensus protocols', roi: 0.88, trend: 'rising' },
+      { skill: 'Rust compiler extensions', roi: 0.82, trend: 'stable' },
+    ],
+    salary_growth_paths: [
+      'AI Platform Architect (Average: $210,000 base + equity)',
+      'Staff Infrastructure Systems Engineer (Average: $195,000 base)',
+    ],
+    underutilized_strengths: ['High-throughput message broker architecture', 'Compiler diagnostic analysis'],
+  };
+
+  const matchesToRender = isDormant ? fallbackMatches : activeMatches;
+  const gapsToRender = isDormant ? fallbackGaps : activeGaps;
+  const radarToRender = isDormant ? fallbackRadar : activeRadar;
 
   return (
     <div className="space-y-6">
@@ -130,15 +180,34 @@ export default function OpportunitiesPage() {
         subtitle={simulationActive ? "Real-world career acceleration (Simulation Sandbox)" : "Real-world career acceleration"}
       />
 
+      {/* Dormant state banner */}
+      {isDormant && (
+        <div className="p-4 rounded-xl border border-blue-500/20 bg-blue-500/5 flex items-start gap-4 animate-fade-in">
+          <div className="p-2 rounded-lg bg-blue-500/10 text-blue-400">
+            <Radar size={16} className="animate-pulse" />
+          </div>
+          <div>
+            <h3 className="text-xs font-semibold text-white mb-0.5">Opportunities Engine in Standby Mode</h3>
+            <p className="text-[11px] text-white/50 leading-relaxed">
+              Awaiting profile calibration. Upload resume portfolio artifacts on the{' '}
+              <a href="/resumes" className="text-blue-400 underline hover:text-blue-300">Resumes & Portfolio</a>{' '}
+              view or toggle Simulation Mode in the sidebar footer to run live opportunity alignment checks.
+            </p>
+          </div>
+        </div>
+      )}
+
       {/* Top Matches */}
-      {activeMatches.length > 0 && (
+      {matchesToRender.length > 0 && (
         <Panel className="border-white/[0.04] bg-white/[0.015]">
           <div className="flex items-center justify-between mb-3">
             <SectionHeader title="Top Opportunity Matches" />
-            <span className="text-[8px] text-white/20 font-mono tracking-wider">LIVE MATCHER</span>
+            <span className="text-[8px] text-white/20 font-mono tracking-wider">
+              {isDormant ? 'CALIBRATION STANDBY' : 'LIVE MATCHER'}
+            </span>
           </div>
           <div className="space-y-3 mt-3">
-            {activeMatches.map((m, i) => (
+            {matchesToRender.map((m, i) => (
               <InteractiveCard key={i} className="p-3.5 relative overflow-hidden bg-white/[0.005]">
                 <div className="absolute top-0 right-0 h-full w-[2px] bg-gradient-to-b from-blue-500/20 to-transparent" />
                 <div className="flex items-center justify-between mb-1.5">
@@ -180,11 +249,11 @@ export default function OpportunitiesPage() {
       )}
 
       {/* Gap-to-Opportunity */}
-      {activeGaps.length > 0 && (
+      {gapsToRender.length > 0 && (
         <Panel className="border-white/[0.04] bg-white/[0.015]">
           <SectionHeader title="Competency Gap Analysis" />
           <div className="mt-3 space-y-3">
-            {activeGaps.map((g, i) => (
+            {gapsToRender.map((g, i) => (
               <div key={i} className="flex flex-col sm:flex-row sm:items-center gap-4 py-3 border-b border-white/[0.04] last:border-0">
                 <div className="flex-1 min-w-0">
                   <span className="text-sm font-medium text-white/70">{g.target_role}</span>
@@ -209,13 +278,13 @@ export default function OpportunitiesPage() {
       )}
 
       {/* Radar Section */}
-      {activeRadar && (
+      {radarToRender && (
         <div className="grid gap-4 sm:grid-cols-2">
-          {activeRadar.high_roi_skills.length > 0 && (
+          {radarToRender.high_roi_skills.length > 0 && (
             <Panel className="border-white/[0.04] bg-white/[0.015]">
               <SectionHeader title="High ROI Skills Tuning" />
               <div className="mt-3 space-y-2.5">
-                {activeRadar.high_roi_skills.map(s => (
+                {radarToRender.high_roi_skills.map(s => (
                   <div key={s.skill} className="flex items-center justify-between py-1.5 border-b border-white/[0.02] last:border-0">
                     <span className="text-xs text-white/60 capitalize font-medium">{s.skill}</span>
                     <div className="flex items-center gap-3">
@@ -239,14 +308,14 @@ export default function OpportunitiesPage() {
           <Panel className="border-white/[0.04] bg-white/[0.015]">
             <SectionHeader title="Salary & Compounding Paths" />
             <div className="mt-3 space-y-3">
-              {activeRadar.salary_growth_paths.map((p, i) => (
+              {radarToRender.salary_growth_paths.map((p, i) => (
                 <p key={i} className="text-xs text-white/40 leading-relaxed font-medium">• {p}</p>
               ))}
-              {activeRadar.emerging_domains.length > 0 && (
+              {radarToRender.emerging_domains.length > 0 && (
                 <div className="mt-4 pt-3 border-t border-white/[0.03]">
                   <p className="text-[9px] text-white/20 uppercase tracking-wider font-mono mb-2">Emerging domains detected:</p>
                   <div className="flex flex-wrap gap-1.5">
-                    {activeRadar.emerging_domains.map(d => (
+                    {radarToRender.emerging_domains.map(d => (
                       <span key={d} className="text-[10px] border border-blue-500/20 bg-blue-500/[0.04] text-blue-300 px-2 py-0.5 rounded capitalize">
                         {d}
                       </span>

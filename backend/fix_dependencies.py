@@ -99,4 +99,4 @@ for root, _, files in os.walk(routers_dir):
             with open(path, "w") as f:
                 f.write(content)
 
-print("Centralized dependencies and updated routers successfully.")
+logger.info("Centralized dependencies and updated routers successfully.")

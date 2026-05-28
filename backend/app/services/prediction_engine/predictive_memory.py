@@ -46,7 +46,7 @@ class PredictiveMemoryLayer:
                 json.dump(cls._snapshots_cache, f, indent=2, ensure_ascii=False)
         except Exception as e:
             # Fallback/Log exception silently or log if logger is available
-            print(f"Error saving predictive snapshots: {e}")
+            logger.error(f"Error saving predictive snapshots: {e}")
 
     @classmethod
     def save_snapshot(cls, name: str, parameters: Dict[str, Any], results: Dict[str, Any]) -> Dict[str, Any]:

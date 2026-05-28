@@ -42,7 +42,7 @@ class TrajectoryLearningLayer:
             with open(LEARNING_FILE, "w", encoding="utf-8") as f:
                 json.dump(cls._logs_cache, f, indent=2, ensure_ascii=False)
         except Exception as e:
-            print(f"Error saving learning logs: {e}")
+            logger.error(f"Error saving learning logs: {e}")
 
     @classmethod
     def record_learning_node(
