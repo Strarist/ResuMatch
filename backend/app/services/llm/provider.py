@@ -4,6 +4,7 @@ import logging
 import asyncio
 import httpx
 from typing import List, Dict, Any, Optional
+from app.config import get_settings
 
 logger = logging.getLogger(__name__)
 
@@ -11,8 +12,10 @@ OPENROUTER_URL = "https://openrouter.ai/api/v1/chat/completions"
 
 class OpenRouterLLMService:
     def __init__(self):
-        self.api_key = os.getenv("OPENROUTER_API_KEY", "")
-        self.default_model = os.getenv("OPENROUTER_MODEL", "meta-llama/llama-3.1-8b-instruct:free")
+        settings = get_settings()
+        self.api_key = settings.openrouter_api_key
+        self.default_model = settings.openrouter_model
+
         self.fallbacks = [
             "google/gemma-7b-it:free",
             "mistralai/mistral-7b-instruct:free"

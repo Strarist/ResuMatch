@@ -3,6 +3,7 @@ from typing import Dict, Any
 from app.services.llm.provider import llm_service
 from app.services.llm.prompts import RESUME_EXTRACTION_SYSTEM, RESUME_EXTRACTION_USER
 from app.services.llm.schemas import ResumeExtractionSchema
+from app.services.llm.validators.json_validator import validate_and_repair_json
 
 logger = logging.getLogger(__name__)
 
@@ -26,17 +27,11 @@ async def analyze_resume_text(text: str) -> Dict[str, Any]:
     ]
 
     logger.info("Executing OpenRouter resume analysis...")
-    extracted_json = await llm_service.generate_json(
-        messages=messages,
-        schema_fallback=fallback_data,
-        temperature=0.1
-    )
-
-    # Validate against our typesafe Pydantic schema and repair missing/malformed fields
     try:
-        validated = ResumeExtractionSchema.model_validate(extracted_json)
+        raw_output = await llm_service.generate(messages, temperature=0.1)
+        result_json = validate_and_repair_json(raw_output, ResumeExtractionSchema, fallback_data)
+        validated = ResumeExtractionSchema.model_validate(result_json)
         return validated.model_dump()
     except Exception as e:
-        logger.error(f"Pydantic validation failed for resume analysis: {e}. Attempting manual recovery.")
-        # Attempt minimal parsing recovery or return fallback safely
-        return extracted_json if isinstance(extracted_json, dict) else fallback_data
+        logger.error(f"Structured validation failed for resume analysis: {e}. Returning fallback schema.")
+        return fallback_data

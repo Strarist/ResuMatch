@@ -66,7 +66,18 @@ class Settings(BaseSettings):
     # === Redis (optional) ===
     redis_url: str | None = Field(default=None, alias="REDIS_URL")
 
+    # === OpenRouter (required) ===
+    openrouter_api_key: str = Field(..., alias="OPENROUTER_API_KEY")
+    openrouter_model: str = Field(default="meta-llama/llama-3.1-8b-instruct:free", alias="OPENROUTER_MODEL")
+
     # === Validators ===
+
+    @field_validator("openrouter_api_key")
+    @classmethod
+    def openrouter_api_key_not_placeholder(cls, v: str) -> str:
+        if not v or v.strip() in ("", "placeholder", "your-openrouter-key", "sk-or-v1-your-key-here"):
+            raise ValueError("OPENROUTER_API_KEY must be a valid OpenRouter API key, not a placeholder")
+        return v.strip()
 
     @field_validator("jwt_secret")
     @classmethod

@@ -3,6 +3,7 @@ from typing import List, Dict, Any
 from app.services.llm.provider import llm_service
 from app.services.llm.prompts import ROADMAP_GENERATION_SYSTEM, OPPORTUNITY_MATCHING_SYSTEM
 from app.services.llm.schemas import RoadmapGenerationSchema, OpportunityMatchingSchema
+from app.services.llm.validators.json_validator import validate_and_repair_json
 
 logger = logging.getLogger(__name__)
 
@@ -41,18 +42,14 @@ async def generate_adaptive_roadmap(target_role: str, validated_skills: List[str
     ]
 
     logger.info(f"Generating adaptive roadmap via OpenRouter LLM for target role: {target_role}")
-    result_json = await llm_service.generate_json(
-        messages=messages,
-        schema_fallback=fallback_data,
-        temperature=0.2
-    )
-
     try:
+        raw_output = await llm_service.generate(messages, temperature=0.2)
+        result_json = validate_and_repair_json(raw_output, RoadmapGenerationSchema, fallback_data)
         validated = RoadmapGenerationSchema.model_validate(result_json)
         return [m.model_dump() for m in validated.milestones]
     except Exception as e:
-        logger.error(f"Pydantic validation failed for roadmap generation: {e}. Returning fallback roadmap.")
-        return result_json.get("milestones", fallback_data["milestones"])
+        logger.error(f"Structured validation failed for roadmap generation: {e}. Returning fallback roadmap.")
+        return fallback_data["milestones"]
 
 
 async def generate_opportunity_matches(validated_skills: List[str], gaps: List[str], specialization: str) -> List[Dict[str, Any]]:
@@ -92,15 +89,11 @@ async def generate_opportunity_matches(validated_skills: List[str], gaps: List[s
     ]
 
     logger.info(f"Generating explainable opportunity matches via OpenRouter LLM for specialization: {specialization}")
-    result_json = await llm_service.generate_json(
-        messages=messages,
-        schema_fallback=fallback_data,
-        temperature=0.2
-    )
-
     try:
+        raw_output = await llm_service.generate(messages, temperature=0.2)
+        result_json = validate_and_repair_json(raw_output, OpportunityMatchingSchema, fallback_data)
         validated = OpportunityMatchingSchema.model_validate(result_json)
         return [m.model_dump() for m in validated.matches]
     except Exception as e:
-        logger.error(f"Pydantic validation failed for opportunity matches: {e}. Returning fallback matches.")
-        return result_json.get("matches", fallback_data["matches"])
+        logger.error(f"Structured validation failed for opportunity matches: {e}. Returning fallback matches.")
+        return fallback_data["matches"]
