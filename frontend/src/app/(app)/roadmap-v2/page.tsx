@@ -4,7 +4,8 @@ import { useCallback, useEffect, useState } from 'react';
 import { Panel, SectionHeader, StatusBadge } from '@/components/ds';
 import { env } from '@/lib/env';
 import { useLivingSystem } from '@/context/LivingSystemContext';
-import { Zap, CheckCircle2, AlertTriangle, ArrowUpRight, Info } from 'lucide-react';
+import { HardenedRoadmapNode } from '@/data/baseline-profiles';
+import { Zap, CheckCircle2, AlertTriangle, ArrowUpRight, Info, Clock, GitBranch } from 'lucide-react';
 
 interface RoadmapNode {
   skill: string;
@@ -38,6 +39,7 @@ interface AlignmentItem {
 export default function AdaptiveRoadmapPage() {
   const [apiState, setApiState] = useState<{ target_role: string; version: number; milestones: RoadmapNode[] } | null>(null);
   const [loading, setLoading] = useState(true);
+
   const {
     simulationActive,
     roadmap: simRoadmap,
@@ -46,7 +48,8 @@ export default function AdaptiveRoadmapPage() {
     triggerSystemScan,
     systemStatus,
     metrics,
-    opportunities: simOpportunities
+    activePersona,
+    lifecycleStage,
   } = useLivingSystem();
 
   const fetchData = useCallback(async () => {
@@ -177,15 +180,14 @@ export default function AdaptiveRoadmapPage() {
   ];
 
   const fallbackGaps: GapItem[] = [
-    { skill: 'CUDA Kernel Optimization', demand: '95% (High)', priority: 1, urgency: 'Immediate', weight: '30%' },
-    { skill: 'Raft Consensus Protocols', demand: '92% (High)', priority: 2, urgency: 'High', weight: '25%' },
-    { skill: 'vLLM Serving Optimization', demand: '85% (Medium)', priority: 3, urgency: 'Medium', weight: '15%' }
+    { skill: 'GraphQL Federation', demand: '92% (High)', priority: 1, urgency: 'Immediate', weight: '30%' },
+    { skill: 'Distributed Caching (Redis)', demand: '88% (High)', priority: 2, urgency: 'High', weight: '25%' },
+    { skill: 'CI/CD Performance Tuning', demand: '80% (Medium)', priority: 3, urgency: 'Medium', weight: '15%' }
   ];
 
   const fallbackAlignments: AlignmentItem[] = [
-    { role: 'Principal AI Platform Architect', company: 'Vercel', match: '95%', window: '2-4 weeks', readiness: '92%', comp: '$220k - $270k', shift: 'Upward (+14% demand)' },
-    { role: 'Distributed Infrastructure Lead', company: 'Stripe', match: '91%', window: '1-2 months', readiness: '89%', comp: '$195k - $240k', shift: 'Stable' },
-    { role: 'Staff Systems Engineer', company: 'Linear', match: '88%', window: 'Immediate', readiness: '85%', comp: '$180k - $210k', shift: 'Slight Downward' }
+    { role: 'Staff Full Stack Developer', company: 'Vercel', match: '94%', window: '4 days', readiness: '91%', comp: '$190k - $240k', shift: 'Upward (+12% demand)' },
+    { role: 'Senior Frontend Architect', company: 'Linear', match: '90%', window: '12 days', readiness: '88%', comp: '$180k - $220k', shift: 'Stable' }
   ];
 
   // Resolve active states
@@ -193,40 +195,65 @@ export default function AdaptiveRoadmapPage() {
   const isSimulation = simulationActive;
 
   const targetRole = isSimulation
-    ? 'Principal AI Platform Architect'
+    ? activePersona.targetRole
     : hasRealData
     ? apiState.target_role
-    : 'Distributed Infrastructure & AI Systems Architect';
+    : 'Awaiting Calibration';
 
-  const activeVersion = isSimulation ? 3 : hasRealData ? apiState.version : 1;
+  const activeVersion = isSimulation ? (lifecycleStage >= 3 ? 3 : 1) : hasRealData ? apiState.version : 1;
 
-  const activeMilestones: RoadmapNode[] = isSimulation
-    ? simRoadmap.map(m => ({
-        skill: m.skill,
-        priority: m.priority,
-        effort_weeks: m.effortWeeks,
-        impact_estimate: m.impactEstimate,
-        reason: m.reason,
-        status: m.status,
-        dependency: m.priority === 'high' ? 'None' : 'Core System Library',
-        recommended_sprint: `Sprint: Implement custom ${m.skill.split(' ')[0]} handlers`
-      }))
+  // Normalize milestone nodes to expose hardened fields gracefully
+  const activeMilestones = (isSimulation
+    ? simRoadmap
     : hasRealData
     ? apiState.milestones
-    : fallbackMilestones;
+    : fallbackMilestones).map(m => {
+      const isSimNode = 'effortWeeks' in m;
+      if (isSimNode) {
+        const hNode = m as unknown as HardenedRoadmapNode;
+        return {
+          skill: hNode.skill,
+          priority: hNode.priority,
+          effortWeeks: hNode.effortWeeks,
+          impactEstimate: hNode.impactEstimate,
+          reason: hNode.reason,
+          status: hNode.status,
+          dependencies: hNode.dependencies || [],
+          completionConfidence: hNode.completionConfidence || 80,
+          projectedImpact: hNode.projectedImpact || 'Stabilizes pipeline runtime state.',
+          strategicRationale: hNode.strategicRationale || hNode.reason,
+          recommended_sprint: `Sprint: Learn ${hNode.skill.split(' ')[0]} syntax`
+        };
+      } else {
+        const legacyNode = m as unknown as RoadmapNode & { effort_weeks?: number; impact_estimate?: number; dependency?: string; recommended_sprint?: string };
+        return {
+          skill: legacyNode.skill,
+          priority: legacyNode.priority,
+          effortWeeks: legacyNode.effort_weeks || 4,
+          impactEstimate: legacyNode.impact_estimate || 80,
+          reason: legacyNode.reason,
+          status: legacyNode.status,
+          dependencies: legacyNode.dependency ? [legacyNode.dependency] : [],
+          completionConfidence: 80,
+          projectedImpact: 'Stabilizes pipeline runtime state and boosts competitiveness.',
+          strategicRationale: legacyNode.reason,
+          recommended_sprint: legacyNode.recommended_sprint || `Sprint: Learn ${legacyNode.skill.split(' ')[0]} syntax`
+        };
+      }
+    });
 
   // Derive dynamic stats
   const completedCount = activeMilestones.filter(m => m.status === 'completed').length;
   const totalCount = activeMilestones.length;
   const completionPercent = totalCount > 0 ? Math.round((completedCount / totalCount) * 100) : 0;
 
-  const marketAlignment = isSimulation ? `${Math.round(metrics.marketFit)}%` : hasRealData ? '84.2%' : '72.4%';
+  const marketAlignment = isSimulation ? `${Math.round(metrics.marketFit)}%` : hasRealData ? '84.2%' : '30%';
   const confidenceTrend = isSimulation ? `+${(metrics.matchScore - 92.5).toFixed(1)}% this week` : hasRealData ? '+0.6% target vector shift' : 'Calibrating (Dormant)';
-  const activeSpecialization = isSimulation ? 'Distributed Systems & AI Platforms' : hasRealData ? 'Enterprise Infrastructure Engine' : 'AI Systems Infrastructure (Standby)';
+  const activeSpecialization = isSimulation ? activePersona.specialization : hasRealData ? 'Enterprise Infrastructure Engine' : 'Awaiting Portfolio Ingestion';
 
   // Gaps
   const activeGaps: GapItem[] = isSimulation
-    ? simRoadmap.filter(m => m.status !== 'completed').map((m, idx) => ({
+    ? activeMilestones.filter(m => m.status !== 'completed').map((m, idx) => ({
         skill: m.skill,
         demand: m.priority === 'high' ? '94% (High)' : m.priority === 'medium' ? '82% (Medium)' : '68% (Low)',
         priority: idx + 1,
@@ -237,14 +264,14 @@ export default function AdaptiveRoadmapPage() {
 
   // Opportunity Alignments
   const activeAlignments: AlignmentItem[] = isSimulation
-    ? simOpportunities.map(opp => ({
+    ? activePersona.opportunities.map(opp => ({
         role: opp.title,
         company: opp.company,
         match: `${Math.round(opp.alignmentScore * 100)}%`,
-        window: opp.urgency === 'high' ? 'Immediate' : '1-2 months',
+        window: opp.hiringWindow || 'Immediate',
         readiness: `${Math.round(opp.confidence * 100)}%`,
-        comp: opp.urgency === 'high' ? '$210k - $250k' : '$180k - $210k',
-        shift: opp.urgency === 'high' ? 'Upward' : 'Stable'
+        comp: opp.compensation || '$190k+',
+        shift: opp.recruiterPressure === 'high' ? 'Upward' : 'Stable'
       }))
     : fallbackAlignments;
 
@@ -252,14 +279,14 @@ export default function AdaptiveRoadmapPage() {
     <div className="space-y-6">
       {/* SECTION HEADER */}
       <SectionHeader
-        title="Adaptive Roadmap"
+        title="Trajectory Roadmap"
         subtitle={isSimulation ? `${targetRole} • v${activeVersion} (Simulation Sandbox)` : `${targetRole} • v${activeVersion}`}
         action={
           <div className="flex items-center gap-2">
             <button
               onClick={triggerSystemScan}
-              disabled={systemStatus === 'syncing'}
-              className="rounded-lg px-3 py-1.5 text-xs bg-accent/10 text-accent hover:bg-accent/20 transition-colors flex items-center gap-1.5 disabled:opacity-50 font-bold border border-accent/20"
+              disabled={systemStatus === 'syncing' || lifecycleStage === 1}
+              className="rounded-lg px-3 py-1.5 text-xs bg-emerald-500/10 text-emerald-400 hover:bg-emerald-500/20 transition-colors flex items-center gap-1.5 disabled:opacity-50 font-bold border border-emerald-500/20"
             >
               <Zap size={11} className={systemStatus === 'syncing' ? 'animate-spin' : ''} />
               {systemStatus === 'syncing' ? 'Recalculating Vectors...' : '↻ Recalibrate Roadmap'}
@@ -269,7 +296,7 @@ export default function AdaptiveRoadmapPage() {
       />
 
       {/* DORMANT WARNING NOTIFICATION */}
-      {!hasRealData && !isSimulation && (
+      {lifecycleStage === 1 && (
         <div className="p-4 rounded-xl border border-blue-500/20 bg-blue-500/5 flex items-start gap-4 animate-fade-in">
           <div className="p-2 rounded-lg bg-blue-500/10 text-blue-400">
             <Info size={16} />
@@ -277,9 +304,9 @@ export default function AdaptiveRoadmapPage() {
           <div>
             <h3 className="text-xs font-semibold text-white mb-0.5">Dormant Baseline State Loaded</h3>
             <p className="text-[11px] text-white/50 leading-relaxed">
-              Milestone engine awaiting portfolio calibration. Upload resume portfolio artifacts on the{' '}
+              Roadmap synthesis is locked onto baseline developer vectors. Ingest resume portfolio artifacts on the{' '}
               <a href="/resumes" className="text-blue-400 underline hover:text-blue-300">Resumes & Portfolio</a>{' '}
-              view or toggle Simulation Mode in the sidebar footer to initialize adaptive trajectory synthesis.
+              view or select a baseline persona in the sidebar to initialize your custom career trajectory.
             </p>
           </div>
         </div>
@@ -288,7 +315,7 @@ export default function AdaptiveRoadmapPage() {
       {/* TOP STRATEGIC HEADER */}
       <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-5">
         <Panel className="p-3 border-white/[0.04] bg-white/[0.01]">
-          <span className="text-[10px] text-white/30 uppercase font-mono tracking-wider block">Trajectory Completion</span>
+          <span className="text-[10px] text-white/30 uppercase font-mono tracking-wider block">Roadmap Completion</span>
           <div className="flex items-baseline gap-2 mt-1">
             <span className="text-xl font-bold text-white font-mono">{completionPercent}%</span>
             <span className="text-[10px] text-white/20">milestones</span>
@@ -313,8 +340,8 @@ export default function AdaptiveRoadmapPage() {
         <Panel className="p-3 border-white/[0.04] bg-white/[0.01]">
           <span className="text-[10px] text-white/30 uppercase font-mono tracking-wider block">Market Alignment</span>
           <div className="flex items-center gap-1.5 mt-1.5">
-            <span className="text-xl font-bold text-accent font-mono">{marketAlignment}</span>
-            <ArrowUpRight size={14} className="text-accent" />
+            <span className="text-xl font-bold text-emerald-400 font-mono">{marketAlignment}</span>
+            <ArrowUpRight size={14} className="text-emerald-400" />
           </div>
           <span className="text-[9px] text-white/20 mt-0.5 block">Relative competency index</span>
         </Panel>
@@ -330,9 +357,9 @@ export default function AdaptiveRoadmapPage() {
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
 
         {/* COLUMN 1: ACTIVE ROADMAP (LEFT) */}
-        <div className="lg:col-span-4 space-y-4">
+        <div className="lg:col-span-5 space-y-4">
           <div className="flex items-center justify-between border-b border-white/[0.04] pb-2">
-            <h3 className="text-xs font-bold uppercase tracking-wider text-white/60">Active Roadmap</h3>
+            <h3 className="text-xs font-bold uppercase tracking-wider text-white/60">Execution Roadmap</h3>
             <span className="text-[9px] font-mono text-white/30">{activeMilestones.length} milestones mapped</span>
           </div>
 
@@ -344,7 +371,7 @@ export default function AdaptiveRoadmapPage() {
               return (
                 <Panel
                   key={node.skill}
-                  className={`p-3.5 border transition-all duration-300 relative ${
+                  className={`p-4 border transition-all duration-300 relative ${
                     isCompleted
                       ? 'border-emerald-500/10 bg-emerald-500/[0.01] opacity-60'
                       : isDeferred
@@ -353,27 +380,27 @@ export default function AdaptiveRoadmapPage() {
                   }`}
                 >
                   {/* Status Indicator Bar */}
-                  <div className={`absolute left-0 top-0 bottom-0 w-[2px] ${
+                  <div className={`absolute left-0 top-0 bottom-0 w-[2.5px] ${
                     isCompleted ? 'bg-emerald-500' : isDeferred ? 'bg-amber-500' : 'bg-blue-500'
                   }`} />
 
-                  <div className="flex items-start gap-2.5">
+                  <div className="flex items-start gap-3">
                     {/* Circle checkbox */}
                     {isCompleted ? (
-                      <div className="h-4 w-4 rounded-full bg-success/20 flex items-center justify-center flex-shrink-0 mt-0.5 border border-success/30">
-                        <span className="text-[9px] text-success font-bold">✓</span>
+                      <div className="h-4.5 w-4.5 rounded-full bg-emerald-500/20 flex items-center justify-center flex-shrink-0 mt-0.5 border border-emerald-500/30">
+                        <span className="text-[9px] text-emerald-400 font-bold">✓</span>
                       </div>
                     ) : (
                       <button
                         onClick={() => markComplete(node.skill)}
-                        disabled={isDeferred}
-                        className="h-4 w-4 rounded-full border border-white/20 hover:border-blue-400 flex items-center justify-center flex-shrink-0 mt-0.5 transition-all bg-black/40 hover:bg-blue-500/10 disabled:opacity-50"
+                        disabled={isDeferred || lifecycleStage === 1}
+                        className="h-4.5 w-4.5 rounded-full border border-white/20 hover:border-emerald-400 flex items-center justify-center flex-shrink-0 mt-0.5 transition-all bg-black/40 hover:bg-emerald-500/10 disabled:opacity-30"
                       />
                     )}
 
                     <div className="flex-1 min-w-0">
                       <div className="flex items-start justify-between gap-2">
-                        <span className={`text-xs font-semibold text-white/90 truncate block ${isCompleted ? 'line-through text-white/35' : ''}`}>
+                        <span className={`text-xs font-semibold text-white/95 truncate block ${isCompleted ? 'line-through text-white/35' : ''}`}>
                           {node.skill}
                         </span>
                         <StatusBadge status={node.priority === 'high' ? 'error' : node.priority === 'medium' ? 'warning' : 'info'}>
@@ -381,33 +408,49 @@ export default function AdaptiveRoadmapPage() {
                         </StatusBadge>
                       </div>
 
-                      <p className="text-[10px] text-white/40 leading-relaxed mt-1.5 line-clamp-2">
-                        {node.reason}
-                      </p>
-
-                      <div className="flex items-center justify-between mt-3 text-[9px] font-mono text-white/25 border-t border-white/[0.02] pt-2">
-                        <span>Timeline: <strong className="text-white/40">{node.effort_weeks}w</strong></span>
-                        <span className="truncate max-w-[120px]">Requires: <strong className="text-white/40">{node.dependency || 'None'}</strong></span>
-                      </div>
-
-                      {node.recommended_sprint && !isCompleted && !isDeferred && (
-                        <div className="mt-2 bg-white/[0.02] border border-white/[0.04] p-1.5 rounded text-[9px] font-mono text-blue-400 truncate">
-                          💡 {node.recommended_sprint}
+                      {/* Hardened dependencies list */}
+                      {node.dependencies.length > 0 && (
+                        <div className="flex items-center gap-1 text-[9px] text-slate-500 font-mono mt-1">
+                          <GitBranch size={9} />
+                          <span>Requires: {node.dependencies.join(', ')}</span>
                         </div>
                       )}
 
-                      {/* Actions */}
+                      <p className="text-[11px] text-slate-400 leading-relaxed mt-2">
+                        {node.strategicRationale || node.reason}
+                      </p>
+
+                      {/* Confidence and Impact descriptors */}
                       {!isCompleted && !isDeferred && (
-                        <div className="flex gap-1.5 mt-3 justify-end pt-1 border-t border-white/[0.02]">
+                        <div className="mt-3 bg-white/[0.01] border border-white/[0.03] p-2 rounded text-[10px] space-y-1">
+                          <div className="flex justify-between items-center text-slate-500">
+                            <span>Projected Impact:</span>
+                            <span className="text-white font-medium">{node.projectedImpact}</span>
+                          </div>
+                          <div className="flex justify-between items-center text-slate-500">
+                            <span>Synthesis Confidence:</span>
+                            <span className="text-emerald-400 font-bold">{node.completionConfidence}%</span>
+                          </div>
+                        </div>
+                      )}
+
+                      <div className="flex items-center justify-between mt-3 text-[9px] font-mono text-white/25 border-t border-white/[0.02] pt-2">
+                        <span className="flex items-center gap-1"><Clock size={10} /> Duration: {node.effortWeeks}w</span>
+                        <span>Estimated Value: +{node.impactEstimate} ROI</span>
+                      </div>
+
+                      {/* Actions */}
+                      {!isCompleted && !isDeferred && lifecycleStage > 1 && (
+                        <div className="flex gap-1.5 mt-3 justify-end pt-1.5 border-t border-white/[0.02]">
                           <button
                             onClick={() => markComplete(node.skill)}
-                            className="rounded px-2 py-0.5 text-[10px] border border-success/20 text-success hover:bg-success/15 bg-success/[0.04] transition-all font-bold"
+                            className="rounded px-2.5 py-1 text-[10px] border border-emerald-500/20 text-emerald-400 hover:bg-emerald-500/15 bg-emerald-500/[0.04] transition-all font-bold"
                           >
                             Mark Achieved
                           </button>
                           <button
                             onClick={() => markDeferred(node.skill)}
-                            className="rounded px-2 py-0.5 text-[10px] border border-white/10 text-white/40 hover:text-white/60 hover:bg-white/[0.03] transition-all"
+                            className="rounded px-2.5 py-1 text-[10px] border border-white/10 text-white/40 hover:text-white/60 hover:bg-white/[0.03] transition-all"
                           >
                             Skip Vector
                           </button>
@@ -421,18 +464,18 @@ export default function AdaptiveRoadmapPage() {
           </div>
         </div>
 
-        {/* COLUMN 2: GAP ANALYSIS (CENTER) */}
-        <div className="lg:col-span-4 space-y-4">
+        {/* COLUMN 2: SKILL GAP TELEMETRY (CENTER) */}
+        <div className="lg:col-span-3 space-y-4">
           <div className="flex items-center justify-between border-b border-white/[0.04] pb-2">
-            <h3 className="text-xs font-bold uppercase tracking-wider text-white/60">Gap Analysis</h3>
-            <span className="text-[9px] font-mono text-white/30">Target role discrepancies</span>
+            <h3 className="text-xs font-bold uppercase tracking-wider text-white/60">Recruiter Gaps</h3>
+            <span className="text-[9px] font-mono text-white/30">Priority shortages</span>
           </div>
 
           <Panel className="p-4 border-white/[0.04] bg-[#070b13] space-y-4">
             <div className="space-y-1">
               <span className="text-[9px] font-mono text-slate-500 uppercase font-bold block">Telemetry Diagnostic</span>
               <p className="text-[11px] text-white/50 leading-relaxed font-sans">
-                Below are missing competencies holding back candidate relevance scores for <strong className="text-white">{targetRole}</strong>.
+                These missing skills are currently flagged as high risks by screening filters.
               </p>
             </div>
 
@@ -441,9 +484,9 @@ export default function AdaptiveRoadmapPage() {
               <table className="w-full text-left border-collapse text-[10px] font-mono">
                 <thead>
                   <tr className="border-b border-white/[0.06] text-white/35 text-[9px] uppercase tracking-wider">
-                    <th className="py-2 font-bold">Skill Deficit</th>
-                    <th className="py-2 font-bold text-center">Recruiter Demand</th>
-                    <th className="py-2 font-bold text-right">Impact Weight</th>
+                    <th className="py-2 font-bold">Deficit</th>
+                    <th className="py-2 font-bold text-center">Urgency</th>
+                    <th className="py-2 font-bold text-right">Risk %</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-white/[0.03]">
@@ -451,12 +494,12 @@ export default function AdaptiveRoadmapPage() {
                     <tr key={idx} className="hover:bg-white/[0.01] transition-colors">
                       <td className="py-2.5 font-medium text-white/70">
                         <div className="flex items-center gap-1.5">
-                          <span className="w-1 h-1 rounded-full bg-red-400" />
+                          <span className="w-1 h-1 rounded-full bg-amber-500" />
                           <span>{gap.skill}</span>
                         </div>
                       </td>
-                      <td className="py-2.5 text-center text-white/50">{gap.demand}</td>
-                      <td className="py-2.5 text-right text-accent font-bold">{gap.weight}</td>
+                      <td className="py-2.5 text-center text-white/50">{gap.urgency}</td>
+                      <td className="py-2.5 text-right text-amber-400 font-bold">{gap.weight}</td>
                     </tr>
                   ))}
                 </tbody>
@@ -467,17 +510,17 @@ export default function AdaptiveRoadmapPage() {
             <div className="border-t border-white/[0.04] pt-4 space-y-2">
               <span className="text-[9px] font-mono text-slate-500 uppercase font-bold block">Strategic Warnings</span>
               {activeGaps.length > 0 ? (
-                <div className="p-2.5 rounded border border-warning/10 bg-warning/[0.02] flex items-start gap-2 text-[10px] text-warning font-sans">
-                  <AlertTriangle size={12} className="flex-shrink-0 mt-0.5" />
+                <div className="p-2.5 rounded border border-red-500/10 bg-red-500/[0.02] flex items-start gap-2 text-[10px] text-red-400 font-sans">
+                  <AlertTriangle size={12} className="flex-shrink-0 mt-0.5 text-red-400" />
                   <div>
-                    <span className="font-semibold">Match Rate Degradation:</span> Missing {activeGaps[0]?.skill} reduces recruiter confidence index by up to {activeGaps[0]?.weight}.
+                    <span className="font-semibold">Relevance Alert:</span> Recruiter filtering expects {activeGaps[0]?.skill} validation. Incomplete gaps limit interview callback conversion.
                   </div>
                 </div>
               ) : (
-                <div className="p-2.5 rounded border border-success/10 bg-success/[0.02] flex items-start gap-2 text-[10px] text-success font-sans">
-                  <CheckCircle2 size={12} className="flex-shrink-0 mt-0.5" />
+                <div className="p-2.5 rounded border border-emerald-500/10 bg-emerald-500/[0.02] flex items-start gap-2 text-[10px] text-emerald-400 font-sans">
+                  <CheckCircle2 size={12} className="flex-shrink-0 mt-0.5 text-emerald-400" />
                   <div>
-                    <span className="font-semibold">Relevance Calibrated:</span> No critical skill gaps detected. Trajectory aligns fully with market demand templates.
+                    <span className="font-semibold">All Gaps Bridged:</span> You have validated all core specializations required for the target trajectory.
                   </div>
                 </div>
               )}
@@ -485,23 +528,21 @@ export default function AdaptiveRoadmapPage() {
           </Panel>
         </div>
 
-        {/* COLUMN 3: OPPORTUNITY ALIGNMENT (RIGHT) */}
+        {/* COLUMN 3: OPPORTUNITY MATCHES (RIGHT) */}
         <div className="lg:col-span-4 space-y-4">
           <div className="flex items-center justify-between border-b border-white/[0.04] pb-2">
-            <h3 className="text-xs font-bold uppercase tracking-wider text-white/60">Opportunity Alignment</h3>
+            <h3 className="text-xs font-bold uppercase tracking-wider text-white/60">Opportunities Map</h3>
             <span className="text-[9px] font-mono text-white/30">Target pipeline matching</span>
           </div>
 
           <div className="space-y-3">
             {/* Trajectory narrative summary */}
             <Panel className="p-3.5 border-white/[0.04] bg-[#070b13] space-y-2.5">
-              <span className="text-[9px] font-mono text-slate-500 uppercase font-bold block">Trajectory Narrative</span>
+              <span className="text-[9px] font-mono text-slate-500 uppercase font-bold block">Strategic Trajectory</span>
               <p className="text-[11px] text-white/60 leading-relaxed font-sans">
                 {isSimulation
-                  ? 'System is simulating CUDA Optimization benchmarks. Trajectory vectors indicate robust alignment for High-Performance Infrastructure roles at scale.'
-                  : hasRealData
-                  ? 'Active resume indicators show healthy competency clustering. Continue completing milestones to unlock Vercel and Stripe recruiter pipelines.'
-                  : 'System standing by in dormant operational mode. Roadmap synthesis is locked onto baseline Infrastructure Architect vectors. Ingest resume portfolio artifacts to calibrate custom skill vectors and sync opportunity matches in real time.'}
+                  ? `Your active trajectory matches ${activePersona.specialization}. Bridge outstanding gap milestones to trigger priority screening channels at your target companies.`
+                  : 'System standing by in dormant operational mode. Roadmap synthesis is locked onto baseline developer vectors.'}
               </p>
             </Panel>
 
@@ -510,15 +551,15 @@ export default function AdaptiveRoadmapPage() {
               <Panel key={idx} className="p-3.5 border-white/[0.04] bg-white/[0.01] hover:bg-white/[0.02] transition-colors relative overflow-hidden">
                 <div className="flex items-start justify-between mb-1.5">
                   <div>
-                    <span className="text-xs font-semibold text-white/80">{a.role}</span>
+                    <span className="text-xs font-semibold text-white/90">{a.role}</span>
                     <span className="text-[10px] text-white/40 block mt-0.5">@ {a.company}</span>
                   </div>
-                  <span className="text-xs text-accent font-bold font-mono">{a.match} match</span>
+                  <span className="text-xs text-emerald-400 font-bold font-mono">{a.match} match</span>
                 </div>
 
                 <div className="grid grid-cols-2 gap-2 text-[9px] font-mono text-white/35 mt-3 border-t border-white/[0.02] pt-2">
                   <div>Readiness: <strong className="text-white/50">{a.readiness}</strong></div>
-                  <div>Hiring Window: <strong className="text-white/50">{a.window}</strong></div>
+                  <div>Window: <strong className="text-white/50">{a.window}</strong></div>
                   <div>Compensation: <strong className="text-white/50">{a.comp}</strong></div>
                   <div>Demand Shift: <strong className="text-emerald-400/80">{a.shift}</strong></div>
                 </div>

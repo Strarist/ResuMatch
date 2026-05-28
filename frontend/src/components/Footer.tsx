@@ -14,10 +14,10 @@ export default function Footer() {
           <div className="space-y-4">
             <div className="flex items-center gap-2">
               <Cpu size={18} className="text-slate-400" />
-              <span className="text-[12px] font-extrabold tracking-widest text-slate-300 uppercase">ResuMatch OS</span>
+              <span className="text-[12px] font-extrabold tracking-widest text-slate-300 uppercase">ResuMatch Engine</span>
             </div>
             <p className="text-[11px] leading-relaxed text-slate-500 font-medium max-w-xs">
-              Distributed cognition workspace and operational intelligence infrastructure for advanced career engineering.
+              Strategic career optimization platform and operational intelligence tool for advanced software engineers.
             </p>
             <div className="flex items-center gap-2 pt-2">
               <span className="flex h-2 w-2">
@@ -28,17 +28,17 @@ export default function Footer() {
             </div>
           </div>
 
-          {/* Column 2: Runtime */}
+          {/* Column 2: Trajectory Engine */}
           <div className="space-y-4">
-            <h4 className="text-[10px] font-bold tracking-widest text-slate-600 uppercase">Runtime Architecture</h4>
+            <h4 className="text-[10px] font-bold tracking-widest text-slate-600 uppercase">Trajectory Engine</h4>
             <div className="flex flex-col gap-3">
               <div className="flex items-center gap-2 text-slate-400 hover:text-slate-200 transition-colors">
                 <Activity size={12} />
-                <span className="text-[12px] font-semibold tracking-wide">Orchestration Engine</span>
+                <span className="text-[12px] font-semibold tracking-wide">Optimization Engine</span>
               </div>
               <div className="flex items-center gap-2 text-slate-400 hover:text-slate-200 transition-colors">
                 <Network size={12} />
-                <span className="text-[12px] font-semibold tracking-wide">Topology View</span>
+                <span className="text-[12px] font-semibold tracking-wide">Trajectory Map</span>
               </div>
               <div className="flex items-center gap-2 text-slate-400 hover:text-slate-200 transition-colors">
                 <Shield size={12} />
@@ -52,7 +52,7 @@ export default function Footer() {
             <h4 className="text-[10px] font-bold tracking-widest text-slate-600 uppercase">System Documentation</h4>
             <div className="flex flex-col gap-3">
               <Link href="/docs/architecture" className="text-[12px] font-semibold text-slate-400 hover:text-slate-200 tracking-wide transition-colors">Architecture</Link>
-              <Link href="/docs/agents" className="text-[12px] font-semibold text-slate-400 hover:text-slate-200 tracking-wide transition-colors">Agent Topologies</Link>
+              <Link href="/docs/agents" className="text-[12px] font-semibold text-slate-400 hover:text-slate-200 tracking-wide transition-colors">Career Pathways</Link>
               <Link href="/docs/api" className="text-[12px] font-semibold text-slate-400 hover:text-slate-200 tracking-wide transition-colors">API Reference</Link>
             </div>
           </div>
@@ -73,7 +73,7 @@ export default function Footer() {
 
         <div className="mt-12 pt-6 border-t border-slate-800 flex flex-col md:flex-row items-center justify-between gap-4">
           <div className="text-[10px] font-bold tracking-widest text-slate-600 uppercase">
-            © {new Date().getFullYear()} RESUMATCH DISTRIBUTED COGNITION
+            © {new Date().getFullYear()} RESUMATCH SYSTEMS
           </div>
           <div className="text-[10px] font-mono text-slate-700">
             v10.3.0-STABLE

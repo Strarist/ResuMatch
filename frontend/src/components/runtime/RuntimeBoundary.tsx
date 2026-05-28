@@ -38,11 +38,11 @@ export class RuntimeBoundary extends Component<Props, State> {
         <div className="flex flex-col items-center justify-center p-6 bg-[#0c1220]/50 border border-red-500/20 rounded-xl min-h-[200px]">
           <AlertTriangle size={24} className="text-red-400 mb-3" />
           <h3 className="text-[13px] font-extrabold tracking-widest uppercase text-slate-200 mb-2">
-            {this.props.fallbackTitle || 'Orchestration Region Failure'}
+            {this.props.fallbackTitle || 'Workspace Component Error'}
           </h3>
           <p className="text-[11px] text-slate-400 font-mono text-center max-w-sm mb-4">
             {this.props.fallbackDescription ||
-             'This zone of the distributed cognition workspace encountered a runtime error and has been isolated to prevent full systemic failure.'}
+             'This zone of the career strategy workspace encountered a runtime error and has been isolated.'}
           </p>
           <button
             onClick={this.handleRecover}

@@ -46,6 +46,7 @@ async def lifespan(app: FastAPI):
     # Import all models to register them with Base.metadata
     from app.models.base import Base
     from app.db import engine
+    import app.models.strategic_profile  # noqa: F401
     import app.services.intelligence.intelligence_models  # noqa: F401
     import app.services.intelligence.operational_events  # noqa: F401
     import app.services.roadmap_intel.roadmap_models  # noqa: F401

@@ -4,6 +4,7 @@ import { type ReactNode, useState, useEffect } from 'react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { useAuth } from '@/auth/AuthContext';
+import { useLivingSystem } from '@/context/LivingSystemContext';
 import { motion, AnimatePresence } from 'framer-motion';
 import { LayoutDashboard, Map, Radar, Compass, Globe, Award, MessageSquare, FileText, Settings, LogOut, ChevronLeft, Menu, Sparkles, Info, Shield, Activity, GitMerge } from 'lucide-react';
 import { Logo } from '@/branding/Logo';
@@ -37,6 +38,13 @@ export function AppShell({ children }: { children: ReactNode }) {
   const [advancedExpanded, setAdvancedExpanded] = useState(false);
   const pathname = usePathname();
   const { logout, isOffline } = useAuth();
+  const {
+    activePersona,
+    lifecycleStage,
+    setLifecycleStage,
+    setActivePersonaId,
+    resetLifecycle
+  } = useLivingSystem();
 
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
@@ -174,6 +182,51 @@ export function AppShell({ children }: { children: ReactNode }) {
             <span className="text-[10px] font-bold text-amber-500 uppercase tracking-widest">Local Mode</span>
           </div>
           <p className="text-[10px] font-medium text-amber-500/70 leading-tight">Backend is currently offline.</p>
+        </div>
+      )}
+
+      {/* Strategic Controls */}
+      {!collapsed && (
+        <div className="px-3 py-2.5 mx-2 mb-2 rounded-lg bg-slate-900/60 border border-white/[0.04] space-y-2.5">
+          <div>
+            <label className="text-[9px] font-bold text-slate-500 uppercase tracking-wider block mb-1">
+              Active Persona
+            </label>
+            <select
+              value={activePersona.id}
+              onChange={(e) => setActivePersonaId(e.target.value)}
+              className="w-full bg-[#080c14] border border-white/[0.08] hover:border-white/[0.18] transition-colors cursor-pointer rounded text-slate-300 text-xs py-1 px-1.5 focus:outline-none focus:border-emerald-500/50"
+            >
+              <option value="full-stack">Full Stack Engineer</option>
+              <option value="cloud-infra">Cloud Engineer</option>
+              <option value="backend">Backend Engineer</option>
+              <option value="ai-engineer">AI Engineer</option>
+              <option value="devops">DevOps Engineer</option>
+            </select>
+          </div>
+          <div>
+            <div className="flex items-center justify-between">
+              <label className="text-[9px] font-bold text-slate-500 uppercase tracking-wider block mb-1">
+                Lifecycle State
+              </label>
+              <button
+                onClick={resetLifecycle}
+                className="text-[9px] text-red-400 hover:text-red-300 underline font-semibold transition-colors"
+              >
+                Reset
+              </button>
+            </div>
+            <select
+              value={lifecycleStage}
+              onChange={(e) => setLifecycleStage(Number(e.target.value) as 1 | 2 | 3 | 4)}
+              className="w-full bg-[#080c14] border border-white/[0.08] hover:border-white/[0.18] transition-colors cursor-pointer rounded text-slate-300 text-xs py-1 px-1.5 focus:outline-none focus:border-emerald-500/50"
+            >
+              <option value="1">1: Onboarding</option>
+              <option value="2">2: Parsing Portfolio</option>
+              <option value="3">3: Calibrated Profile</option>
+              <option value="4">4: Optimized Strategy</option>
+            </select>
+          </div>
         </div>
       )}
 

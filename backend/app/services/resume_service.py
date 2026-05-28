@@ -1,12 +1,17 @@
 """Resume service — handles resume upload, validation, and lifecycle."""
 
 import os
+from io import BytesIO
+from PyPDF2 import PdfReader
 
 from app.config import get_settings
 from app.exceptions import NotFoundError, ValidationError, ExternalServiceError
 from app.models.resume import Resume
 from app.repositories.resume_repo import ResumeRepository
 from app.utils.pdf_sanitizer import sanitize_pdf
+
+MAX_PDF_PAGES = 10
+MAX_TEXT_SIZE = 50 * 1024
 
 
 class ResumeService:
@@ -97,15 +102,18 @@ class ResumeService:
             return
 
         try:
-            # Basic text extraction (PyPDF2 if available)
-            try:
-                from PyPDF2 import PdfReader
-                reader = PdfReader(file_path)
-                raw_text = "\n".join(page.extract_text() or "" for page in reader.pages)
-                resume.raw_text = raw_text
-            except ImportError:
-                pass
+            from app.services.resume_pipeline.profile_builder import build_and_persist_strategic_profile
+            # Build and persist the robust strategic profile
+            profile = await build_and_persist_strategic_profile(self.resume_repo.db, user_id, file_path)
 
+            resume.raw_text = "\n".join(profile.inferred_skills)
+            resume.skills = profile.inferred_skills
+            resume.parsed_data = {
+                "skills": profile.inferred_skills,
+                "education": [],
+                "experience": [],
+                "metadata": {"name": ""}
+            }
             resume.parse_status = "completed"
             await self.resume_repo.db.flush()
 

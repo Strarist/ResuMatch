@@ -75,8 +75,8 @@ async def send_message(session_id: str, body: SendMessageRequest, current_user: 
     summary = intel["summary"]
     recommendations = intel["recommendations"]
 
-    # Generate copilot response
-    response = generate_copilot_response(body.content, summary, recommendations)
+    # Generate copilot response asynchronously via OpenRouter LLM
+    response = await generate_copilot_response(db, session_id, body.content, summary, recommendations)
 
     # Save assistant message with context
     msg = await repo.add_message(session_id, "assistant", response, {"dominant_path": summary.get("dominant_path")})

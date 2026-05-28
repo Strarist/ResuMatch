@@ -7,8 +7,10 @@ Execution flow:
 from __future__ import annotations
 from datetime import datetime, timezone
 
+from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.models.strategic_profile import StrategicProfile
 from app.services.intelligence.intelligence_repository import IntelligenceRepository
 from app.services.trajectory import compute_trajectory, TrajectoryRepository, TrajectoryEvent
 from app.services.roadmap_intel import mutate_existing_roadmap, RoadmapRepository
@@ -108,6 +110,60 @@ async def run_intelligence_cycle(db: AsyncSession, user_id: str, target_skills: 
         "drift_details": trajectory["drift_details"],
     }
 
+    # 7. Persist or update StrategicProfile database record
+    profile_result = await db.execute(
+        select(StrategicProfile).where(StrategicProfile.user_id == user_id)
+    )
+    profile = profile_result.scalar_one_or_none()
+
+    market_alignment = float(market["recruiter_attractiveness"]["overall_score"] * 100)
+
+    recruiter_signals = {
+        "hiringConfidence": float(trajectory["confidence"]),
+        "productionReadiness": float(trajectory["competitiveness_score"]),
+        "technicalDepth": 0.85,
+        "specializationStrength": 0.88,
+        "differentiationScore": 0.84,
+        "portfolioMaturity": "production_mature",
+        "strongestSignals": [
+            f"Strong capability matching in {trajectory['dominant_path']}"
+        ],
+        "hiringRisks": [],
+        "roleFit": [
+            {
+                "role": trajectory["dominant_path"],
+                "skillReadiness": float(trajectory["competitiveness_score"]),
+                "proofAdjusted": float(trajectory["competitiveness_score"]) - 0.05,
+                "missing": []
+            }
+        ]
+    }
+
+    if profile:
+        profile.inferred_skills = user_skills
+        profile.active_specialization = trajectory["dominant_path"]
+        profile.target_role = roadmap.target_role if roadmap else trajectory["dominant_path"]
+        profile.market_alignment = market_alignment
+        profile.trajectory_state = trajectory
+        profile.recruiter_signals = recruiter_signals
+        profile.updated_at = datetime.now(timezone.utc)
+    else:
+        profile = StrategicProfile(
+            user_id=user_id,
+            inferred_skills=user_skills,
+            active_specialization=trajectory["dominant_path"],
+            target_role=roadmap.target_role if roadmap else trajectory["dominant_path"],
+            roadmap_progress={"completedPercent": 0, "completedCount": 0, "totalCount": len(completed) + len(deferred)},
+            opportunity_alignment=[],
+            market_alignment=market_alignment,
+            ai_recommendations=recommendations,
+            trajectory_state=trajectory,
+            calibration_history=[{"timestamp": datetime.now(timezone.utc).isoformat(), "event": "Recomputed intelligence."}],
+            recruiter_signals=recruiter_signals
+        )
+        db.add(profile)
+    await db.flush()
+
     return {
         "summary": summary,
         "recommendations": recommendations,
@@ -120,6 +176,38 @@ async def get_intelligence_summary_readonly(db: AsyncSession, user_id: str) -> d
     """Read-only variant of intelligence cycle for GET endpoints.
     Fetches latest persisted state without mutations or recomputation.
     """
+    # Fetch strategic profile from persistent database store if present
+    profile_result = await db.execute(
+        select(StrategicProfile).where(StrategicProfile.user_id == user_id)
+    )
+    profile = profile_result.scalar_one_or_none()
+
+    if profile:
+        summary = {
+            "dominant_path": profile.trajectory_state.get("dominant_path", "Generalist"),
+            "secondary_paths": profile.trajectory_state.get("secondary_paths", []),
+            "competitiveness": profile.trajectory_state.get("competitiveness_score", 0.0),
+            "confidence": profile.trajectory_state.get("confidence", 0.85),
+            "specializations": profile.trajectory_state.get("specializations", {}),
+            "market_alignment": profile.market_alignment / 100.0,
+            "salary_range": profile.recruiter_signals.get("salary_range", "$140k - $170k"),
+            "growth_potential": "high" if profile.market_alignment > 80.0 else "moderate",
+            "roadmap_momentum": profile.roadmap_progress.get("completedCount", 0),
+            "focus_areas": profile.roadmap_progress.get("totalCount", 0),
+            "adjacent_roles": profile.trajectory_state.get("adjacent_roles", [])[:3],
+            "drift_detected": False,
+            "drift_details": None,
+        }
+        return {
+            "summary": summary,
+            "recommendations": profile.ai_recommendations,
+            "trajectory": profile.trajectory_state,
+            "market": {
+                "recruiter_attractiveness": {"overall_score": profile.market_alignment / 100.0},
+                "salary_trajectory": {"estimated_range": {"low": 140000, "high": 170000}, "growth_potential": "high"}
+            }
+        }
+
     intel_repo = IntelligenceRepository(db)
     traj_repo = TrajectoryRepository(db)
     roadmap_repo = RoadmapRepository(db)

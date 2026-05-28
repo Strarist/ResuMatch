@@ -2,6 +2,9 @@
 
 import React, { createContext, useContext, useEffect, useCallback, useMemo, useReducer } from 'react';
 import { toast } from 'sonner';
+import { baselinePersonas, PersonaProfile } from '../data/baseline-profiles';
+import { LifecycleStage } from '../state/user-lifecycle';
+import { propagateIntelligence } from '../utils/intelligence-propagation';
 
 export interface FeedItem {
   id: string;
@@ -19,6 +22,10 @@ export interface RoadmapNode {
   impactEstimate: number;
   reason: string;
   status: 'active' | 'completed' | 'deferred';
+  dependencies?: string[];
+  completionConfidence?: number;
+  projectedImpact?: string;
+  strategicRationale?: string;
 }
 
 export interface OpportunityMatch {
@@ -30,6 +37,11 @@ export interface OpportunityMatch {
   type: string;
   missingRequirements: string[];
   proofGaps: string[];
+  compensation?: string;
+  recruiterPressure?: 'high' | 'medium' | 'low';
+  hiringWindow?: string;
+  stackCompatibility?: string;
+  alignmentReasoning?: string;
 }
 
 export interface RecruiterSignalProfile {
@@ -69,380 +81,205 @@ interface LivingSystemContextType {
   deferRoadmapNode: (skill: string) => void;
   triggerSystemScan: () => Promise<void>;
   addCustomFeedItem: (source: string, message: string, urgency?: 'low' | 'medium' | 'high') => void;
+
+  // Phase 11.1 additions
+  activePersona: PersonaProfile;
+  lifecycleStage: LifecycleStage;
+  setLifecycleStage: (stage: LifecycleStage) => void;
+  setActivePersonaId: (id: string) => void;
+  resetLifecycle: () => void;
 }
 
 const LivingSystemContext = createContext<LivingSystemContextType | undefined>(undefined);
-
-// Simulated data for Principal AI Systems Architect
-const initialSimulatedRoadmap: RoadmapNode[] = [
-  {
-    skill: 'CUDA Kernel Optimization',
-    priority: 'high',
-    effortWeeks: 6,
-    impactEstimate: 95,
-    reason: 'Critical gap for GPU-accelerated infrastructure roles at top labs.',
-    status: 'active',
-  },
-  {
-    skill: 'Distributed Transactions (Raft/Paxos)',
-    priority: 'high',
-    effortWeeks: 8,
-    impactEstimate: 92,
-    reason: 'Necessary for building resilient high-throughput coordinate engines.',
-    status: 'active',
-  },
-  {
-    skill: 'LLM Serving Layer (vLLM/TensorRT)',
-    priority: 'medium',
-    effortWeeks: 4,
-    impactEstimate: 85,
-    reason: 'Enables high-performance low-latency orchestration of model execution.',
-    status: 'active',
-  },
-  {
-    skill: 'Rust Core Systems Design',
-    priority: 'low',
-    effortWeeks: 3,
-    impactEstimate: 78,
-    reason: 'Strengthens production compiler diagnostics and memory safety proof.',
-    status: 'active',
-  },
-];
-
-const initialSimulatedOpportunities: OpportunityMatch[] = [
-  {
-    title: 'Principal AI Platform Architect',
-    company: 'Vercel',
-    alignmentScore: 0.95,
-    confidence: 0.92,
-    urgency: 'high',
-    type: 'Full-time / Remote',
-    missingRequirements: ['CUDA Kernel Optimization'],
-    proofGaps: ['Demonstrated vLLM custom routing at scale'],
-  },
-  {
-    title: 'Distributed Infrastructure Lead',
-    company: 'Stripe',
-    alignmentScore: 0.91,
-    confidence: 0.89,
-    urgency: 'medium',
-    type: 'Hybrid / SF',
-    missingRequirements: ['Raft/Paxos consensus experience'],
-    proofGaps: ['Multi-region database ledger write-path audit'],
-  },
-  {
-    title: 'Staff Systems Engineer',
-    company: 'Linear',
-    alignmentScore: 0.88,
-    confidence: 0.85,
-    urgency: 'low',
-    type: 'Remote',
-    missingRequirements: ['Rust Systems Core'],
-    proofGaps: ['WASM engine integration benchmark logs'],
-  },
-];
-
-const initialSimulatedRecruiterProfile: RecruiterSignalProfile = {
-  hiringConfidence: 0.88,
-  productionReadiness: 0.92,
-  technicalDepth: 0.94,
-  specializationStrength: 0.89,
-  differentiationScore: 0.91,
-  portfolioMaturity: 'production_mature',
-  strongestSignals: [
-    'Validated distributed caching implementation proof',
-    'Demonstrated competency in latency-bound network topology',
-    'Robust open-source contributions in compiler frameworks',
-  ],
-  hiringRisks: [
-    'Low front-end density (minimal visual system proof)',
-    'Missing formal cloud security certification (SOC 2 validation proof)',
-  ],
-  roleFit: [
-    { role: 'AI Platform Architect', skillReadiness: 0.92, proofAdjusted: 0.89, missing: ['CUDA Kernel Optimization'] },
-    { role: 'Staff Systems Engineer', skillReadiness: 0.88, proofAdjusted: 0.84, missing: ['Raft/Paxos'] },
-    { role: 'Senior Core Backend', skillReadiness: 0.96, proofAdjusted: 0.94, missing: [] },
-  ],
-};
-
-const initialFeedItems: FeedItem[] = [
-  { id: 'f-1', source: 'Orchestrator', eventType: 'system_boot', message: 'Career Operating System active. Synthesizing vectors.', createdAt: new Date(Date.now() - 3600000).toISOString() },
-  { id: 'f-2', source: 'Recruiter Engine', eventType: 'crawler_match', message: 'Recruiter crawler matched profile for Principal AI at Vercel.', createdAt: new Date(Date.now() - 2400000).toISOString() },
-  { id: 'f-3', source: 'Market Intelligence', eventType: 'demand_shift', message: 'Market intelligence detected 14% growth in high-performance computing demand.', createdAt: new Date(Date.now() - 1200000).toISOString() },
-  { id: 'f-4', source: 'Execution Engine', eventType: 'vector_calculate', message: 'Competency alignment vectors recalculated successfully.', createdAt: new Date(Date.now() - 300000).toISOString() },
-];
 
 type State = {
   simulationActive: boolean;
   systemStatus: 'standby' | 'syncing' | 'active';
   lastUpdated: Date;
   feed: FeedItem[];
-  roadmap: RoadmapNode[];
-  opportunities: OpportunityMatch[];
-  recruiterProfile: RecruiterSignalProfile | null;
-  metrics: {
-    matchScore: number;
-    careerVelocity: number;
-    marketFit: number;
-    recruiterConfidence: number;
-  };
-  metricsHistory: {
-    matchScore: number[];
-    careerVelocity: number[];
-    marketFit: number[];
-    recruiterConfidence: number[];
-  };
+  activePersonaId: string;
+  lifecycleStage: LifecycleStage;
+  completedSkills: string[];
+  deferredSkills: string[];
 };
 
 type Action =
   | { type: 'SET_SIMULATION_ACTIVE'; payload: boolean }
   | { type: 'SET_SYSTEM_STATUS'; payload: 'standby' | 'syncing' | 'active' }
-  | { type: 'TICK' }
   | { type: 'ADD_FEED_ITEM'; payload: FeedItem }
   | { type: 'COMPLETE_NODE'; payload: string }
   | { type: 'DEFER_NODE'; payload: string }
   | { type: 'SYSTEM_SCAN_START' }
-  | { type: 'SYSTEM_SCAN_COMPLETE' };
+  | { type: 'SYSTEM_SCAN_COMPLETE' }
+  | { type: 'SET_LIFECYCLE_STAGE'; payload: LifecycleStage }
+  | { type: 'SET_ACTIVE_PERSONA'; payload: string }
+  | { type: 'RESET_LIFECYCLE' }
+  | { type: 'LOAD_PERSISTED_STATE'; payload: Partial<State> };
 
-const getInitialMetrics = () => ({
-  matchScore: 0,
-  careerVelocity: 0,
-  marketFit: 0,
-  recruiterConfidence: 0,
-});
-
-const getInitialMetricsHistory = () => ({
-  matchScore: [0,0,0,0,0,0,0,0,0,0],
-  careerVelocity: [0,0,0,0,0,0,0,0,0,0],
-  marketFit: [0,0,0,0,0,0,0,0,0,0],
-  recruiterConfidence: [0,0,0,0,0,0,0,0,0,0],
-});
-
-const activeMetrics = {
-  matchScore: 94.0,
-  careerVelocity: 78.0,
-  marketFit: 91.0,
-  recruiterConfidence: 87.0,
-};
-
-const activeMetricsHistory = {
-  matchScore: [91.2, 91.8, 92.5, 92.9, 93.1, 93.4, 93.7, 93.9, 94.0, 94.0],
-  careerVelocity: [65.0, 68.0, 70.2, 71.5, 73.0, 74.2, 75.8, 76.5, 77.2, 78.0],
-  marketFit: [88.0, 88.5, 89.0, 89.2, 89.7, 90.1, 90.4, 90.8, 90.9, 91.0],
-  recruiterConfidence: [81.0, 82.2, 83.5, 84.0, 84.8, 85.3, 86.0, 86.4, 86.8, 87.0],
-};
+const initialFeedItems: FeedItem[] = [
+  { id: 'f-1', source: 'Orchestrator', eventType: 'system_boot', message: 'Career Operating System active. Synthesizing vectors.', createdAt: new Date(Date.now() - 3600000).toISOString() },
+  { id: 'f-2', source: 'Recruiter Engine', eventType: 'crawler_match', message: 'Recruiter crawler matched profile for selected trajectory.', createdAt: new Date(Date.now() - 2400000).toISOString() },
+  { id: 'f-3', source: 'Market Intelligence', eventType: 'demand_shift', message: 'Market intelligence detected demand changes in key specializations.', createdAt: new Date(Date.now() - 1200000).toISOString() },
+  { id: 'f-4', source: 'Execution Engine', eventType: 'vector_calculate', message: 'Competency alignment vectors recalculated successfully.', createdAt: new Date(Date.now() - 300000).toISOString() },
+];
 
 const initialState: State = {
-  simulationActive: false,
-  systemStatus: 'standby',
+  simulationActive: true, // Default to true in Phase 11.1 to show initial profile metrics
+  systemStatus: 'active',
   lastUpdated: new Date(),
   feed: initialFeedItems,
-  roadmap: initialSimulatedRoadmap,
-  opportunities: initialSimulatedOpportunities,
-  recruiterProfile: null,
-  metrics: getInitialMetrics(),
-  metricsHistory: getInitialMetricsHistory(),
+  activePersonaId: 'full-stack', // Default to Full Stack Engineer
+  lifecycleStage: 1, // Start at Stage 1: Onboarding
+  completedSkills: [],
+  deferredSkills: [],
 };
 
 function reducer(state: State, action: Action): State {
-  const appendH = (arr: number[], val: number) => {
-    const nextArr = [...arr, val];
-    if (nextArr.length > 10) nextArr.shift();
-    return nextArr;
-  };
+  let nextState = state;
 
   switch (action.type) {
     case 'SET_SIMULATION_ACTIVE':
-      if (action.payload) {
-        return {
-          ...state,
-          simulationActive: true,
-          systemStatus: 'active',
-          metrics: activeMetrics,
-          metricsHistory: activeMetricsHistory,
-          roadmap: initialSimulatedRoadmap,
-          opportunities: initialSimulatedOpportunities,
-          recruiterProfile: initialSimulatedRecruiterProfile,
-          lastUpdated: new Date()
-        };
-      } else {
-        return {
-          ...state,
-          simulationActive: false,
-          systemStatus: 'standby',
-          metrics: getInitialMetrics(),
-          metricsHistory: getInitialMetricsHistory(),
-          recruiterProfile: null,
-          lastUpdated: new Date()
-        };
-      }
+      nextState = {
+        ...state,
+        simulationActive: action.payload,
+        systemStatus: action.payload ? 'active' : 'standby',
+      };
+      break;
     case 'SET_SYSTEM_STATUS':
-      return { ...state, systemStatus: action.payload };
+      nextState = { ...state, systemStatus: action.payload };
+      break;
     case 'ADD_FEED_ITEM':
-      return {
+      nextState = {
         ...state,
         feed: [action.payload, ...state.feed.slice(0, 19)],
-        lastUpdated: new Date()
+        lastUpdated: new Date(),
       };
-    case 'TICK': {
-      if (state.systemStatus !== 'active') return state;
-      const driftScore = (Math.random() - 0.5) * 0.4;
-      const driftFit = (Math.random() - 0.5) * 0.2;
-      const driftVelocity = (Math.random() - 0.5) * 0.3;
-      const driftRecruiter = (Math.random() - 0.5) * 0.4;
-
-      const nextMatch = parseFloat(Math.min(99.9, Math.max(10.0, state.metrics.matchScore + driftScore)).toFixed(1));
-      const nextFit = parseFloat(Math.min(99.9, Math.max(10.0, state.metrics.marketFit + driftFit)).toFixed(1));
-      const nextVel = parseFloat(Math.min(99.9, Math.max(10.0, state.metrics.careerVelocity + driftVelocity)).toFixed(1));
-      const nextRec = parseFloat(Math.min(99.9, Math.max(10.0, state.metrics.recruiterConfidence + driftRecruiter)).toFixed(1));
-
-      return {
-        ...state,
-        metrics: {
-          matchScore: nextMatch,
-          marketFit: nextFit,
-          careerVelocity: nextVel,
-          recruiterConfidence: nextRec,
-        },
-        metricsHistory: {
-          matchScore: appendH(state.metricsHistory.matchScore, nextMatch),
-          marketFit: appendH(state.metricsHistory.marketFit, nextFit),
-          careerVelocity: appendH(state.metricsHistory.careerVelocity, nextVel),
-          recruiterConfidence: appendH(state.metricsHistory.recruiterConfidence, nextRec),
-        },
-        opportunities: state.opportunities.map((opp) => {
-          const sDrift = (Math.random() - 0.5) * 0.02;
-          const cDrift = (Math.random() - 0.5) * 0.015;
-          return {
-            ...opp,
-            alignmentScore: parseFloat(Math.min(0.99, Math.max(0.6, opp.alignmentScore + sDrift)).toFixed(3)),
-            confidence: parseFloat(Math.min(0.99, Math.max(0.6, opp.confidence + cDrift)).toFixed(3)),
-          };
-        }),
-        recruiterProfile: state.recruiterProfile ? {
-          ...state.recruiterProfile,
-          hiringConfidence: parseFloat(Math.min(0.99, Math.max(0.6, state.recruiterProfile.hiringConfidence + (Math.random() - 0.5) * 0.015)).toFixed(3)),
-          productionReadiness: parseFloat(Math.min(0.99, Math.max(0.6, state.recruiterProfile.productionReadiness + (Math.random() - 0.5) * 0.01)).toFixed(3)),
-        } : null,
-      };
-    }
-    case 'SYSTEM_SCAN_START':
-      return {
-        ...state,
-        systemStatus: 'syncing',
-      };
-    case 'SYSTEM_SCAN_COMPLETE': {
-      const nextMatch = Math.min(99.0, parseFloat((state.metrics.matchScore + 0.5).toFixed(1)));
-      const nextVel = Math.min(99.0, parseFloat((state.metrics.careerVelocity + 1.2).toFixed(1)));
-      const nextFit = Math.min(99.0, parseFloat((state.metrics.marketFit + 0.3).toFixed(1)));
-      const nextRec = Math.min(99.0, parseFloat((state.metrics.recruiterConfidence + 0.8).toFixed(1)));
-
-      return {
-        ...state,
-        systemStatus: 'active',
-        metrics: {
-          matchScore: nextMatch,
-          careerVelocity: nextVel,
-          marketFit: nextFit,
-          recruiterConfidence: nextRec,
-        },
-        metricsHistory: {
-          ...state.metricsHistory,
-          matchScore: appendH(state.metricsHistory.matchScore, nextMatch),
-          careerVelocity: appendH(state.metricsHistory.careerVelocity, nextVel),
-          marketFit: appendH(state.metricsHistory.marketFit, nextFit),
-          recruiterConfidence: appendH(state.metricsHistory.recruiterConfidence, nextRec),
-        },
-        lastUpdated: new Date()
-      };
-    }
+      break;
     case 'COMPLETE_NODE': {
       const skillName = action.payload;
-      const nextMatch = Math.min(99, state.metrics.matchScore + 2.1);
-      const nextVel = Math.min(99, state.metrics.careerVelocity + 3.5);
-      const nextRec = Math.min(99, state.metrics.recruiterConfidence + 4.0);
+      if (state.completedSkills.includes(skillName)) break;
 
-      return {
+      const newCompleted = [...state.completedSkills, skillName];
+      const newDeferred = state.deferredSkills.filter((s) => s !== skillName);
+
+      // Auto advance to Stage 4 if they complete a high impact skill
+      const nextStage = state.lifecycleStage === 3 ? 4 : state.lifecycleStage;
+
+      nextState = {
         ...state,
-        roadmap: state.roadmap.map((node) => (node.skill === skillName ? { ...node, status: 'completed' } : node)),
-        metrics: {
-          ...state.metrics,
-          matchScore: nextMatch,
-          careerVelocity: nextVel,
-          recruiterConfidence: nextRec,
-        },
-        metricsHistory: {
-          ...state.metricsHistory,
-          matchScore: appendH(state.metricsHistory.matchScore, nextMatch),
-          careerVelocity: appendH(state.metricsHistory.careerVelocity, nextVel),
-          recruiterConfidence: appendH(state.metricsHistory.recruiterConfidence, nextRec),
-        },
-        recruiterProfile: state.recruiterProfile ? {
-          ...state.recruiterProfile,
-          hiringConfidence: Math.min(0.99, state.recruiterProfile.hiringConfidence + 0.04),
-          productionReadiness: Math.min(0.99, state.recruiterProfile.productionReadiness + 0.03),
-          roleFit: state.recruiterProfile.roleFit.map((f) => {
-            if (f.missing.includes(skillName)) {
-              return {
-                ...f,
-                skillReadiness: Math.min(1.0, f.skillReadiness + 0.05),
-                proofAdjusted: Math.min(1.0, f.proofAdjusted + 0.06),
-                missing: f.missing.filter((s) => s !== skillName),
-              };
-            }
-            return f;
-          }),
-        } : null,
-        opportunities: state.opportunities.map((opp) => {
-          if (opp.missingRequirements.includes(skillName)) {
-            return {
-              ...opp,
-              alignmentScore: Math.min(0.99, opp.alignmentScore + 0.03),
-              confidence: Math.min(0.99, opp.confidence + 0.02),
-              missingRequirements: opp.missingRequirements.filter((r) => r !== skillName),
-            };
-          }
-          return opp;
-        })
+        completedSkills: newCompleted,
+        deferredSkills: newDeferred,
+        lifecycleStage: nextStage,
+        lastUpdated: new Date(),
       };
+      break;
     }
     case 'DEFER_NODE': {
       const skillName = action.payload;
-      const nextVel = Math.max(10, state.metrics.careerVelocity - 1.5);
-      const nextRec = Math.max(10, state.metrics.recruiterConfidence - 2.0);
+      if (state.deferredSkills.includes(skillName)) break;
 
-      return {
+      const newDeferred = [...state.deferredSkills, skillName];
+      const newCompleted = state.completedSkills.filter((s) => s !== skillName);
+
+      nextState = {
         ...state,
-        roadmap: state.roadmap.map((node) => (node.skill === skillName ? { ...node, status: 'deferred' } : node)),
-        metrics: {
-          ...state.metrics,
-          careerVelocity: nextVel,
-          recruiterConfidence: nextRec,
-        },
-        metricsHistory: {
-          ...state.metricsHistory,
-          careerVelocity: appendH(state.metricsHistory.careerVelocity, nextVel),
-          recruiterConfidence: appendH(state.metricsHistory.recruiterConfidence, nextRec),
-        },
-        recruiterProfile: state.recruiterProfile ? {
-          ...state.recruiterProfile,
-          hiringConfidence: Math.max(0.1, state.recruiterProfile.hiringConfidence - 0.02),
-        } : null,
+        deferredSkills: newDeferred,
+        completedSkills: newCompleted,
+        lastUpdated: new Date(),
       };
+      break;
     }
+    case 'SYSTEM_SCAN_START':
+      nextState = {
+        ...state,
+        systemStatus: 'syncing',
+      };
+      break;
+    case 'SYSTEM_SCAN_COMPLETE':
+      // System scan complete auto calibrates profile (advances Stage 1 -> 3)
+      nextState = {
+        ...state,
+        systemStatus: 'active',
+        lifecycleStage: state.lifecycleStage === 1 ? 3 : state.lifecycleStage,
+        lastUpdated: new Date(),
+      };
+      break;
+    case 'SET_LIFECYCLE_STAGE':
+      nextState = {
+        ...state,
+        lifecycleStage: action.payload,
+        lastUpdated: new Date(),
+      };
+      break;
+    case 'SET_ACTIVE_PERSONA':
+      nextState = {
+        ...state,
+        activePersonaId: action.payload,
+        completedSkills: [], // Reset custom progress on persona switch to avoid leakage
+        deferredSkills: [],
+        lastUpdated: new Date(),
+      };
+      break;
+    case 'RESET_LIFECYCLE':
+      nextState = {
+        ...state,
+        lifecycleStage: 1,
+        completedSkills: [],
+        deferredSkills: [],
+        lastUpdated: new Date(),
+      };
+      break;
+    case 'LOAD_PERSISTED_STATE':
+      nextState = {
+        ...state,
+        ...action.payload,
+      };
+      break;
     default:
-      return state;
+      break;
   }
+
+  // Persist state in localStorage to survive router reloads
+  if (typeof window !== 'undefined') {
+    try {
+      localStorage.setItem('resumatch_strategic_state', JSON.stringify({
+        activePersonaId: nextState.activePersonaId,
+        lifecycleStage: nextState.lifecycleStage,
+        completedSkills: nextState.completedSkills,
+        deferredSkills: nextState.deferredSkills,
+        simulationActive: nextState.simulationActive,
+      }));
+    } catch (e) {
+      console.error('Failed to persist strategic state:', e);
+    }
+  }
+
+  return nextState;
 }
 
 export function LivingSystemProvider({ children }: { children: React.ReactNode }) {
   const [state, dispatch] = useReducer(reducer, initialState);
 
+  // Load from localStorage on mount
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      try {
+        const saved = localStorage.getItem('resumatch_strategic_state');
+        if (saved) {
+          const parsed = JSON.parse(saved);
+          dispatch({ type: 'LOAD_PERSISTED_STATE', payload: parsed });
+        }
+      } catch (e) {
+        console.error('Failed to load strategic state:', e);
+      }
+    }
+  }, []);
+
   const addCustomFeedItem = useCallback((source: string, message: string, urgency: 'low' | 'medium' | 'high' = 'low') => {
     dispatch({
       type: 'ADD_FEED_ITEM',
       payload: {
-        id: `f-${Math.random().toString(36).substr(2, 9)}`,
+        id: `f-${Math.random().toString(36).substring(2, 11)}`,
         source,
         eventType: 'runtime_log',
         message,
@@ -452,64 +289,110 @@ export function LivingSystemProvider({ children }: { children: React.ReactNode }
     });
   }, []);
 
-  useEffect(() => {
-    if (state.simulationActive) {
-      addCustomFeedItem('Simulation Controller', 'Telemetry sandbox loaded. Running simulated workload.', 'high');
-      toast.success('Simulation Telemetry Active');
-    }
-  }, [state.simulationActive, addCustomFeedItem]);
-
-  useEffect(() => {
-    if (state.systemStatus !== 'active') return;
-    // TICK loop removed to prevent Provider Complexity Risk and cascading rerenders.
-    // Intelligence metrics are now updated via SSE in AdaptiveRuntimeContext.
-  }, [state.systemStatus, addCustomFeedItem]);
+  // Compute derived state based on active persona and lifecycle stage
+  const activePersona = useMemo(() => {
+    const base = baselinePersonas.find((p) => p.id === state.activePersonaId) || baselinePersonas[0]!;
+    return propagateIntelligence(
+      base,
+      state.lifecycleStage,
+      state.completedSkills,
+      state.deferredSkills
+    );
+  }, [state.activePersonaId, state.lifecycleStage, state.completedSkills, state.deferredSkills]);
 
   const triggerSystemScan = useCallback(async () => {
     dispatch({ type: 'SYSTEM_SCAN_START' });
     addCustomFeedItem('Orchestrator', 'Initiating full-stack index re-calibration...', 'medium');
 
-    await new Promise((resolve) => setTimeout(resolve, 1200));
+    await new Promise((resolve) => setTimeout(resolve, 1500));
 
     dispatch({ type: 'SYSTEM_SCAN_COMPLETE' });
-    addCustomFeedItem('Orchestrator', 'Full-stack index re-calibration completed. All vectors synchronized.', 'high');
+    addCustomFeedItem('Orchestrator', `Profile calibrated. Synthesized strategy for ${activePersona.targetRole}`, 'high');
     toast.success('Career System Scan Completed');
-  }, [addCustomFeedItem]);
+  }, [addCustomFeedItem, activePersona.targetRole]);
 
   const completeRoadmapNode = useCallback((skillName: string) => {
     dispatch({ type: 'COMPLETE_NODE', payload: skillName });
     addCustomFeedItem(
       'Execution Engine',
-      `Marked "${skillName}" as complete. Recruiter confidence adjusted upward (+4.0%).`,
+      `Marked "${skillName}" as complete. Recruiter signals and match matrices adjusted upward.`,
       'high'
     );
-    toast.success(`Completed ${skillName}`);
+    toast.success(`Completed milestone: ${skillName}`);
   }, [addCustomFeedItem]);
 
   const deferRoadmapNode = useCallback((skillName: string) => {
     dispatch({ type: 'DEFER_NODE', payload: skillName });
     addCustomFeedItem(
       'Execution Engine',
-      `Deferred "${skillName}". Systems calibration: Velocity and recruiter readiness adjusted.`,
+      `Deferred "${skillName}". Trajectory calibration updated.`,
       'medium'
     );
-    toast(`Deferred "${skillName}"`);
+    toast(`Deferred milestone: ${skillName}`);
   }, [addCustomFeedItem]);
 
   const setSimulationActive = useCallback((active: boolean) => {
     dispatch({ type: 'SET_SIMULATION_ACTIVE', payload: active });
   }, []);
 
+  const setLifecycleStage = useCallback((stage: LifecycleStage) => {
+    dispatch({ type: 'SET_LIFECYCLE_STAGE', payload: stage });
+    addCustomFeedItem('System', `Lifecycle transition: Advanced to Stage ${stage}`, 'medium');
+  }, [addCustomFeedItem]);
+
+  const setActivePersonaId = useCallback((id: string) => {
+    dispatch({ type: 'SET_ACTIVE_PERSONA', payload: id });
+    const targetPersona = baselinePersonas.find((p) => p.id === id);
+    if (targetPersona) {
+      addCustomFeedItem('Orchestrator', `Swapped baseline persona template to ${targetPersona.name}`, 'high');
+    }
+  }, [addCustomFeedItem]);
+
+  const resetLifecycle = useCallback(() => {
+    dispatch({ type: 'RESET_LIFECYCLE' });
+    addCustomFeedItem('System', 'Reset lifecycle state to onboarding baseline.', 'medium');
+    toast('Profile states reset');
+  }, [addCustomFeedItem]);
+
   const value = useMemo(
     () => ({
-      ...state,
+      simulationActive: state.simulationActive,
       setSimulationActive,
+      systemStatus: state.systemStatus,
+      metrics: activePersona.metrics,
+      metricsHistory: activePersona.metricsHistory,
+      feed: state.feed,
+      roadmap: activePersona.roadmap,
+      opportunities: activePersona.opportunities,
+      recruiterProfile: activePersona.recruiterProfile,
+      lastUpdated: state.lastUpdated,
       completeRoadmapNode,
       deferRoadmapNode,
       triggerSystemScan,
       addCustomFeedItem,
+
+      activePersona,
+      lifecycleStage: state.lifecycleStage,
+      setLifecycleStage,
+      setActivePersonaId,
+      resetLifecycle,
     }),
-    [state, setSimulationActive, completeRoadmapNode, deferRoadmapNode, triggerSystemScan, addCustomFeedItem]
+    [
+      state.simulationActive,
+      setSimulationActive,
+      state.systemStatus,
+      state.feed,
+      state.lastUpdated,
+      activePersona,
+      state.lifecycleStage,
+      completeRoadmapNode,
+      deferRoadmapNode,
+      triggerSystemScan,
+      addCustomFeedItem,
+      setLifecycleStage,
+      setActivePersonaId,
+      resetLifecycle,
+    ]
   );
 
   return (

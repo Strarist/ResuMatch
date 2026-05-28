@@ -10,6 +10,7 @@ from sqlalchemy.ext.asyncio import (
 
 from app.models.user import User
 from app.models.opportunity import Job, Match
+from app.models.strategic_profile import StrategicProfile
 from app.models.strategic_memory import StrategicMemoryEvent, MemoryCluster, CausalEdge, PropagationEvent, LeverageDecision, RuntimeMutation
 from app.models.agents import AgentRuntimeState, AgentDecision, AgentEvent, OrchestrationCycle, StrategicDirective
 from app.models.orchestration import ReplayEvent, ReplayCheckpoint, ReplayValidation, ReplayDrift

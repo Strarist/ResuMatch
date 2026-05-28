@@ -4,8 +4,9 @@ import { useCallback, useEffect, useState } from 'react';
 import { Panel, SectionHeader, StatusBadge } from '@/components/ds';
 import { env } from '@/lib/env';
 import { useLivingSystem } from '@/context/LivingSystemContext';
-import { Radar, ArrowDown, ArrowUp } from 'lucide-react';
+import { Radar, ArrowDown, ArrowUp, Clock, ShieldCheck, HelpCircle } from 'lucide-react';
 import InteractiveCard from '@/components/effects/InteractiveCard';
+import { HardenedOpportunityMatch } from '@/data/baseline-profiles';
 
 interface Match {
   type: string;
@@ -18,6 +19,13 @@ interface Match {
   missing_requirements: string[];
   proof_gaps: string[];
   urgency: string;
+
+  // Hardened fields
+  compensation?: string;
+  recruiterPressure?: 'high' | 'medium' | 'low';
+  hiringWindow?: string;
+  stackCompatibility?: string;
+  alignmentReasoning?: string;
 }
 
 interface Gap {
@@ -40,7 +48,13 @@ export default function OpportunitiesPage() {
   const [apiGaps, setApiGaps] = useState<Gap[]>([]);
   const [apiRadar, setApiRadar] = useState<MarketRadar | null>(null);
   const [loading, setLoading] = useState(true);
-  const { simulationActive, opportunities: simOpportunities } = useLivingSystem();
+
+  const {
+    simulationActive,
+    opportunities: simOpportunities,
+    lifecycleStage,
+    activePersona
+  } = useLivingSystem();
 
   const fetchData = useCallback(async () => {
     const token = localStorage.getItem('access_token');
@@ -68,17 +82,23 @@ export default function OpportunitiesPage() {
 
   // Resolve active opportunities data
   const activeMatches: Match[] = simulationActive
-    ? simOpportunities.map(opp => ({
-        type: 'full_time',
+    ? (simOpportunities as HardenedOpportunityMatch[]).map((opp) => ({
+        type: opp.type || 'full_time',
         title: opp.title,
         company: opp.company,
         alignment_score: opp.alignmentScore,
         confidence: opp.confidence,
         estimated_career_impact: opp.urgency === 'high' ? 'High Impact ($220k+)' : 'Medium Impact ($190k+)',
-        matching_signals: ['Distributed caching proof validated', 'Systems engineering credentials verified'],
+        matching_signals: ['Specialization credentials match key templates', 'Target stack core is fully verified'],
         missing_requirements: opp.missingRequirements,
         proof_gaps: opp.proofGaps,
         urgency: opp.urgency,
+
+        compensation: opp.compensation,
+        recruiterPressure: opp.recruiterPressure,
+        hiringWindow: opp.hiringWindow,
+        stackCompatibility: opp.stackCompatibility,
+        alignmentReasoning: opp.alignmentReasoning,
       }))
     : apiMatches;
 
@@ -94,79 +114,86 @@ export default function OpportunitiesPage() {
 
   const activeRadar: MarketRadar | null = simulationActive
     ? {
-        emerging_domains: ['GPU compute optimization', 'Consensus databases', 'LLM edge routers'],
-        high_roi_skills: [
-          { skill: 'CUDA Kernel Tuning', roi: 0.94, trend: 'rising' },
-          { skill: 'Raft consensus protocols', roi: 0.88, trend: 'rising' },
-          { skill: 'Rust compiler extensions', roi: 0.82, trend: 'stable' },
-          { skill: 'WASM edge hosting design', roi: 0.74, trend: 'cooling' },
-        ],
+        emerging_domains: [activePersona.marketIntel.title, 'System design metrics scaling', 'Secure credential verification'],
+        high_roi_skills: activePersona.roadmap.map(node => ({
+          skill: node.skill,
+          roi: node.impactEstimate / 100,
+          trend: node.priority === 'high' ? 'rising' : 'stable'
+        })),
         salary_growth_paths: [
-          'AI Platform Architect (Average: $210,000 base + equity)',
-          'Staff Infrastructure Systems Engineer (Average: $195,000 base)',
+          `${activePersona.targetRole} (Average: ${activePersona.marketIntel.salaryRange} base + incentives)`,
         ],
-        underutilized_strengths: ['High-throughput message broker architecture', 'Compiler diagnostic analysis'],
+        underutilized_strengths: activePersona.strongestSkills.slice(0, 2),
       }
     : apiRadar;
 
-  const isDormant = !simulationActive && apiMatches.length === 0;
+  const isDormant = lifecycleStage === 1;
 
   const fallbackMatches: Match[] = [
     {
       type: 'full_time',
-      title: 'Principal AI Platform Architect (Target)',
+      title: 'Staff Full Stack Developer (Target)',
       company: 'Vercel (Standby)',
       alignment_score: 0.72,
       confidence: 0.65,
-      estimated_career_impact: '$220k - $270k',
+      estimated_career_impact: '$190k - $240k',
       matching_signals: ['System standby mode'],
-      missing_requirements: ['CUDA Kernel Optimization', 'vLLM Serving Orchestration'],
+      missing_requirements: ['GraphQL Federation', 'Distributed Caching (Redis)'],
       proof_gaps: ['WASM optimization proof'],
       urgency: 'low',
+      compensation: '$190k - $240k',
+      recruiterPressure: 'medium',
+      hiringWindow: 'Calibration Standby',
+      stackCompatibility: 'React, Next.js, GraphQL',
+      alignmentReasoning: 'Opportunities engine is uncalibrated. Ingest resume portfolio artifacts to align target parameters.',
     },
     {
       type: 'full_time',
-      title: 'Distributed Infrastructure Lead (Target)',
+      title: 'Senior Site Reliability Engineer (Target)',
       company: 'Stripe (Standby)',
       alignment_score: 0.68,
       confidence: 0.60,
-      estimated_career_impact: '$195k - $240k',
+      estimated_career_impact: '$200k - $250k',
       matching_signals: ['System standby mode'],
-      missing_requirements: ['Raft consensus protocols'],
+      missing_requirements: ['Istio Service Mesh', 'Prometheus Tuning'],
       proof_gaps: ['Distributed transactional ledger validation'],
       urgency: 'low',
+      compensation: '$200k - $250k',
+      recruiterPressure: 'low',
+      hiringWindow: 'Calibration Standby',
+      stackCompatibility: 'AWS, Terraform, Kubernetes',
+      alignmentReasoning: 'Awaiting portfolio ingestion to calculate causal stack matching indices.',
     }
   ];
 
   const fallbackGaps: Gap[] = [
     {
-      target_role: 'Principal AI Platform Architect (Target)',
+      target_role: 'Staff Full Stack Developer (Target)',
       readiness_percentage: 72,
-      missing_skills: ['CUDA Kernel Optimization', 'vLLM Serving Orchestration'],
-      missing_proof: ['WASM optimization proof'],
+      missing_skills: ['GraphQL Federation'],
+      missing_proof: ['Production router setup proof'],
       estimated_completion_time: 'Awaiting Ingestion',
     },
     {
-      target_role: 'Distributed Infrastructure Lead (Target)',
+      target_role: 'Senior Site Reliability Engineer (Target)',
       readiness_percentage: 68,
-      missing_skills: ['Raft consensus protocols'],
-      missing_proof: ['Distributed transactional ledger validation'],
+      missing_skills: ['Istio Service Mesh'],
+      missing_proof: ['mTLS setup logs'],
       estimated_completion_time: 'Awaiting Ingestion',
     }
   ];
 
   const fallbackRadar: MarketRadar = {
-    emerging_domains: ['GPU compute optimization', 'Consensus databases', 'LLM edge routers'],
+    emerging_domains: ['Cloud native platforms', 'Edge routing runtimes', 'Service meshes'],
     high_roi_skills: [
-      { skill: 'CUDA Kernel Tuning', roi: 0.94, trend: 'rising' },
-      { skill: 'Raft consensus protocols', roi: 0.88, trend: 'rising' },
-      { skill: 'Rust compiler extensions', roi: 0.82, trend: 'stable' },
+      { skill: 'GraphQL Federation', roi: 0.88, trend: 'rising' },
+      { skill: 'Istio Service Mesh', roi: 0.92, trend: 'rising' },
     ],
     salary_growth_paths: [
-      'AI Platform Architect (Average: $210,000 base + equity)',
-      'Staff Infrastructure Systems Engineer (Average: $195,000 base)',
+      'Staff Full Stack Developer (Average: $190k - $240k base)',
+      'Senior Site Reliability Engineer (Average: $200k - $250k base)',
     ],
-    underutilized_strengths: ['High-throughput message broker architecture', 'Compiler diagnostic analysis'],
+    underutilized_strengths: ['Standard developer runtime config'],
   };
 
   const matchesToRender = isDormant ? fallbackMatches : activeMatches;
@@ -176,7 +203,7 @@ export default function OpportunitiesPage() {
   return (
     <div className="space-y-6">
       <SectionHeader
-        title="Opportunities"
+        title="Opportunities Matcher"
         subtitle={simulationActive ? "Real-world career acceleration (Simulation Sandbox)" : "Real-world career acceleration"}
       />
 
@@ -189,9 +216,9 @@ export default function OpportunitiesPage() {
           <div>
             <h3 className="text-xs font-semibold text-white mb-0.5">Opportunities Engine in Standby Mode</h3>
             <p className="text-[11px] text-white/50 leading-relaxed">
-              Awaiting profile calibration. Upload resume portfolio artifacts on the{' '}
+              Your profile is currently uncalibrated. Ingest resume portfolio artifacts on the{' '}
               <a href="/resumes" className="text-blue-400 underline hover:text-blue-300">Resumes & Portfolio</a>{' '}
-              view or toggle Simulation Mode in the sidebar footer to run live opportunity alignment checks.
+              view or select a baseline persona in the sidebar to initialize dynamic opportunity matches and recruiter signals.
             </p>
           </div>
         </div>
@@ -200,48 +227,101 @@ export default function OpportunitiesPage() {
       {/* Top Matches */}
       {matchesToRender.length > 0 && (
         <Panel className="border-white/[0.04] bg-white/[0.015]">
-          <div className="flex items-center justify-between mb-3">
-            <SectionHeader title="Top Opportunity Matches" />
+          <div className="flex items-center justify-between mb-3 border-b border-white/[0.04] pb-2">
+            <h3 className="text-xs font-bold uppercase tracking-wider text-white/60">Top Career Opportunity Matches</h3>
             <span className="text-[8px] text-white/20 font-mono tracking-wider">
-              {isDormant ? 'CALIBRATION STANDBY' : 'LIVE MATCHER'}
+              {isDormant ? 'CALIBRATION STANDBY' : 'DYNAMIC MATCHER ACTIVE'}
             </span>
           </div>
-          <div className="space-y-3 mt-3">
+          <div className="space-y-4 mt-3">
             {matchesToRender.map((m, i) => (
-              <InteractiveCard key={i} className="p-3.5 relative overflow-hidden bg-white/[0.005]">
-                <div className="absolute top-0 right-0 h-full w-[2px] bg-gradient-to-b from-blue-500/20 to-transparent" />
-                <div className="flex items-center justify-between mb-1.5">
+              <InteractiveCard key={i} className="p-4.5 relative overflow-hidden bg-white/[0.005]">
+                <div className="absolute top-0 right-0 h-full w-[2.5px] bg-gradient-to-b from-blue-500/20 to-transparent" />
+
+                <div className="flex flex-col md:flex-row md:items-center justify-between gap-2.5 mb-3">
                   <div>
-                    <span className="text-sm font-semibold text-white/80">{m.title}</span>
-                    <span className="text-xs text-white/40 ml-2">@ {m.company}</span>
+                    <h4 className="text-sm font-semibold text-white/95">{m.title}</h4>
+                    <span className="text-xs text-slate-400 mt-0.5 block">@ {m.company}</span>
                   </div>
-                  <div className="flex gap-1.5">
+
+                  <div className="flex gap-2">
+                    {m.compensation && (
+                      <span className="text-[10px] px-2 py-0.5 rounded font-mono font-bold bg-emerald-500/10 border border-emerald-500/25 text-emerald-400">
+                        {m.compensation}
+                      </span>
+                    )}
+                    {m.hiringWindow && (
+                      <span className="text-[10px] px-2 py-0.5 rounded font-mono bg-blue-500/10 border border-blue-500/20 text-blue-300 flex items-center gap-1">
+                        <Clock size={10} /> {m.hiringWindow}
+                      </span>
+                    )}
+                    {m.recruiterPressure && (
+                      <span className={`text-[10px] px-2 py-0.5 rounded font-mono font-bold uppercase border ${
+                        m.recruiterPressure === 'high'
+                          ? 'border-red-500/20 text-red-400 bg-red-500/[0.04]'
+                          : 'border-amber-500/20 text-amber-400 bg-amber-500/[0.04]'
+                      }`}>
+                        Demand: {m.recruiterPressure}
+                      </span>
+                    )}
                     <StatusBadge status={m.urgency === 'high' ? 'error' : 'warning'}>{m.urgency.toUpperCase()}</StatusBadge>
-                    <StatusBadge status="neutral">{m.type.replace(/_/g, ' ')}</StatusBadge>
                   </div>
                 </div>
 
-                <div className="flex items-center gap-4 text-xs text-white/35 mt-1">
-                  <span>Alignment Index: <span className="text-white/60 font-semibold font-mono">{Math.round(m.alignment_score * 100)}%</span></span>
-                  <span>Signal Confidence: <span className="text-white/60 font-mono">{Math.round(m.confidence * 100)}%</span></span>
-                  <span>Estimated Comp: <span className="text-blue-300 font-mono">{m.estimated_career_impact}</span></span>
+                {/* Compatibility stats */}
+                <div className="flex items-center gap-4 text-xs text-white/35 mt-1 border-t border-white/[0.03] pt-2">
+                  <span>Alignment Match: <span className="text-white/60 font-semibold font-mono">{Math.round(m.alignment_score * 100)}%</span></span>
+                  <span>Screening Confidence: <span className="text-white/60 font-mono">{Math.round(m.confidence * 100)}%</span></span>
+                  {m.stackCompatibility && (
+                    <span className="truncate max-w-[250px] hidden md:inline">Required Stack: <span className="text-slate-400 font-mono text-[11px]">{m.stackCompatibility}</span></span>
+                  )}
                 </div>
 
-                {m.missing_requirements.length > 0 ? (
-                  <p className="text-xs text-white/25 mt-2.5 flex items-center gap-1.5">
-                    <span className="text-white/10 uppercase text-[9px] font-mono">Missing:</span>
-                    {m.missing_requirements.join(', ')}
-                  </p>
-                ) : (
-                  <p className="text-xs text-emerald-400/80 mt-2.5 font-semibold">✓ Core skill vectors matching 100%.</p>
+                {/* WHY IS THIS RELEVANT TO ME? narrative card */}
+                {m.alignmentReasoning && (
+                  <div className="mt-3 p-3 rounded-lg bg-blue-950/20 border border-blue-500/10 text-xs text-slate-300 leading-relaxed">
+                    <span className="font-semibold text-blue-400 flex items-center gap-1 mb-1">
+                      <HelpCircle size={12} /> Why this matches your trajectory:
+                    </span>
+                    {m.alignmentReasoning}
+                  </div>
                 )}
 
-                {m.proof_gaps.length > 0 && (
-                  <p className="text-xs text-amber-400/50 mt-1 flex items-center gap-1.5">
-                    <span className="text-white/10 uppercase text-[9px] font-mono">Proof Gap:</span>
-                    {m.proof_gaps.join(', ')}
-                  </p>
-                )}
+                <div className="grid md:grid-cols-2 gap-3 mt-3 pt-2.5 border-t border-white/[0.03]">
+                  <div>
+                    <span className="text-[9px] text-slate-500 font-mono uppercase block mb-1">Outstanding Skill Gaps</span>
+                    {m.missing_requirements.length > 0 ? (
+                      <div className="flex flex-wrap gap-1">
+                        {m.missing_requirements.map(req => (
+                          <span key={req} className="text-[9px] px-1.5 py-0.5 rounded bg-red-500/10 border border-red-500/20 text-red-400 font-mono">
+                            {req}
+                          </span>
+                        ))}
+                      </div>
+                    ) : (
+                      <span className="text-[10px] text-emerald-400 font-semibold flex items-center gap-1">
+                        <ShieldCheck size={11} /> 100% Skill coverage confirmed
+                      </span>
+                    )}
+                  </div>
+                  <div>
+                    <span className="text-[9px] text-slate-500 font-mono uppercase block mb-1">Recruiter Proof Gaps</span>
+                    {m.proof_gaps.length > 0 ? (
+                      <div className="flex flex-wrap gap-1">
+                        {m.proof_gaps.map(gap => (
+                          <span key={gap} className="text-[9px] px-1.5 py-0.5 rounded bg-amber-500/10 border border-amber-500/20 text-amber-400 font-mono truncate max-w-[200px]">
+                            {gap}
+                          </span>
+                        ))}
+                      </div>
+                    ) : (
+                      <span className="text-[10px] text-emerald-400 font-semibold flex items-center gap-1">
+                        <ShieldCheck size={11} /> All required portfolio credentials validated
+                      </span>
+                    )}
+                  </div>
+                </div>
+
               </InteractiveCard>
             ))}
           </div>
@@ -251,7 +331,7 @@ export default function OpportunitiesPage() {
       {/* Gap-to-Opportunity */}
       {gapsToRender.length > 0 && (
         <Panel className="border-white/[0.04] bg-white/[0.015]">
-          <SectionHeader title="Competency Gap Analysis" />
+          <SectionHeader title="Target Profile Readiness Index" />
           <div className="mt-3 space-y-3">
             {gapsToRender.map((g, i) => (
               <div key={i} className="flex flex-col sm:flex-row sm:items-center gap-4 py-3 border-b border-white/[0.04] last:border-0">
@@ -261,13 +341,13 @@ export default function OpportunitiesPage() {
                     {g.missing_skills.length > 0 ? (
                       g.missing_skills.map(s => <span key={s} className="text-[10px] bg-white/[0.02] border border-white/[0.04] px-2 py-0.5 rounded text-white/40">{s}</span>)
                     ) : (
-                      <span className="text-[10px] text-emerald-400 font-mono">NO SKILL GAPS DETECTED</span>
+                      <span className="text-[10px] text-emerald-400 font-mono">ALL TRAJECTORY VECTOR GAPS CURED</span>
                     )}
                   </div>
                 </div>
                 <div className="text-right flex-shrink-0 flex items-center gap-4 sm:flex-col sm:items-end">
                   <div>
-                    <p className="text-sm font-bold text-accent font-mono transition-all duration-700">{g.readiness_percentage}%</p>
+                    <p className="text-sm font-bold text-accent font-mono transition-all duration-700">{g.readiness_percentage}% ready</p>
                     <p className="text-[10px] text-white/20 uppercase font-mono mt-0.5">{g.estimated_completion_time}</p>
                   </div>
                 </div>
@@ -297,7 +377,7 @@ export default function OpportunitiesPage() {
                           <span className="text-white/30 flex items-center font-mono uppercase">Stable</span>
                         )}
                       </span>
-                      <span className="text-[10px] text-white/25 font-mono">ROI: {Math.round(s.roi * 100)}%</span>
+                      <span className="text-[10px] text-white/25 font-mono">Value: +{Math.round(s.roi * 100)} ROI</span>
                     </div>
                   </div>
                 ))}

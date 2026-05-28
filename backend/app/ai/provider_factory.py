@@ -20,8 +20,14 @@ from app.ai.ollama import OllamaProvider
 def get_ai_provider() -> AIProvider:
     """Return the configured AI provider (singleton).
 
-    Priority: Gemini (cloud) > Ollama (local).
+    Priority: OpenRouter > Gemini > Ollama.
     """
+    openrouter_key = os.getenv("OPENROUTER_API_KEY")
+    if openrouter_key:
+        from app.ai.openrouter import OpenRouterProvider
+        model = os.getenv("OPENROUTER_MODEL", "meta-llama/llama-3.1-8b-instruct:free")
+        return OpenRouterProvider(api_key=openrouter_key, model=model)
+
     gemini_key = os.getenv("GEMINI_API_KEY")
     if gemini_key:
         return GeminiProvider(api_key=gemini_key)

@@ -81,12 +81,20 @@ async def analyze_stream(
             })
             await asyncio.sleep(0)
 
-            from app.ai.resume_parser import ParsedResume
+            from app.ai.resume_parser import ParsedResume, ParsedMetadata
             if resume.parsed_data and resume.parse_status == "completed":
                 parsed = ParsedResume.model_validate(resume.parsed_data)
             else:
-                parsed = await parse_resume_ai(file_path)
-                parsed.skills = normalize_skills(parsed.skills)
+                from app.services.resume_pipeline.profile_builder import build_and_persist_strategic_profile
+                # Trigger the real OpenRouter LLM extraction and strategic profile DB builder pipeline
+                profile = await build_and_persist_strategic_profile(resume_repo.db, current_user.id, file_path)
+
+                parsed = ParsedResume(
+                    skills=profile.inferred_skills,
+                    education=[],
+                    experience=[],
+                    metadata=ParsedMetadata(name=current_user.name)
+                )
                 resume.parsed_data = parsed.model_dump()
                 resume.skills = parsed.skills
                 resume.parse_status = "completed"

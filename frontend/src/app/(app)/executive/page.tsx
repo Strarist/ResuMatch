@@ -96,7 +96,7 @@ export default function ExecutivePage() {
     setLoading(true);
     const token = localStorage.getItem('access_token');
     const headers: Record<string, string> = token ? { Authorization: `Bearer ${token}` } : {};
-    
+
     try {
       const [narrativeRes, digestRes, oppRes, riskRes] = await Promise.all([
         fetch(`${env.NEXT_PUBLIC_API_URL}/v1/intelligence/synthesis/narrative`, { headers }),
@@ -141,7 +141,7 @@ export default function ExecutivePage() {
 
   if (loading) {
     return (
-      <PageContainer title="Executive Strategy" subtitle="Distributed cognition synthesizers">
+      <PageContainer title="Executive Strategy" subtitle="Strategic trajectory models">
         <LoadingPulse rows={8} />
       </PageContainer>
     );
@@ -149,10 +149,10 @@ export default function ExecutivePage() {
 
   if (!narrative || !digest || !opportunity || !risk) {
     return (
-      <PageContainer title="Executive Strategy" subtitle="Distributed cognition synthesizers">
+      <PageContainer title="Executive Strategy" subtitle="Strategic trajectory models">
         <EmptyState
           icon={BarChart3}
-          title="Consolidated Cognition Stale"
+          title="Trajectory Narrative Standby"
           description="Initiate an active synchronization cycle to populate strategic trajectory narrative models."
         />
       </PageContainer>
@@ -209,7 +209,7 @@ export default function ExecutivePage() {
             </div>
           </div>
         </div>
-        
+
         <svg viewBox={`0 0 ${width} ${height}`} className="w-full h-auto overflow-visible">
           <defs>
             <linearGradient id="cyanGlow" x1="0" y1="0" x2="1" y2="0">
@@ -221,10 +221,10 @@ export default function ExecutivePage() {
               <stop offset="100%" stopColor="#4f46e5" stopOpacity="0.8" />
             </linearGradient>
           </defs>
-          
+
           {/* Grid lines */}
           <line x1={padding} y1={height/2} x2={width-padding} y2={height/2} stroke="rgba(255,255,255,0.03)" strokeDasharray="3" />
-          
+
           {/* Paths */}
           <path d={generatePath(visibilityCoords)} fill="none" stroke="url(#cyanGlow)" strokeWidth="2.5" />
           <path d={generatePath(leverageCoords)} fill="none" stroke="url(#indigoGlow)" strokeWidth="2" strokeDasharray="1" />
@@ -261,7 +261,7 @@ export default function ExecutivePage() {
   return (
     <PageContainer
       title="Executive Console"
-      subtitle="Strategic Narrative Synthesis & Explainable Cognition System"
+      subtitle="Strategic Career Narrative Synthesis"
     >
       {/* Top Banner Control Header */}
       <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-4 p-4 border border-white/[0.04] bg-white/[0.01] rounded-xl mb-6">
@@ -317,7 +317,7 @@ export default function ExecutivePage() {
       <div className="grid lg:grid-cols-3 gap-6 mt-6">
         {/* Left 2 Columns: Dynamic Tabs Content */}
         <div className="lg:col-span-2 space-y-6">
-          
+
           {/* Tab Selector Bar */}
           <div className="flex border-b border-white/[0.04] gap-2">
             {(['narrative', 'digest', 'opportunity', 'risk'] as const).map((tab) => (
@@ -343,7 +343,7 @@ export default function ExecutivePage() {
                   <Sparkles size={14} className="text-indigo-400" />
                   <SectionLabel>Strategic Narrative briefing</SectionLabel>
                 </div>
-                
+
                 <div className="space-y-4">
                   <div className="p-3 bg-white/[0.02] border border-white/[0.04] rounded-lg">
                     <h4 className="text-[10px] text-white/30 uppercase tracking-wider font-mono">Current Trajectory Positioning</h4>
@@ -392,7 +392,7 @@ export default function ExecutivePage() {
                       <span className="absolute -left-[30px] top-1 flex h-4 w-4 items-center justify-center rounded-full bg-slate-900 border border-white/[0.12] text-[8px] font-mono font-bold text-white/60 shadow-lg">
                         {milestone.week}
                       </span>
-                      
+
                       <div className="group rounded-lg border border-white/[0.03] bg-white/[0.01] p-3 hover:bg-white/[0.02] hover:border-white/[0.06] transition-all">
                         <div className="flex items-center justify-between gap-2 mb-1">
                           <h4 className="text-xs font-semibold text-white/80">{milestone.milestone_title}</h4>
@@ -421,7 +421,7 @@ export default function ExecutivePage() {
                   <BookOpen size={14} className="text-indigo-400" />
                   <SectionLabel>Weekly Strategic Digest briefing</SectionLabel>
                 </div>
-                
+
                 <div className="space-y-4">
                   <div className="p-4 bg-indigo-500/[0.02] border border-indigo-400/10 rounded-lg">
                     <h4 className="text-[10px] text-indigo-300 uppercase tracking-wider font-mono">Primary Weekly Recommendation</h4>
@@ -496,7 +496,7 @@ export default function ExecutivePage() {
                           {cluster.compound_leverage_multiplier.toFixed(2)}x
                         </span>
                       </div>
-                      
+
                       <p className="text-[10px] text-white/30 font-mono mb-2 uppercase tracking-wide">Target: {cluster.target_specialization}</p>
                       <p className="text-xs text-white/50 leading-relaxed mb-4">{cluster.synthesis_description}</p>
                     </div>

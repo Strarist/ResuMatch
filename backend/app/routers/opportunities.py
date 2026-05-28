@@ -54,12 +54,40 @@ async def _build_context(user_id: str, db: AsyncSession):
 
 @router.get("/matches")
 async def get_opportunity_matches(current_user: User = Depends(get_current_user), db: AsyncSession = Depends(get_db)):
+    from app.models.strategic_profile import StrategicProfile
+    profile_result = await db.execute(
+        select(StrategicProfile).where(StrategicProfile.user_id == current_user.id)
+    )
+    profile = profile_result.scalar_one_or_none()
+    if profile and profile.opportunity_alignment:
+        return {"matches": profile.opportunity_alignment}
+
     trajectory, market, execution, recruiter = await _build_context(current_user.id, db)
     return {"matches": compute_opportunity_matches(trajectory, recruiter, execution, market)}
 
 
 @router.get("/gaps")
 async def get_opportunity_gaps(current_user: User = Depends(get_current_user), db: AsyncSession = Depends(get_db)):
+    from app.models.strategic_profile import StrategicProfile
+    profile_result = await db.execute(
+        select(StrategicProfile).where(StrategicProfile.user_id == current_user.id)
+    )
+    profile = profile_result.scalar_one_or_none()
+    if profile and profile.recruiter_signals:
+        fit = profile.recruiter_signals.get("roleFit", [])
+        gaps = []
+        for f in fit:
+            gaps.append({
+                "target_role": f["role"],
+                "readiness_percentage": round(f["proofAdjusted"] * 100, 1),
+                "skill_readiness": round(f["skillReadiness"] * 100, 1),
+                "missing_skills": f["missing"][:3],
+                "missing_proof": [r.replace("Deficit gap detected: ", "") for r in profile.recruiter_signals.get("hiringRisks", [])][:2],
+                "estimated_completion_time": f"{max(1, len(f['missing']) * 3)} weeks" if f["missing"] else "Ready",
+                "recruiter_impact": "high"
+            })
+        return {"gaps": gaps}
+
     trajectory, _, _, recruiter = await _build_context(current_user.id, db)
     return {"gaps": compute_opportunity_gaps(trajectory, recruiter)}
 

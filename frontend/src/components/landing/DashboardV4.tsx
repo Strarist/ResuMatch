@@ -126,7 +126,7 @@ export default function DashboardV4() {
       <div className="flex items-center justify-between mb-8 pb-4 border-b border-slate-800">
         <div className="flex items-center gap-3">
           <Brain size={16} className="text-slate-400" />
-          <h2 className="text-[13px] font-extrabold tracking-widest uppercase text-slate-300">Distributed Cognition Workspace</h2>
+          <h2 className="text-[13px] font-extrabold tracking-widest uppercase text-slate-300">Strategic Trajectory Workspace</h2>
         </div>
         <div className="flex items-center gap-2">
           <div className={`w-1.5 h-1.5 rounded-full ${config.color}`} />
@@ -154,7 +154,7 @@ export default function DashboardV4() {
                 {activeDirective.description}
               </p>
               <div className="flex flex-col gap-2 bg-[#020617] p-4 rounded-lg border border-slate-800">
-                <span className="text-[9px] text-slate-500 font-bold uppercase tracking-widest">Orchestration Rationale</span>
+                <span className="text-[9px] text-slate-500 font-bold uppercase tracking-widest">Strategic Rationale</span>
                 <p className="text-[11px] text-slate-400 font-mono leading-relaxed">{activeDirective.rationale}</p>
               </div>
             </div>
@@ -190,7 +190,7 @@ export default function DashboardV4() {
 
         {/* 3. Propagation Constraints */}
         <div className="order-3 lg:col-span-4 lg:col-start-9 lg:row-start-2 lg:pl-6 lg:border-l border-slate-800 pt-2 lg:pt-0">
-          <CollapsibleModule title="Propagation Constraints" icon={GitBranch} defaultOpen={false}>
+          <CollapsibleModule title="Causal Skill Dependencies" icon={GitBranch} defaultOpen={false}>
             <div className="space-y-2">
               {activePropagation.map((prop, i) => (
                 <div key={i} className="flex items-start gap-2 p-2.5 rounded border border-slate-800 bg-slate-900/30">
@@ -209,9 +209,9 @@ export default function DashboardV4() {
           </CollapsibleModule>
         </div>
 
-        {/* 4. Orchestration Topology */}
+        {/* 4. Career Trajectory Map */}
         <div className="order-4 lg:col-span-5 lg:col-start-4 lg:row-start-2 pt-2 lg:pt-0">
-          <CollapsibleModule title="Orchestration Topology" icon={Network} defaultOpen={false} className="h-full">
+          <CollapsibleModule title="Career Trajectory Map" icon={Network} defaultOpen={false} className="h-full">
             <div className="rounded-xl border border-slate-800 bg-[#020617] p-4 min-h-[200px] flex flex-col justify-center items-center relative overflow-hidden flex-grow">
               <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_center,_var(--tw-gradient-stops))] from-blue-900/10 via-transparent to-transparent opacity-50" />
               <div className="w-full space-y-5 z-10 px-4 py-4">

@@ -13,7 +13,7 @@ const jetbrains = JetBrains_Mono({ subsets: ['latin'], variable: '--font-mono' }
 import type { Metadata, Viewport } from 'next';
 
 export const metadata: Metadata = {
-  title: 'ResuMatch — Distributed Cognition Workspace',
+  title: 'ResuMatch — Strategic Career Workspace',
   description: 'Adaptive career intelligence operating system.',
 };
 
