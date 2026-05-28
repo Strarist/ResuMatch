@@ -124,7 +124,7 @@ const initialFeedItems: FeedItem[] = [
 ];
 
 const initialState: State = {
-  simulationActive: true, // Default to true in Phase 11.1 to show initial profile metrics
+  simulationActive: false, // Default to false to enable real database pipelines by default
   systemStatus: 'active',
   lastUpdated: new Date(),
   feed: initialFeedItems,
@@ -133,6 +133,7 @@ const initialState: State = {
   completedSkills: [],
   deferredSkills: [],
 };
+
 
 function reducer(state: State, action: Action): State {
   let nextState = state;

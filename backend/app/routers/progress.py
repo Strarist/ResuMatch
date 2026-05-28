@@ -67,6 +67,19 @@ async def get_progress_snapshot(
         market=market,
     )
 
+    from app.services.user_progress_service import get_or_create_user_progress, track_score_update
+    progress_record = await get_or_create_user_progress(db, current_user.id)
+    
+    # Synchronize current stats to persistent progression model
+    await track_score_update(
+        db,
+        current_user.id,
+        recruiter_score=execution.get("growth_velocity", 0.8) * 100,
+        market_readiness=summary.get("competitiveness", 0.75) * 100,
+        specialization=summary.get("dominant_path", "General Software Engineering")
+    )
+    await db.commit()
+
     return {
         "execution": execution,
         "risks": risks,
@@ -76,4 +89,13 @@ async def get_progress_snapshot(
             "competitiveness": summary.get("competitiveness"),
             "focus_areas": summary.get("focus_areas"),
         },
+        "progression": {
+            "resumes_uploaded": progress_record.resumes_uploaded_count,
+            "completed_milestones": progress_record.completed_milestones_count,
+            "achieved_tasks": progress_record.achieved_tasks_count,
+            "recruiter_score": progress_record.recruiter_score_record,
+            "market_readiness": progress_record.market_readiness_record,
+            "evolving_specialization": progress_record.evolving_specialization,
+            "history": progress_record.progression_history
+        }
     }

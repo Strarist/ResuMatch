@@ -94,12 +94,13 @@ async def generate_copilot_response(
 
 def _fallback_deterministic_response(msg_text: str, s: dict, recs: list[dict]) -> str:
     msg = msg_text.lower().strip()
-    path = s.get("dominant_path", "your career")
-    top_rec = recs[0]["title"] if recs else "building your skill profile"
+    path = s.get("dominant_path", "Software Engineering")
+    top_rec = recs[0]["title"] if recs else "Ingest resume credentials to identify actions"
     return (
-        f"I'm your career intelligence copilot. I noticed a temporary connection gap to our OpenRouter services, but I'm standing by to assist!\n\n"
-        f"Based on your target **{path}** trajectory:\n"
-        f"• Recommended focus: **{top_rec}**\n"
-        f"• Advise bridging outstanding gap milestones on your Trajectory Roadmap.\n\n"
-        f"Please try resending your message shortly to unlock full contextual guidance!"
+        f"I am your career intelligence copilot. I am currently running on local-caching safeguards due to a network timeout to our main inference layer.\n\n"
+        f"Even with offline limits, your active **{path}** trajectory shows high priority action paths:\n"
+        f"• Highest ROI Action: **{top_rec}**\n"
+        f"• Key Recommendation: Please ensure your latest resume PDF is uploaded to calibrate skills taxonomies and calculate exact recruiter matching scores.\n\n"
+        f"Once network connectivity is restored, I can compile customized sprint learning templates and outline specific GitHub validation projects."
     )
+

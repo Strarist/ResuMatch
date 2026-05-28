@@ -186,7 +186,7 @@ export function AppShell({ children }: { children: ReactNode }) {
       )}
 
       {/* Strategic Controls */}
-      {!collapsed && (
+      {!collapsed && devMode && (
         <div className="px-3 py-2.5 mx-2 mb-2 rounded-lg bg-slate-900/60 border border-white/[0.04] space-y-2.5">
           <div>
             <label className="text-[9px] font-bold text-slate-500 uppercase tracking-wider block mb-1">
@@ -229,6 +229,7 @@ export function AppShell({ children }: { children: ReactNode }) {
           </div>
         </div>
       )}
+
 
       {/* Footer */}
       <div className="border-t border-white/[0.04] p-3 space-y-1">

@@ -37,6 +37,60 @@ SKILL_MARKET_DATA: dict[str, dict] = {
     "system design": {"demand": 0.85, "trend": "stable", "saturation": "low", "salary_premium": 0.15, "category": "architecture"},
 }
 
+# Curated role-specific market intelligence datasets
+DOMAIN_MARKET_INTELLIGENCE = {
+    "cloud engineering": {
+        "title": "Cloud Infrastructure & Platform Engineering",
+        "description": "Intense industry focus on platform engineering standard updates, container scheduling scaling, and cost reduction models.",
+        "salaryRange": "$170k - $260k",
+        "growthRate": "Surging (+18% YoY)",
+        "demandTrend": "up",
+        "demandChangePercent": 18,
+        "emergingTechnologies": ["Kubernetes Operator Framework", "Istio Ambient Mesh", "ArgoCD GitOps", "eBPF Observability"],
+        "recruiterUrgency": "high"
+    },
+    "backend engineering": {
+        "title": "Distributed Core Systems & Backend Engineering",
+        "description": "Steady market demand for performance-tuned relational backends, event-driven data streaming, and distributed saga coordination.",
+        "salaryRange": "$150k - $220k",
+        "growthRate": "Steady (+9% YoY)",
+        "demandTrend": "stable",
+        "demandChangePercent": 9,
+        "emergingTechnologies": ["Rust Core Tooling", "Go Microservices", "Kafka Streams", "Distributed Saga Patterns"],
+        "recruiterUrgency": "medium"
+    },
+    "AI engineering": {
+        "title": "AI Platform & Large Models Systems",
+        "description": "Exponential industry demand spikes in GPU scale training execution, custom CUDA optimizations, and low-latency model serving frameworks.",
+        "salaryRange": "$180k - $310k",
+        "growthRate": "Surging (+28% YoY)",
+        "demandTrend": "up",
+        "demandChangePercent": 28,
+        "emergingTechnologies": ["vLLM Serving Layer", "CUDA Custom Kernels", "PyTorch FSDP", "Vector Indexing"],
+        "recruiterUrgency": "high"
+    },
+    "full stack engineering": {
+        "title": "Full Stack Application Architecture",
+        "description": "High market focus on Next.js Server Components, real-time micro-frontend hydration, and federated schema stitching schemas.",
+        "salaryRange": "$160k - $230k",
+        "growthRate": "Steady (+12% YoY)",
+        "demandTrend": "up",
+        "demandChangePercent": 12,
+        "emergingTechnologies": ["Next.js App Router", "GraphQL Federation", "WebSockets Real-time", "Tailwind styling ecosystems"],
+        "recruiterUrgency": "medium"
+    },
+    "DevOps/platform engineering": {
+        "title": "Security Hardening & Release DevOps Engineering",
+        "description": "High market value on secure multi-tier CI/CD pipelines, automated reproducible build state engines, and cloud cost allocation metrics.",
+        "salaryRange": "$150k - $215k",
+        "growthRate": "Steady (+10% YoY)",
+        "demandTrend": "stable",
+        "demandChangePercent": 10,
+        "emergingTechnologies": ["GitHub Actions Hardening", "ArgoCD GitOps", "Helm packaging charts", "Cloud Spend Guardrails"],
+        "recruiterUrgency": "medium"
+    }
+}
+
 # Salary bands by seniority (USD, annual)
 SALARY_BANDS = {
     "junior": {"base": 65000, "ceiling": 95000},
@@ -71,12 +125,28 @@ def compute_market_intelligence(
     # 5. High-value missing skills
     high_value_missing = [s for s in roi_skills if s["roi_score"] >= 0.7][:5]
 
+    # 6. Map to a curated role-specific domain dynamically
+    domain_key = "full stack engineering" # fallback default
+    role_str = (target_role or "").lower()
+    
+    if "ai" in role_str or "machine learning" in role_str or "pytorch" in user_set:
+        domain_key = "AI engineering"
+    elif "cloud" in role_str or "infrastructure" in role_str or "kubernetes" in user_set:
+        domain_key = "cloud engineering"
+    elif "devops" in role_str or "platform" in role_str or "argocd" in user_set:
+        domain_key = "DevOps/platform engineering"
+    elif "backend" in role_str or "go" in user_set or "distributed" in role_str:
+        domain_key = "backend engineering"
+
+    curated_domain = DOMAIN_MARKET_INTELLIGENCE[domain_key]
+
     return {
         "skill_demand": skill_demand,
         "roi_skills": roi_skills[:8],
         "recruiter_attractiveness": attractiveness,
         "salary_trajectory": salary,
         "high_value_missing": high_value_missing,
+        "curated_domain": curated_domain
     }
 
 

@@ -12,6 +12,9 @@ from app.config import get_settings, Settings
 from app.db import get_db
 from app.main import app
 from app.models.base import Base
+import app.models.strategic_profile
+import app.models.user_progress
+
 
 
 @pytest.fixture(scope="session")

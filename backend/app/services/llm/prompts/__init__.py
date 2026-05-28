@@ -31,7 +31,7 @@ Output ONLY a valid JSON object with the "milestones" key containing a JSON arra
 - dependencies: Array of strings representing required previous skills
 - completionConfidence: Integer 0-100 representing difficulty/confidence index
 - projectedImpact: Professional outcome statement of what bridging this gap unlocks
-- strategicRationale: Rationale detailing recruiter demand statistics or industry trends for this skill
+- strategicRationale: Rationale detailing recruiter demand statistics or industry trends for this skill. Format exactly like this: "[Skill Name] prioritized because: [Domain] overlap: [X]%, Recruiter demand increase: +[Y]%, Missing [Z] proof."
 
 Target Role: {target_role}
 Validated Skills: {validated_skills}

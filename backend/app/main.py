@@ -47,7 +47,9 @@ async def lifespan(app: FastAPI):
     from app.models.base import Base
     from app.db import engine
     import app.models.strategic_profile  # noqa: F401
+    import app.models.user_progress  # noqa: F401
     import app.services.intelligence.intelligence_models  # noqa: F401
+
     import app.services.intelligence.operational_events  # noqa: F401
     import app.services.roadmap_intel.roadmap_models  # noqa: F401
     import app.services.trajectory.models  # noqa: F401

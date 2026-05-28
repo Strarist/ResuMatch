@@ -108,7 +108,9 @@ async def mark_node_complete(
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
+    from app.services.user_progress_service import track_milestone_completion
     await complete_node(db, current_user.id, body.skill)
+    await track_milestone_completion(db, current_user.id, body.skill)
     await db.commit()
     return {"message": f"Node '{body.skill}' marked complete"}
 

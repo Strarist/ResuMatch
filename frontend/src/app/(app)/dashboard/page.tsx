@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-explicit-any, @typescript-eslint/no-unused-vars */
 'use client';
 
 import React, { useState } from 'react';
@@ -30,6 +31,9 @@ import {
   Lock,
 } from 'lucide-react';
 
+import { useCallback, useEffect } from 'react';
+import { env } from '@/lib/env';
+
 export default function DashboardPage() {
   const {
     metrics,
@@ -40,9 +44,45 @@ export default function DashboardPage() {
     lifecycleStage,
     setLifecycleStage,
     triggerSystemScan,
+    simulationActive,
   } = useLivingSystem();
 
   const [scanning, setScanning] = useState(false);
+  const [loading, setLoading] = useState(true);
+  const [apiFocus, setApiFocus] = useState<any>(null);
+  const [apiOpportunities, setApiOpportunities] = useState<any[]>([]);
+  const [apiRoadmap, setApiRoadmap] = useState<any>(null);
+  const [apiGaps, setApiGaps] = useState<any[]>([]);
+
+  const fetchData = useCallback(async () => {
+    if (simulationActive) {
+      setLoading(false);
+      return;
+    }
+    const token = localStorage.getItem('access_token');
+    const headers: Record<string, string> = token ? { Authorization: `Bearer ${token}` } : {};
+    try {
+      const [focusRes, oppsRes, roadmapRes, gapsRes] = await Promise.allSettled([
+        fetch(`${env.NEXT_PUBLIC_API_URL}/v1/strategic/focus`, { headers }).then(res => res.ok ? res.json() : null),
+        fetch(`${env.NEXT_PUBLIC_API_URL}/v1/opportunities/matches`, { headers }).then(res => res.ok ? res.json() : null),
+        fetch(`${env.NEXT_PUBLIC_API_URL}/v1/roadmap-intel/state`, { headers }).then(res => res.ok ? res.json() : null),
+        fetch(`${env.NEXT_PUBLIC_API_URL}/v1/opportunities/gaps`, { headers }).then(res => res.ok ? res.json() : null),
+      ]);
+      
+      if (focusRes.status === 'fulfilled' && focusRes.value) setApiFocus(focusRes.value);
+      if (oppsRes.status === 'fulfilled' && oppsRes.value) setApiOpportunities(oppsRes.value.matches || []);
+      if (roadmapRes.status === 'fulfilled' && roadmapRes.value) setApiRoadmap(roadmapRes.value);
+      if (gapsRes.status === 'fulfilled' && gapsRes.value) setApiGaps(gapsRes.value.gaps || []);
+    } catch (e) {
+      console.error("Dashboard fetching error", e);
+    }
+    setLoading(false);
+  }, [simulationActive]);
+
+  useEffect(() => {
+    fetchData();
+  }, [fetchData]);
+
 
   const handleInitialScan = async () => {
     setScanning(true);
@@ -53,13 +93,59 @@ export default function DashboardPage() {
     setScanning(false);
   };
 
-  // Find the first active roadmap node for the Active Execution Sprint panel
-  const activeMilestone = roadmap.find((node) => node.status === 'active');
+  // Resolve metrics, trajectory, milestones, and recruiter signals dynamically
+  const displayMetrics = simulationActive ? metrics : {
+    matchScore: apiFocus?.focus?.execution_profile?.growth_velocity ? (apiFocus.focus.execution_profile.growth_velocity * 100) : (metrics.matchScore || 0),
+    recruiterConfidence: apiFocus?.focus?.risks?.risk_score ? (100 - apiFocus.focus.risks.risk_score) : (metrics.recruiterConfidence || 0),
+    marketFit: apiFocus?.focus?.market?.market_alignment ? apiFocus.focus.market.market_alignment : (metrics.marketFit || 0),
+    careerVelocity: apiFocus?.focus?.execution_profile?.growth_velocity ? (apiFocus.focus.execution_profile.growth_velocity * 100) : (metrics.careerVelocity || 0)
+  };
+
+  const displaySpecialization = simulationActive 
+    ? activePersona.specialization 
+    : (apiFocus?.focus?.trajectory?.dominant_path ? `${apiFocus.focus.trajectory.dominant_path} Engineering` : activePersona.specialization);
+
+  const displayTargetRole = simulationActive 
+    ? activePersona.targetRole 
+    : (apiFocus?.focus?.trajectory?.dominant_path ? `Senior ${apiFocus.focus.trajectory.dominant_path} Specialist` : activePersona.targetRole);
+
+  const dominantPath = apiFocus?.focus?.trajectory?.dominant_path || "Software Engineer";
+  const dominantReadiness = apiFocus?.focus?.trajectory?.readiness_scores?.[dominantPath] || {};
+
+  const displayValidatedSkills = simulationActive 
+    ? activePersona.strongestSkills 
+    : (dominantReadiness.matched_core || []);
+
+  const displayGaps = simulationActive 
+    ? activePersona.weakestSkills 
+    : (dominantReadiness.missing_core || []);
+
+  const displayMilestone = simulationActive
+    ? roadmap.find((node) => node.status === 'active')
+    : (apiRoadmap?.state?.snapshot?.milestones?.find((n: any) => n.status === 'active') || apiRoadmap?.state?.snapshot?.milestones?.[0]);
+
+  const displayRecruiterSignals = simulationActive ? simProfile : {
+    hiringConfidence: apiFocus?.focus?.trajectory?.confidence_score || 0.85,
+    productionReadiness: apiFocus?.focus?.trajectory?.competitiveness_score || 0.80,
+    strongestSignals: [
+      `Validated specialization strength in ${dominantPath}`,
+      `Expert competency vector with ${dominantReadiness.matched_core?.length || 0} verified skills`
+    ],
+    hiringRisks: (dominantReadiness.missing_core || []).slice(0, 2).map((m: string) => `Deficit gap detected: ${m}`)
+  };
+
+  const displayMarketIntel = (simulationActive ? activePersona.marketIntel : {
+    title: apiFocus?.focus?.market?.curated_domain?.title || "Technology Systems",
+    salaryRange: apiFocus?.focus?.market?.curated_domain?.salaryRange || "$140k - $210k",
+    growthRate: apiFocus?.focus?.market?.curated_domain?.growthRate || "Steady Growth",
+    description: apiFocus?.focus?.market?.curated_domain?.description || "High market value on core platform stability and performance architecture.",
+    recruiterUrgency: apiFocus?.focus?.market?.urgency || 'Medium'
+  }) as any;
 
   return (
     <PageContainer
       title="Strategic Command Center"
-      subtitle={`Career Engine — ${activePersona.name} Trajectory`}
+      subtitle={`Career Engine — ${displaySpecialization} Trajectory`}
     >
       <div className="space-y-6">
 
@@ -85,21 +171,23 @@ export default function DashboardPage() {
                 >
                   <Plus size={14} /> Ingest Resume
                 </Link>
-                <button
-                  onClick={handleInitialScan}
-                  disabled={scanning}
-                  className="flex-1 md:flex-none inline-flex items-center justify-center gap-1.5 px-4 py-2 rounded-lg bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold transition-all border border-blue-500/30"
-                >
-                  {scanning ? (
-                    <>
-                      <Loader2 size={14} className="animate-spin" /> Calibrating...
-                    </>
-                  ) : (
-                    <>
-                      <Sparkles size={14} /> Run Simulation Scan
-                    </>
-                  )}
-                </button>
+                {simulationActive && (
+                  <button
+                    onClick={handleInitialScan}
+                    disabled={scanning}
+                    className="flex-1 md:flex-none inline-flex items-center justify-center gap-1.5 px-4 py-2 rounded-lg bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold transition-all border border-blue-500/30"
+                  >
+                    {scanning ? (
+                      <>
+                        <Loader2 size={14} className="animate-spin" /> Calibrating...
+                      </>
+                    ) : (
+                      <>
+                        <Sparkles size={14} /> Run Simulation Scan
+                      </>
+                    )}
+                  </button>
+                )}
               </div>
             </div>
           )}
@@ -127,7 +215,7 @@ export default function DashboardPage() {
                 <div>
                   <h3 className="text-sm font-semibold text-white mb-1">Stage 3: Trajectory Calibrated</h3>
                   <p className="text-xs text-slate-400 max-w-2xl leading-relaxed">
-                    System calibrated for <span className="text-white font-semibold">{activePersona.targetRole}</span>. A critical gap in <span className="text-amber-400 font-semibold">{activeMilestone?.skill || 'skills'}</span> has been detected. Bridge this gap to raise your matching rate to over 90%.
+                    System calibrated for <span className="text-white font-semibold">{displayTargetRole}</span>. A critical gap in <span className="text-amber-400 font-semibold">{displayMilestone?.skill || 'skills'}</span> has been detected. Bridge this gap to raise your matching rate to over 90%.
                   </p>
                 </div>
               </div>
@@ -168,22 +256,22 @@ export default function DashboardPage() {
           <DashboardGrid cols={4}>
             <MetricCard
               label="Match Competitiveness"
-              value={`${Math.round(metrics.matchScore)}%`}
+              value={`${Math.round(displayMetrics.matchScore)}%`}
               icon={Target}
             />
             <MetricCard
               label="Recruiter Confidence"
-              value={`${Math.round(metrics.recruiterConfidence)}%`}
+              value={`${Math.round(displayMetrics.recruiterConfidence)}%`}
               icon={Shield}
             />
             <MetricCard
               label="Market Fit Score"
-              value={`${Math.round(metrics.marketFit)}%`}
+              value={`${Math.round(displayMetrics.marketFit)}%`}
               icon={Globe}
             />
             <MetricCard
               label="Execution Velocity"
-              value={`${Math.round(metrics.careerVelocity)}%`}
+              value={`${Math.round(displayMetrics.careerVelocity)}%`}
               icon={TrendingUp}
             />
           </DashboardGrid>
@@ -205,21 +293,21 @@ export default function DashboardPage() {
               <div className="space-y-4">
                 <div>
                   <span className="text-[10px] font-mono text-slate-500 uppercase block mb-1">Target Specialization</span>
-                  <p className="text-sm font-semibold text-white">{activePersona.specialization}</p>
+                  <p className="text-sm font-semibold text-white">{displaySpecialization}</p>
                 </div>
                 <div>
                   <span className="text-[10px] font-mono text-slate-500 uppercase block mb-1">Target Career Role</span>
-                  <p className="text-sm font-semibold text-white/90">{activePersona.targetRole}</p>
+                  <p className="text-sm font-semibold text-white/90">{displayTargetRole}</p>
                 </div>
 
                 <div className="grid grid-cols-2 gap-4 pt-2">
                   <div>
                     <span className="text-[10px] font-mono text-slate-500 uppercase block mb-2">Validated Skills</span>
                     <div className="flex flex-wrap gap-1">
-                      {activePersona.strongestSkills.length === 0 ? (
+                      {displayValidatedSkills.length === 0 ? (
                         <span className="text-[10px] text-slate-500 italic">No validated skills yet</span>
                       ) : (
-                        activePersona.strongestSkills.map((skill, idx) => (
+                        displayValidatedSkills.map((skill: string, idx: number) => (
                           <span
                             key={idx}
                             className="text-[9px] px-2 py-0.5 rounded bg-emerald-500/[0.06] border border-emerald-500/20 text-emerald-300 font-mono"
@@ -233,14 +321,18 @@ export default function DashboardPage() {
                   <div>
                     <span className="text-[10px] font-mono text-slate-500 uppercase block mb-2">Outstanding Gaps</span>
                     <div className="flex flex-wrap gap-1">
-                      {activePersona.weakestSkills.map((skill, idx) => (
-                        <span
-                          key={idx}
-                          className="text-[9px] px-2 py-0.5 rounded bg-amber-500/[0.06] border border-amber-500/20 text-amber-300 font-mono"
-                        >
-                          {skill}
-                        </span>
-                      ))}
+                      {displayGaps.length === 0 ? (
+                        <span className="text-[10px] text-slate-500 italic">No outstanding gaps</span>
+                      ) : (
+                        displayGaps.map((skill: string, idx: number) => (
+                          <span
+                            key={idx}
+                            className="text-[9px] px-2 py-0.5 rounded bg-amber-500/[0.06] border border-amber-500/20 text-amber-300 font-mono"
+                          >
+                            {skill}
+                          </span>
+                        ))
+                      )}
                     </div>
                   </div>
                 </div>
@@ -262,32 +354,32 @@ export default function DashboardPage() {
                 </Link>
               </div>
 
-              {activeMilestone ? (
+              {displayMilestone ? (
                 <div className="p-4 rounded-xl bg-white/[0.01] border border-white/[0.04] space-y-3">
                   <div className="flex justify-between items-start">
                     <div>
-                      <h4 className="text-xs font-bold text-white mb-0.5">{activeMilestone.skill}</h4>
+                      <h4 className="text-xs font-bold text-white mb-0.5">{displayMilestone.skill}</h4>
                       <div className="flex gap-2 items-center text-[10px] text-slate-500 font-mono">
-                        <span className="flex items-center gap-1"><Clock size={10} /> {activeMilestone.effortWeeks} Weeks Effort</span>
+                        <span className="flex items-center gap-1"><Clock size={10} /> {displayMilestone.effortWeeks || displayMilestone.effort_weeks || 4} Weeks Effort</span>
                         <span>•</span>
-                        <span className="text-emerald-400 font-semibold">Priority: {activeMilestone.priority.toUpperCase()}</span>
+                        <span className="text-emerald-400 font-semibold font-mono">Priority: {(displayMilestone.priority || 'medium').toUpperCase()}</span>
                       </div>
                     </div>
-                    {activeMilestone.completionConfidence && (
+                    {(displayMilestone.completionConfidence || displayMilestone.completionConfidence === 0) && (
                       <div className="text-right">
                         <span className="text-[10px] text-slate-500 block">Completion Confidence</span>
-                        <span className="text-xs font-bold text-emerald-400">{activeMilestone.completionConfidence}%</span>
+                        <span className="text-xs font-bold text-emerald-400">{displayMilestone.completionConfidence}%</span>
                       </div>
                     )}
                   </div>
                   <div>
                     <span className="text-[9px] text-slate-500 font-mono block mb-0.5">Strategic Rationale</span>
-                    <p className="text-[11px] text-slate-300 leading-relaxed">{activeMilestone.strategicRationale || activeMilestone.reason}</p>
+                    <p className="text-[11px] text-slate-300 leading-relaxed">{displayMilestone.strategicRationale || displayMilestone.reason || displayMilestone.strategic_rationale}</p>
                   </div>
-                  {activeMilestone.projectedImpact && (
+                  {(displayMilestone.projectedImpact || displayMilestone.projected_impact) && (
                     <div className="pt-1.5 border-t border-white/[0.02] flex justify-between items-center text-[10px]">
                       <span className="text-slate-500">Projected Value:</span>
-                      <span className="text-white font-medium">{activeMilestone.projectedImpact}</span>
+                      <span className="text-white font-medium">{displayMilestone.projectedImpact || displayMilestone.projected_impact}</span>
                     </div>
                   )}
                 </div>
@@ -322,32 +414,32 @@ export default function DashboardPage() {
                 <div className="p-3 bg-white/[0.01] border border-white/[0.04] rounded-lg space-y-2">
                   <div className="flex justify-between">
                     <span className="text-slate-500">Specialization:</span>
-                    <span className="text-white font-bold">{activePersona.marketIntel.title}</span>
+                    <span className="text-white font-bold">{displayMarketIntel.title}</span>
                   </div>
                   <div className="flex justify-between">
                     <span className="text-slate-500">Salary Trajectory:</span>
-                    <span className="text-emerald-400 font-bold">{activePersona.marketIntel.salaryRange}</span>
+                    <span className="text-emerald-400 font-bold">{displayMarketIntel.salaryRange}</span>
                   </div>
                   <div className="flex justify-between">
                     <span className="text-slate-500">Market Growth:</span>
-                    <span className="text-white font-bold">{activePersona.marketIntel.growthRate}</span>
+                    <span className="text-white font-bold">{displayMarketIntel.growthRate}</span>
                   </div>
                   <div className="flex justify-between items-center pt-1 border-t border-white/[0.02]">
                     <span className="text-slate-500">Recruiter Pressure:</span>
                     <span className={`text-[9px] px-1.5 py-0.2 rounded font-bold uppercase border ${
-                      activePersona.opportunities[0]?.recruiterPressure === 'high'
+                      displayMarketIntel.recruiterUrgency === 'high'
                         ? 'border-red-500/20 text-red-400 bg-red-500/[0.04]'
                         : 'border-amber-500/20 text-amber-400 bg-amber-500/[0.04]'
                     }`}>
-                      {activePersona.opportunities[0]?.recruiterPressure || 'Medium'}
+                      {displayMarketIntel.recruiterUrgency || 'Medium'}
                     </span>
                   </div>
                 </div>
 
                 <div className="p-3 bg-white/[0.01] border border-white/[0.04] rounded-lg">
                   <span className="text-[8px] text-slate-500 uppercase tracking-widest block mb-2">Causal Market Signals</span>
-                  <div className="text-slate-400 font-sans text-xs leading-relaxed">
-                    {activePersona.marketIntel.description}
+                  <div className="text-slate-400 font-sans text-xs leading-relaxed font-normal">
+                    {displayMarketIntel.description}
                   </div>
                 </div>
               </div>
@@ -360,7 +452,7 @@ export default function DashboardPage() {
                 <SectionLabel>Recruiter Signals</SectionLabel>
               </div>
 
-              {lifecycleStage === 1 ? (
+              {lifecycleStage === 1 && simulationActive ? (
                 <div className="p-6 border border-white/[0.04] bg-white/[0.005] rounded-xl text-center flex flex-col items-center justify-center space-y-2">
                   <Lock size={18} className="text-slate-600" />
                   <p className="text-xs text-slate-500 font-medium">Recruiter metrics locked</p>
@@ -368,25 +460,25 @@ export default function DashboardPage() {
                 </div>
               ) : (
                 <div className="space-y-4">
-                  {simProfile && (
+                  {displayRecruiterSignals && (
                     <div className="grid grid-cols-2 gap-3 font-mono text-[10px]">
                       <div className="p-2 bg-slate-950 border border-white/[0.03] rounded">
-                        <span className="text-slate-500 block mb-0.5">Hiring Score</span>
-                        <span className="text-xs font-bold text-white">{Math.round(simProfile.hiringConfidence * 100)}%</span>
+                        <span className="text-slate-500 block mb-0.5 font-mono">Hiring Score</span>
+                        <span className="text-xs font-bold text-white">{Math.round(displayRecruiterSignals.hiringConfidence * 100)}%</span>
                       </div>
                       <div className="p-2 bg-slate-950 border border-white/[0.03] rounded">
-                        <span className="text-slate-500 block mb-0.5">Readiness</span>
-                        <span className="text-xs font-bold text-white">{Math.round(simProfile.productionReadiness * 100)}%</span>
+                        <span className="text-slate-500 block mb-0.5 font-mono">Readiness</span>
+                        <span className="text-xs font-bold text-white">{Math.round(displayRecruiterSignals.productionReadiness * 100)}%</span>
                       </div>
                     </div>
                   )}
 
-                  {simProfile && simProfile.strongestSignals && (
+                  {displayRecruiterSignals && displayRecruiterSignals.strongestSignals && (
                     <div className="space-y-2">
                       <span className="text-[9px] font-mono text-slate-500 uppercase block">Strongest Recruiter Matches</span>
                       <div className="space-y-1.5">
-                        {simProfile.strongestSignals.slice(0, 2).map((sig, sIdx) => (
-                          <div key={sIdx} className="flex items-start gap-1.5 text-xs text-slate-400 leading-normal">
+                        {displayRecruiterSignals.strongestSignals.slice(0, 2).map((sig: string, sIdx: number) => (
+                          <div key={sIdx} className="flex items-start gap-1.5 text-xs text-slate-400 leading-normal font-sans">
                             <span className="w-1 h-1 rounded-full bg-emerald-400/60 mt-1.5 flex-shrink-0" />
                             <span>{sig}</span>
                           </div>
@@ -395,12 +487,12 @@ export default function DashboardPage() {
                     </div>
                   )}
 
-                  {simProfile && simProfile.hiringRisks && simProfile.hiringRisks.length > 0 && (
+                  {displayRecruiterSignals && displayRecruiterSignals.hiringRisks && displayRecruiterSignals.hiringRisks.length > 0 && (
                     <div className="space-y-2 border-t border-white/[0.03] pt-3">
                       <span className="text-[9px] font-mono text-amber-500/70 uppercase block">Risks Identified</span>
                       <div className="space-y-1.5">
-                        {simProfile.hiringRisks.slice(0, 2).map((risk, rIdx) => (
-                          <div key={rIdx} className="flex items-start gap-1.5 text-xs text-slate-400 leading-normal">
+                        {displayRecruiterSignals.hiringRisks.slice(0, 2).map((risk: string, rIdx: number) => (
+                          <div key={rIdx} className="flex items-start gap-1.5 text-xs text-slate-400 leading-normal font-sans">
                             <AlertTriangle size={11} className="text-amber-500/60 mt-0.5 flex-shrink-0" />
                             <span>{risk}</span>
                           </div>
@@ -435,7 +527,7 @@ export default function DashboardPage() {
             </div>
 
             <div className="space-y-2 max-h-[160px] overflow-y-auto pr-1">
-              {lifecycleStage === 1 ? (
+              {lifecycleStage === 1 && simulationActive ? (
                 <div className="p-3 border border-dashed border-white/[0.06] bg-white/[0.002] rounded-lg text-center">
                   <p className="text-[10px] text-slate-500 mb-2">No files currently parsing</p>
                   <Link
@@ -467,7 +559,7 @@ export default function DashboardPage() {
             </div>
 
             <div className="space-y-2.5 max-h-[160px] overflow-y-auto pr-1">
-              {simFeed.slice(0, 4).map((item, idx) => (
+              {simFeed.slice(0, 4).map((item: any, idx: number) => (
                 <div key={idx} className="relative pl-3.5 border-l border-white/[0.08] text-xs">
                   <span className="absolute -left-1 top-1.5 w-2 h-2 rounded-full bg-slate-900 border border-blue-500" />
                   <div className="flex items-center justify-between font-medium mb-0.5">

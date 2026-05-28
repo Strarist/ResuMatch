@@ -41,6 +41,8 @@ async def upload_resume(
             file_bytes=file_bytes, filename=file.filename or "resume.pdf",
             content_type=file.content_type or "", user_id=current_user.id,
         )
+        from app.services.user_progress_service import track_resume_upload
+        await track_resume_upload(db, current_user.id, file.filename or "resume.pdf")
     except ValidationError as e:
         raise HTTPException(status_code=400, detail=e.message)
     except ExternalServiceError as e:
