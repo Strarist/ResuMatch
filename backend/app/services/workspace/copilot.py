@@ -93,14 +93,13 @@ async def generate_copilot_response(
         return _fallback_deterministic_response(user_message, summary, recommendations)
 
 def _fallback_deterministic_response(msg_text: str, s: dict, recs: list[dict]) -> str:
-    msg = msg_text.lower().strip()
     path = s.get("dominant_path", "Software Engineering")
-    top_rec = recs[0]["title"] if recs else "Ingest resume credentials to identify actions"
+    top_rec = recs[0]["title"] if recs else "calibrate your profile"
     return (
-        f"I am your career intelligence copilot. I am currently running on local-caching safeguards due to a network timeout to our main inference layer.\n\n"
-        f"Even with offline limits, your active **{path}** trajectory shows high priority action paths:\n"
-        f"• Highest ROI Action: **{top_rec}**\n"
-        f"• Key Recommendation: Please ensure your latest resume PDF is uploaded to calibrate skills taxonomies and calculate exact recruiter matching scores.\n\n"
-        f"Once network connectivity is restored, I can compile customized sprint learning templates and outline specific GitHub validation projects."
+        f"I'm your senior career strategist. I am currently running in offline mode with cached profile data.\n\n"
+        f"Based on your target **{path}** path, here is the most immediate tactical advice I have for you:\n"
+        f"• **High-Impact Action**: Focus on completing **{top_rec}** to immediately strengthen your resume.\n"
+        f"• **Next Step**: Make sure your latest resume is uploaded to your profile so I can outline specific technical project proofs to write.\n\n"
+        f"Once our connection is refreshed, I can provide custom GitHub portfolio project outlines (like building database benchmarks or Redis-backed messaging systems) to demonstrate your skills directly to hiring managers."
     )
 
