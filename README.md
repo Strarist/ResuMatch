@@ -1,5 +1,15 @@
 <div align="center">
 
+<p align="center">
+  <img src="./docs/assets/skillyn-logo.png" alt="Skillyn Logo" width="180" />
+</p>
+
+<h1 align="center">Skillyn</h1>
+
+<p align="center">
+  From Resume to Career Growth
+</p>
+
 # Skillyn
 
 ### From Resume to Career Growth
