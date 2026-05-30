@@ -1,22 +1,22 @@
 <div align="center">
 
-# ResuMatch
+# Skillyn
 
-### AI-Native Career Intelligence & Recruiter Ecosystem
+### From Resume to Career Growth
 
 <p align="center">
-  <b>Transforming resumes, execution behavior, portfolio proof, and recruiter intelligence into a continuously evolving career operating system.</b>
+  <b>An AI-powered career growth platform that transforms resumes into personalized roadmaps, opportunity matching, market insights, and career coaching.</b>
 </p>
 
 <br />
 
 <p align="center">
-  <img src="https://img.shields.io/badge/Status-Production%20Ready-22c55e?style=for-the-badge" />
-  <img src="https://img.shields.io/badge/Architecture-Distributed-3b82f6?style=for-the-badge" />
+  <img src="https://img.shields.io/badge/Status-Active%20Development-22c55e?style=for-the-badge" />
   <img src="https://img.shields.io/badge/Frontend-Next.js-black?style=for-the-badge" />
   <img src="https://img.shields.io/badge/Backend-FastAPI-009688?style=for-the-badge" />
   <img src="https://img.shields.io/badge/Database-PostgreSQL-336791?style=for-the-badge" />
-  <img src="https://img.shields.io/badge/Infrastructure-Redis%20%7C%20Docker-red?style=for-the-badge" />
+  <img src="https://img.shields.io/badge/Infrastructure-Docker%20%7C%20Redis-red?style=for-the-badge" />
+  <img src="https://img.shields.io/badge/License-MIT-blue?style=for-the-badge" />
 </p>
 
 <br />
@@ -26,7 +26,7 @@
   <a href="#features">Features</a> •
   <a href="#architecture">Architecture</a> •
   <a href="#tech-stack">Tech Stack</a> •
-  <a href="#local-setup">Local Setup</a> •
+  <a href="#local-development">Local Development</a> •
   <a href="#project-structure">Project Structure</a>
 </p>
 
@@ -36,268 +36,122 @@
 
 # Overview
 
-ResuMatch is an AI-native career intelligence platform designed to evolve a user's:
+Modern job seekers often struggle with three questions:
 
-* career trajectory,
-* specialization depth,
-* recruiter visibility,
-* execution consistency,
-* portfolio maturity,
-* and market positioning.
+* Where do I currently stand?
+* What skills should I learn next?
+* Which opportunities am I actually qualified for?
 
-Unlike traditional resume tools, ResuMatch operates as a:
+Skillyn addresses these problems by turning a resume into a complete career intelligence workflow.
 
 ```text
-continuous career operating ecosystem
+Resume
+    ↓
+Profile Intelligence
+    ↓
+Skill Analysis
+    ↓
+Personalized Roadmap
+    ↓
+Opportunity Matching
+    ↓
+Market Insights
+    ↓
+AI Career Coach
 ```
 
-The platform combines:
-
-* resume intelligence,
-* strategic roadmap planning,
-* execution analytics,
-* recruiter intelligence,
-* opportunity systems,
-* growth infrastructure,
-* and distributed orchestration.
+Rather than functioning as a simple resume checker, Skillyn acts as a personalized career growth platform designed to help users make better career decisions.
 
 ---
 
 # Features
 
-# Career Intelligence Engine
+## Resume Intelligence
 
-### Resume Intelligence
+Upload and analyze resumes to generate structured career profiles.
 
-* Resume upload and parsing
-* Skill extraction
-* Career gap analysis
-* Resume persistence
-* Multi-resume management
+### Capabilities
 
-### Career Trajectory Modeling
-
-* Role readiness scoring
-* Competitiveness analysis
-* Specialization detection
-* Adjacent role discovery
-* Career drift detection
-
-### Adaptive Roadmaps
-
-* Dynamic roadmap generation
-* Strategic reprioritization
-* Skill mutation engine
-* Milestone tracking
-* Intelligent execution planning
-
-### Strategic Recommendation System
-
-* High-impact next skills
-* Salary-growth opportunities
-* Market alignment suggestions
-* Specialization guidance
-* Risk mitigation recommendations
+* PDF Resume Upload
+* Resume Parsing
+* Skill Extraction
+* Experience Analysis
+* Education Extraction
+* Project Identification
+* Profile Generation
 
 ---
 
-# Recruiter Ecosystem
+## Personalized Career Roadmaps
 
-### Recruiter Intelligence
+Generate adaptive learning roadmaps based on:
 
-* Hiring confidence scoring
-* Recruiter-ready profile generation
-* Proof-adjusted role fit analysis
-* Candidate comparison engine
-* Portfolio maturity scoring
+* Existing Skills
+* Experience Level
+* Career Goals
+* Skill Gaps
+* Target Roles
 
-### Talent Discovery
-
-* Candidate ranking engine
-* Explainable scoring system
-* Pipeline management
-* Recruiter analytics
-* Candidate engagement tracking
-
-### Portfolio Proof Infrastructure
-
-* Production-readiness scoring
-* Deployment maturity analysis
-* CI/CD validation
-* Cloud and architecture evaluation
-* Technical depth analysis
+Roadmaps are designed to evolve as users develop new skills.
 
 ---
 
-# Strategic Growth Systems
+## Opportunity Matching
 
-### Behavioral Intelligence
+Discover opportunities aligned with a user's profile.
 
-* Momentum tracking
-* Execution consistency analysis
-* Burnout detection
-* Stagnation detection
-* Execution style classification
+### Features
 
-### Growth Infrastructure
-
-* Weekly strategic digests
-* Reactivation engine
-* Career evolution timeline
-* Reputation momentum system
-* Platform health scoring
-
-### Opportunity Intelligence
-
-* High ROI skill discovery
-* Salary trajectory modeling
-* Opportunity radar
-* Market trend analysis
-* Emerging domain detection
+* Match Scoring
+* Skill Gap Analysis
+* Opportunity Recommendations
+* Career Alignment Insights
+* Role Compatibility Evaluation
 
 ---
 
-# AI Workspace Layer
+## Market Intelligence
 
-### Strategic Copilot Workspace
+Track what the market values.
 
-* Persistent career workspace
-* Intelligence-backed responses
-* Strategic planning assistance
-* Recommendation actions
-* Long-term execution tracking
+### Insights
 
----
-
-# Distributed Infrastructure
-
-### Enterprise Infrastructure
-
-* Redis-backed caching
-* Distributed queue system
-* Scheduler engine
-* Background automation cycles
-* Event-driven orchestration
-* Docker production infrastructure
-* CI/CD pipelines
+* High-Demand Skills
+* Emerging Technologies
+* Salary Indicators
+* Recruiter Demand Signals
+* Skill Premium Analysis
 
 ---
 
-# Architecture
+## AI Career Coach
 
-```text
-                        ┌──────────────────────┐
-                        │     Frontend UI      │
-                        │      Next.js 15      │
-                        └──────────┬───────────┘
-                                   │
-                                   ▼
-                    ┌────────────────────────────┐
-                    │        FastAPI API         │
-                    │    Distributed Backend     │
-                    └──────────┬─────────────────┘
-                               │
-     ┌─────────────────────────┼─────────────────────────┐
-     ▼                         ▼                         ▼
-┌──────────────┐      ┌────────────────┐      ┌─────────────────┐
-│ Intelligence │      │ Recruiter      │      │ Growth &        │
-│ Engines      │      │ Ecosystem      │      │ Automation      │
-└──────────────┘      └────────────────┘      └─────────────────┘
-     │                         │                         │
-     └─────────────────────────┼─────────────────────────┘
-                               ▼
-                  ┌────────────────────────────┐
-                  │ Distributed Infrastructure │
-                  │ PostgreSQL • Redis • Queue │
-                  │ Scheduler • Docker • CI/CD │
-                  └────────────────────────────┘
-```
+Interactive career guidance powered by large language models.
 
----
+### Use Cases
 
-# Platform Scale
-
-| System                  | Scale                       |
-| ----------------------- | --------------------------- |
-| Backend Service Modules | 27+                         |
-| API Endpoints           | 89+                         |
-| Database Tables         | 33+                         |
-| Frontend Pages          | 24+                         |
-| Intelligence Engines    | 19+                         |
-| Infrastructure Systems  | Redis + Queue + Scheduler   |
-| Ecosystem Layers        | Career + Recruiter + Growth |
-
----
-
-# Tech Stack
-
-# Frontend
-
-* Next.js 15
-* React
-* TypeScript
-* TailwindCSS
-* App Router
-* Context Architecture
-* Centralized Intelligence Client
-
----
-
-# Backend
-
-* FastAPI
-* SQLAlchemy
-* Pydantic v2
-* Async Python Architecture
-* Repository Pattern
-* Modular Service System
-
----
-
-# Infrastructure
-
-* PostgreSQL
-* SQLite (dev fallback)
-* Redis
-* Docker
-* GitHub Actions CI/CD
-* Distributed Queue System
-* Scheduler Engine
-
----
-
-# Intelligence Engines
-
-* Career Trajectory Engine
-* Market Intelligence Engine
-* Roadmap Mutation Engine
-* Execution Analysis Engine
-* Recruiter Intelligence Engine
-* Opportunity Matching Engine
-* Prioritization Engine
-* Strategic Planning Engine
-* Reputation Engine
-* Growth Systems
-* Automation Engine
-* Analytics Engine
+* Career Planning
+* Skill Recommendations
+* Learning Strategy Guidance
+* Project Suggestions
+* Resume Improvement
+* Interview Preparation
 
 ---
 
 # Product Screens
 
-> Add product screenshots or GIFs here.
+> Add screenshots after deployment.
 
 Recommended screenshots:
 
 * Landing Page
 * Dashboard
-* Workspace Copilot
-* Career Intelligence Dashboard
-* Recruiter Intelligence Dashboard
-* Opportunity System
-* Strategic Planning Dashboard
-* Growth Analytics
-* Recruiter Ecosystem
+* Resume Workspace
+* Roadmap View
+* Opportunity Matching
+* Market Intelligence
+* AI Coach
 
 Example:
 
@@ -307,18 +161,124 @@ Example:
 
 ---
 
-# Local Setup
+# Architecture
 
-# 1. Clone Repository
-
-```bash
-git clone <YOUR_REPOSITORY_URL>
-cd ResuMatch
+```text
+                         ┌──────────────────┐
+                         │     Frontend     │
+                         │     Next.js      │
+                         └────────┬─────────┘
+                                  │
+                                  ▼
+                     ┌────────────────────────┐
+                     │     FastAPI Backend    │
+                     └────────┬───────────────┘
+                              │
+         ┌────────────────────┼────────────────────┐
+         ▼                    ▼                    ▼
+   PostgreSQL             Redis Cache         OpenRouter
+         │                    │                    │
+         └────────────────────┴────────────────────┘
+                              │
+                              ▼
+                   Career Intelligence Layer
 ```
 
 ---
 
-# 2. Backend Setup
+# Tech Stack
+
+## Frontend
+
+* Next.js
+* React
+* TypeScript
+* Tailwind CSS
+
+## Backend
+
+* FastAPI
+* Python
+* SQLAlchemy Async
+* Pydantic
+
+## Database
+
+* PostgreSQL
+
+## Infrastructure
+
+* Docker
+* Redis
+
+## AI Layer
+
+* OpenRouter
+* NVIDIA Nemotron
+
+## Authentication
+
+* JWT Authentication
+* Google OAuth
+
+---
+
+# Engineering Highlights
+
+## Full Stack SaaS Architecture
+
+* Modern Next.js Frontend
+* FastAPI Backend
+* PostgreSQL Persistence
+* Redis Caching
+* Dockerized Infrastructure
+
+## Production-Oriented Backend
+
+* Async SQLAlchemy
+* Repository Pattern
+* Service Layer Architecture
+* Structured API Design
+* Error Recovery Flows
+
+## Authentication & Security
+
+* JWT Authentication
+* Google OAuth
+* Protected Routes
+* User Isolation
+* Ownership Validation
+
+## Resume Processing Pipeline
+
+* Upload Lifecycle Tracking
+* Resume Parsing
+* Profile Generation
+* Duplicate Protection
+* Validation & Recovery Logic
+
+---
+
+# Local Development
+
+## Clone Repository
+
+```bash
+git clone https://github.com/Strarist/Skillyn.git
+cd Skillyn
+```
+
+---
+
+## Start Infrastructure
+
+```bash
+docker compose up -d
+```
+
+---
+
+## Backend Setup
 
 ```bash
 cd backend
@@ -344,23 +304,13 @@ Install dependencies:
 pip install -r requirements.txt
 ```
 
-Create `.env`:
-
-```env
-DATABASE_URL=sqlite+aiosqlite:///./dev.db
-JWT_SECRET=your-secret-key
-GOOGLE_CLIENT_ID=your-google-client-id
-GOOGLE_CLIENT_SECRET=your-google-client-secret
-REDIS_URL=redis://localhost:6379
-```
-
 Run backend:
 
 ```bash
 uvicorn app.main:app --reload
 ```
 
-Backend runs on:
+Backend:
 
 ```text
 http://localhost:8000
@@ -368,26 +318,17 @@ http://localhost:8000
 
 ---
 
-# 3. Frontend Setup
+## Frontend Setup
 
 ```bash
 cd frontend
+
 npm install
-```
 
-Create `.env.local`:
-
-```env
-NEXT_PUBLIC_API_URL=http://localhost:8000
-```
-
-Run frontend:
-
-```bash
 npm run dev
 ```
 
-Frontend runs on:
+Frontend:
 
 ```text
 http://localhost:3000
@@ -395,75 +336,38 @@ http://localhost:3000
 
 ---
 
-# 4. Redis Setup (Optional but Recommended)
+# Environment Variables
 
-```bash
-docker compose up redis
+## Backend
+
+```env
+DATABASE_URL=postgresql+asyncpg://resumatch:resumatch_dev@localhost:5432/resumatch
+
+REDIS_URL=redis://localhost:6379
+
+OPENROUTER_API_KEY=your_api_key
 ```
 
----
+## Frontend
 
-# Docker Infrastructure
-
-Development:
-
-```bash
-docker compose up
+```env
+NEXT_PUBLIC_API_URL=http://localhost:8000
 ```
-
-Production:
-
-```bash
-docker compose -f docker-compose.prod.yml up
-```
-
----
-
-# Key Engineering Highlights
-
-# Distributed Systems
-
-* Redis-backed cache layer
-* Queue-driven processing
-* Event orchestration
-* Background automation cycles
-* Scheduled intelligence recomputation
-
----
-
-# Enterprise Reliability
-
-* Graceful degradation
-* Typed API infrastructure
-* Request deduplication
-* Health monitoring
-* Infrastructure abstraction
-* Deterministic orchestration
-
----
-
-# Recruiter-Grade Intelligence
-
-* Explainable candidate scoring
-* Hiring confidence system
-* Portfolio proof evaluation
-* Production-readiness analysis
-* Candidate comparison infrastructure
 
 ---
 
 # Project Structure
 
 ```text
-ResuMatch/
+Skillyn/
 │
 ├── backend/
 │   ├── app/
-│   ├── services/
-│   ├── infrastructure/
-│   ├── routers/
+│   ├── models/
 │   ├── repositories/
-│   └── models/
+│   ├── routers/
+│   ├── services/
+│   └── infrastructure/
 │
 ├── frontend/
 │   ├── src/
@@ -474,59 +378,37 @@ ResuMatch/
 │
 ├── docs/
 ├── docker-compose.yml
-├── docker-compose.prod.yml
-└── .github/workflows/
+├── .github/
+└── README.md
 ```
 
 ---
 
-# Development Philosophy
+# Current Focus
 
-ResuMatch is designed around:
+Current priorities include:
 
-* deterministic intelligence systems,
-* distributed infrastructure,
-* long-term strategic evolution,
-* recruiter-grade explainability,
-* and operational scalability.
-
-The goal is not to generate random AI outputs.
-
-The goal is to build:
-
-```text
-an autonomous career intelligence operating ecosystem
-```
+* Personalization Validation
+* Opportunity Authenticity
+* UX Refinement
+* Production Hardening
+* Responsive Optimization
+* Deployment Readiness
 
 ---
 
-# Production Readiness
+# Why This Project Exists
 
-The platform includes:
+Skillyn was built to explore and demonstrate:
 
-* distributed infrastructure,
-* Redis caching,
-* queue systems,
-* scheduler systems,
-* Docker production environments,
-* CI/CD workflows,
-* recruiter ecosystem architecture,
-* growth infrastructure,
-* and autonomous orchestration.
+* Full Stack Engineering
+* SaaS Product Architecture
+* AI-Assisted Applications
+* Cloud-Native Development
+* Production Backend Design
+* Career Intelligence Systems
 
----
-
-# Repository Goals
-
-This project demonstrates:
-
-* Distributed Systems Engineering
-* Full Stack Architecture
-* AI-Native Product Systems
-* Enterprise SaaS Infrastructure
-* Strategic Intelligence Systems
-* Recruiter Ecosystem Design
-* Career Intelligence Architecture
+The objective is to build software that solves real career growth problems while applying modern engineering practices.
 
 ---
 
@@ -536,13 +418,17 @@ This project demonstrates:
 
 B.Tech — Cloud Infrastructure & Services
 
-Focus Areas:
+### Focus Areas
 
+* Cloud Computing
+* Full Stack Development
+* DevOps
 * Distributed Systems
-* Full Stack Engineering
-* Cloud Infrastructure
-* AI-Native Product Systems
-* Scalable SaaS Architecture
+* AI-Powered Applications
+
+GitHub:
+
+https://github.com/Strarist
 
 ---
 
@@ -554,8 +440,8 @@ MIT License
 
 <div align="center">
 
-## ResuMatch
+### Skillyn
 
-### AI-Native Career Infrastructure for Strategic Professional Growth
+From Resume to Career Growth
 
 </div>
