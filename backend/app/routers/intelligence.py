@@ -70,6 +70,33 @@ async def recompute_intelligence(
 ):
     """Force full intelligence recomputation."""
     result = await run_intelligence_cycle(db, current_user.id)
+
+    from app.services.execution import compute_execution_profile
+    from app.services.roadmap_intel import RoadmapRepository
+    from app.services.workspace import WorkspaceRepository
+    from app.services.user_progress_service import track_score_update
+
+    roadmap_repo = RoadmapRepository(db)
+    workspace_repo = WorkspaceRepository(db)
+    roadmap = await roadmap_repo.get_active(current_user.id)
+    actions = await workspace_repo.get_actions(current_user.id)
+    execution = compute_execution_profile(
+        completed_nodes=(roadmap.completed_nodes or []) if roadmap else [],
+        deferred_nodes=(roadmap.deferred_nodes or []) if roadmap else [],
+        recommendation_actions=[{"action": a.action, "type": a.recommendation_type} for a in actions],
+        operational_events=[],
+        roadmap_version=roadmap.roadmap_version if roadmap else 0,
+        growth_velocity=result["summary"].get("competitiveness", 0),
+        last_upload_at=None,
+        last_activity_at=roadmap.updated_at.isoformat() if roadmap and roadmap.updated_at else None,
+    )
+    await track_score_update(
+        db,
+        current_user.id,
+        recruiter_score=execution.get("growth_velocity", 0.8) * 100,
+        market_readiness=result["summary"].get("competitiveness", 0.75) * 100,
+        specialization=result["summary"].get("dominant_path", "General Software Engineering"),
+    )
     await db.commit()
     return {
         "message": "Intelligence recomputed",
@@ -83,10 +110,30 @@ async def get_intelligence_profile(
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
+    """Deprecated legacy shape — prefer GET /v1/strategic/profile."""
+    from app.services.strategic_profile_service import get_profile_context
+
+    ctx = await get_profile_context(db, current_user.id)
+    if ctx["has_profile"] and ctx["profile"]:
+        profile = ctx["profile"]
+        return {
+            "user_id": str(current_user.id),
+            "source": "strategic_profile",
+            "inferred_seniority": ctx["seniority"],
+            "preferred_roles": [profile.target_role] if profile.target_role else [],
+            "preferred_domains": ctx["preferred_domains"],
+            "strongest_skill_clusters": ctx["skills"][:5],
+            "growth_velocity": ctx["growth_velocity"],
+            "resume_version_count": 1,
+            "confidence_snapshot": ctx["skill_confidences"],
+            "last_analysis_at": profile.updated_at,
+        }
+
     repo = IntelligenceRepository(db)
     profile = await repo.get_or_create_career_profile(current_user.id)
     return {
         "user_id": str(current_user.id),
+        "source": "legacy",
         "inferred_seniority": profile.inferred_seniority,
         "preferred_roles": profile.preferred_roles,
         "preferred_domains": profile.preferred_domains,
@@ -103,9 +150,30 @@ async def get_intelligence_skills(
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
+    """Deprecated legacy shape — prefer GET /v1/strategic/profile."""
+    from app.services.strategic_profile_service import get_profile_context
+
+    ctx = await get_profile_context(db, current_user.id)
+    if ctx["has_profile"]:
+        return {
+            "source": "strategic_profile",
+            "skills": [
+                {
+                    "skill": skill,
+                    "confidence": round(ctx["skill_confidences"].get(skill, 0.9), 3),
+                    "proficiency": 0.85,
+                    "occurrences": 1,
+                    "first_seen": None,
+                    "last_seen": None,
+                }
+                for skill in ctx["skills"]
+            ],
+        }
+
     repo = IntelligenceRepository(db)
     skills = await repo.get_user_skills(current_user.id)
     return {
+        "source": "legacy",
         "skills": [
             {
                 "skill": s.normalized_skill,
@@ -116,7 +184,7 @@ async def get_intelligence_skills(
                 "last_seen": s.last_seen_at,
             }
             for s in skills
-        ]
+        ],
     }
 
 

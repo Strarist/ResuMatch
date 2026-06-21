@@ -21,6 +21,10 @@ from .observability import router as observability_router
 from .resilience import router as resilience_router
 from .convergence import router as convergence_router
 
+from app.config import get_settings, Environment
+
+settings = get_settings()
+
 api_router = APIRouter()
 api_router.include_router(auth_router)
 api_router.include_router(resumes_router)
@@ -36,10 +40,12 @@ api_router.include_router(progress_router)
 api_router.include_router(strategic_router)
 api_router.include_router(portfolio_router)
 api_router.include_router(opportunities_router)
-api_router.include_router(prediction_router)
-api_router.include_router(explainability_v2_router)
-api_router.include_router(synthesis_router)
-api_router.include_router(observability_router)
-api_router.include_router(resilience_router)
-api_router.include_router(convergence_router)
 
+# Phase 9 research/sandbox APIs — excluded in production to reduce surface area
+if settings.env != Environment.production:
+    api_router.include_router(prediction_router)
+    api_router.include_router(explainability_v2_router)
+    api_router.include_router(synthesis_router)
+    api_router.include_router(observability_router)
+    api_router.include_router(resilience_router)
+    api_router.include_router(convergence_router)

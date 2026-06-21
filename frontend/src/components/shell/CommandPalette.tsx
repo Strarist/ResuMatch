@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { cn } from '@/lib/utils';
+import { isDevModeEnabled } from '@/lib/dev-mode';
 
 interface CommandItem {
   id: string;
@@ -21,13 +22,17 @@ export function CommandPalette() {
 
   const commands: CommandItem[] = [
     { id: 'nav-dashboard', label: 'Go to Dashboard', group: 'Navigation', action: () => router.push('/dashboard') },
-    { id: 'nav-analysis', label: 'Go to Analysis', group: 'Navigation', action: () => router.push('/analysis') },
     { id: 'nav-resumes', label: 'Go to Resumes', group: 'Navigation', action: () => router.push('/resumes') },
     { id: 'nav-cover', label: 'Go to Cover Letter', group: 'Navigation', action: () => router.push('/cover-letter') },
-    { id: 'nav-roadmap', label: 'Go to Roadmap', group: 'Navigation', action: () => router.push('/roadmap') },
+    { id: 'nav-roadmap', label: 'Go to Roadmap', group: 'Navigation', action: () => router.push('/roadmap-v2') },
     { id: 'nav-settings', label: 'Go to Settings', group: 'Navigation', action: () => router.push('/settings') },
     { id: 'action-upload', label: 'Upload Resume', group: 'Actions', action: () => router.push('/resumes?upload=true') },
-    { id: 'action-analyze', label: 'New Analysis', group: 'Actions', action: () => router.push('/analysis') },
+    ...(isDevModeEnabled()
+      ? [
+          { id: 'nav-analysis', label: 'Go to Analysis (Dev)', group: 'Dev', action: () => router.push('/analysis') },
+          { id: 'action-analyze', label: 'New Analysis (Dev)', group: 'Dev', action: () => router.push('/analysis') },
+        ]
+      : []),
   ];
 
   const filtered = query

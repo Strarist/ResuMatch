@@ -53,8 +53,48 @@ async def generate_copilot_response(
 
     opportunities = "None matches found yet."
     if profile and profile.opportunity_alignment:
-        opps_list = [f"{o['title']} @ {o['company']} ({int(o['alignmentScore']*100)}% match)" for o in profile.opportunity_alignment[:3]]
+        opps_list = []
+        for o in profile.opportunity_alignment[:3]:
+            score = o.get("alignment_score") or o.get("alignmentScore") or 0.8
+            company = o.get("company", "Company")
+            title = o.get("title", "Position")
+            opps_list.append(f"{title} @ {company} ({int(score * 100)}% match)")
         opportunities = "\n".join(opps_list)
+
+    # 2.5 Compute and format real-world Market Snapshot and Demand Graph
+    from app.services.market_intelligence import compute_market_intelligence
+
+    # Resolve skill confidences for accuracy
+    skills_list = profile.inferred_skills if profile else []
+    origins = {}
+    if profile and profile.trajectory_state:
+        origins = profile.trajectory_state.get("skill_origins", {}) or {}
+    confidences = {s: 0.90 if origins.get(s) == "resume" else 0.70 for s in skills_list}
+
+    market_snap = compute_market_intelligence(
+        user_skills=skills_list,
+        skill_confidences=confidences,
+        target_role=target_role,
+        seniority="senior" if user_id and len(skills_list) > 6 else "mid",
+        growth_velocity=0.85
+    )
+
+    salary_range = market_snap["salary_trajectory"]["estimated_range"]
+    market_snapshot_str = (
+        f"Base salary standard: ${salary_range['low']:,} - ${salary_range['high']:,}. "
+        f"Growth track potential: {market_snap['salary_trajectory']['growth_potential']}. "
+        f"Hiring urgency level: {market_snap['curated_domain']['recruiterUrgency']} urgency. "
+        f"Technical description: {market_snap['curated_domain']['description']}"
+    )
+
+    # Format recruiter demand graph into text
+    graph_parts = []
+    demand_graph = market_snap.get("demand_graph", {})
+    for skill, idx in list(demand_graph.items())[:6]:
+        graph_parts.append(
+            f"{skill} (Demand: {int(idx['demand_score']*100)}%, Scarcity: {int(idx['scarcity_score']*100)}%, Scored Growth: {int(idx['growth_score']*100)}%)"
+        )
+    demand_graph_str = ", ".join(graph_parts) if graph_parts else "No active demand indexes registered."
 
     # 3. Construct Strategy system prompt
     system_prompt = COPILOT_STRATEGY_SYSTEM.format(
@@ -62,7 +102,9 @@ async def generate_copilot_response(
         specialization=specialization,
         validated_skills=validated_skills,
         gaps=gaps,
-        opportunities=opportunities
+        opportunities=opportunities,
+        market_snapshot=market_snapshot_str,
+        demand_graph=demand_graph_str
     )
 
     # 4. Fetch session history to provide complete memory context
@@ -82,15 +124,17 @@ async def generate_copilot_response(
     messages_payload.append({"role": "user", "content": user_message})
 
     logger.info(f"Invoking OpenRouter chat completions for session: {session_id}")
+    from app.services.copilot.refinement.response_compressor import compress_copilot_response
     try:
         response = await llm_service.generate(
             messages=messages_payload,
             temperature=0.3
         )
-        return response
+        return compress_copilot_response(response)
     except Exception as e:
         logger.error(f"OpenRouter copilot chat failed: {e}. Executing legacy pattern backup.")
-        return _fallback_deterministic_response(user_message, summary, recommendations)
+        fallback = _fallback_deterministic_response(user_message, summary, recommendations)
+        return compress_copilot_response(fallback)
 
 def _fallback_deterministic_response(msg_text: str, s: dict, recs: list[dict]) -> str:
     path = s.get("dominant_path", "Software Engineering")
@@ -102,4 +146,3 @@ def _fallback_deterministic_response(msg_text: str, s: dict, recs: list[dict]) -
         f"• **Next Step**: Make sure your latest resume is uploaded to your profile so I can outline specific technical project proofs to write.\n\n"
         f"Once our connection is refreshed, I can provide custom GitHub portfolio project outlines (like building database benchmarks or Redis-backed messaging systems) to demonstrate your skills directly to hiring managers."
     )
-

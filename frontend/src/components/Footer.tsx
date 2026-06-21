@@ -14,7 +14,7 @@ export default function Footer() {
           <div className="space-y-4">
             <div className="flex items-center gap-2">
               <Cpu size={18} className="text-slate-400" />
-              <span className="text-[12px] font-extrabold tracking-widest text-slate-300 uppercase">ResuMatch Engine</span>
+              <span className="text-[12px] font-extrabold tracking-widest text-slate-300 uppercase">Skillyn Engine</span>
             </div>
             <p className="text-[11px] leading-relaxed text-slate-500 font-medium max-w-xs">
               Strategic career optimization platform and operational intelligence tool for advanced software engineers.
@@ -73,7 +73,7 @@ export default function Footer() {
 
         <div className="mt-12 pt-6 border-t border-slate-800 flex flex-col md:flex-row items-center justify-between gap-4">
           <div className="text-[10px] font-bold tracking-widest text-slate-600 uppercase">
-            © {new Date().getFullYear()} RESUMATCH SYSTEMS
+            © {new Date().getFullYear()} SKILLYN SYSTEMS
           </div>
           <div className="text-[10px] font-mono text-slate-700">
             v10.3.0-STABLE

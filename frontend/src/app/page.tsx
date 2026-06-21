@@ -5,12 +5,12 @@ import {
   HeroV2,
   TrustMetrics,
   LogoStrip,
+  ProblemSolutionSection,
   FeaturesSection,
-  MetricsV2Section,
-  EcosystemSection,
-  CapabilitiesMatrix,
+  HowItWorksSection,
+  PricingSection,
+  FAQSection,
   Testimonials,
-  IntelligenceEngine,
   CTAv2Section,
   FooterV3,
 } from '@/components/landing';
@@ -24,12 +24,12 @@ export default function Home() {
       <HeroV2 />
       <TrustMetrics />
       <LogoStrip />
+      <ProblemSolutionSection />
       <FeaturesSection />
-      <MetricsV2Section />
-      <EcosystemSection />
-      <CapabilitiesMatrix />
+      <HowItWorksSection />
+      <PricingSection />
+      <FAQSection />
       <Testimonials />
-      <IntelligenceEngine />
       <CTAv2Section />
       <FooterV3 />
     </>

@@ -8,7 +8,7 @@ from app.core.dependencies import get_db
 from app.core.dependencies import get_current_user
 from app.models.user import User
 from app.services.workspace import WorkspaceRepository, generate_copilot_response
-from app.services.intelligence.orchestrator import run_intelligence_cycle
+from app.services.intelligence.orchestrator import get_intelligence_summary_readonly
 
 router = APIRouter(prefix="/v1/workspace", tags=["Workspace"])
 
@@ -70,8 +70,8 @@ async def send_message(session_id: str, body: SendMessageRequest, current_user: 
     # Save user message
     await repo.add_message(session_id, "user", body.content)
 
-    # Get intelligence context
-    intel = await run_intelligence_cycle(db, current_user.id)
+    # Read persisted intelligence context (no full recompute on each message)
+    intel = await get_intelligence_summary_readonly(db, current_user.id)
     summary = intel["summary"]
     recommendations = intel["recommendations"]
 

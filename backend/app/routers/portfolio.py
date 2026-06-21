@@ -10,10 +10,11 @@ from app.core.dependencies import get_current_user
 from app.models.user import User
 from app.services.portfolio.proof_engine import ProjectEvidence, score_project, compute_portfolio_maturity
 from app.services.portfolio.recruiter_engine import compute_recruiter_profile
-from app.services.intelligence.orchestrator import run_intelligence_cycle
+from app.services.intelligence.orchestrator import get_intelligence_summary_readonly
 from app.services.execution import compute_execution_profile
 from app.services.roadmap_intel import RoadmapRepository
 from app.services.workspace import WorkspaceRepository
+from app.services.cache import cache_get, cache_set
 
 router = APIRouter(prefix="/v1/portfolio", tags=["Portfolio"])
 
@@ -44,6 +45,8 @@ async def add_project(body: AddProjectRequest, current_user: User = Depends(get_
     )
     db.add(project)
     await db.commit()
+    from app.services.cache import cache_invalidate
+    await cache_invalidate(f"portfolio:recruiter:{current_user.id}")
     return {"id": project.id, "production_readiness": scores["production_readiness_score"], "signal_strength": scores["recruiter_signal_strength"]}
 
 
@@ -63,11 +66,15 @@ async def get_portfolio_maturity(current_user: User = Depends(get_current_user),
 
 @router.get("/recruiter-profile")
 async def get_recruiter_profile(current_user: User = Depends(get_current_user), db: AsyncSession = Depends(get_db)):
-    intel = await run_intelligence_cycle(db, current_user.id)
+    cache_key = f"portfolio:recruiter:{current_user.id}"
+    cached = await cache_get(cache_key)
+    if cached:
+        return cached
+
+    intel = await get_intelligence_summary_readonly(db, current_user.id)
     trajectory = intel["trajectory"]
     market = intel["market"]
 
-    # Execution profile
     roadmap_repo = RoadmapRepository(db)
     workspace_repo = WorkspaceRepository(db)
     roadmap = await roadmap_repo.get_active(current_user.id)
@@ -81,12 +88,18 @@ async def get_recruiter_profile(current_user: User = Depends(get_current_user), 
         last_upload_at=None, last_activity_at=None,
     )
 
-    # Portfolio projects
     result = await db.execute(select(ProjectEvidence).where(ProjectEvidence.user_id == current_user.id))
     projects = [_project_to_dict(p) for p in result.scalars().all()]
 
     user_skills = list(trajectory.get("specializations", {}).keys())
-    profile = compute_recruiter_profile(trajectory=trajectory, execution_profile=execution, portfolio_projects=projects, market=market, user_skills=user_skills)
+    profile = compute_recruiter_profile(
+        trajectory=trajectory,
+        execution_profile=execution,
+        portfolio_projects=projects,
+        market=market,
+        user_skills=user_skills,
+    )
+    await cache_set(cache_key, profile, "short")
     return profile
 
 

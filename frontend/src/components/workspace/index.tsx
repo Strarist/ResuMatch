@@ -1,6 +1,8 @@
 'use client';
 
 import { motion } from 'framer-motion';
+import { Panel } from '@/components/ds/primitives';
+import { Button } from '@/components/ui/button';
 import { type ReactNode, useState, useEffect, useRef } from 'react';
 import { useLivingSystem } from '@/context/LivingSystemContext';
 import { Play } from 'lucide-react';
@@ -201,12 +203,12 @@ export function EmptyState({ icon: Icon, title, description }: { icon: React.Com
         <div className="w-full text-left font-mono text-[10px] text-white/20 bg-black/40 rounded-lg p-4 border border-white/[0.04] mb-6 space-y-1">
           <div className="flex items-center gap-1.5 text-blue-400/60">
             <span className="w-1.5 h-1.5 rounded-full bg-blue-400 animate-pulse" />
-            <span>SYSTEM_STATUS: SECURE_STANDBY</span>
+            <span>STATUS: Awaiting Upload</span>
           </div>
-          <div>CORE_ORCHESTRATOR: ONLINE</div>
-          <div>AWAITING PROFILE HYDRATION...</div>
-          <div className="text-white/10 mt-2">{"// Telemetry endpoints listening."}</div>
-          <div className="text-white/10">{"// Deploy resume to activate full-stack career pipeline."}</div>
+          <div>SKILLYN ENGINE: STANDBY</div>
+          <div>AWAITING RESUME UPLOAD...</div>
+          <div className="text-white/10 mt-2">{"// Ready to parse your profile."}</div>
+          <div className="text-white/10">{"// Upload your resume to view matching jobs and learning goals."}</div>
         </div>
 
         {/* Simulation Sandbox Button */}
@@ -215,7 +217,7 @@ export function EmptyState({ icon: Icon, title, description }: { icon: React.Com
           className="group relative flex items-center gap-2 px-5 py-2.5 rounded-lg border border-blue-400/20 bg-blue-500/[0.06] text-[11px] font-semibold text-blue-300 tracking-wider uppercase hover:border-blue-400/50 hover:bg-blue-500/[0.12] active:scale-95 transition-all duration-200"
         >
           <Play size={11} className="text-blue-300 group-hover:translate-x-0.5 transition-transform" />
-          Activate Simulated Telemetry
+          Explore Sandbox / Sample Profile
         </button>
       </div>
     </div>
@@ -233,3 +235,4 @@ export function LoadingPulse({ rows = 3 }: { rows?: number }) {
     </div>
   );
 }
+export { Panel, Button };

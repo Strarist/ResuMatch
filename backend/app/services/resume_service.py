@@ -22,7 +22,31 @@ class ResumeService:
     async def upload(self, *, file_bytes: bytes, filename: str, content_type: str,
                      user_id: str) -> Resume:
         """Validate, sanitize, store PDF. Returns the created Resume."""
+        from app.logger import logger
+        logger.bind(
+            user_id=user_id,
+            filename=filename,
+            event="upload_started",
+            severity="info"
+        ).info(f"upload_started: Upload started for file {filename}")
+
         self._validate_pdf(file_bytes, content_type)
+
+        # Check for duplicates by filename
+        from sqlalchemy import select
+        existing = await self.resume_repo.db.execute(
+            select(Resume).where(Resume.user_id == user_id, Resume.filename == filename)
+        )
+        existing_resumes = existing.scalars().all()
+        for r in existing_resumes:
+            old_path = os.path.join(self._settings.upload_dir, f"{r.id}_{r.filename}")
+            if os.path.exists(old_path):
+                try:
+                    os.remove(old_path)
+                except Exception:
+                    pass
+            await self.resume_repo.db.delete(r)
+        await self.resume_repo.db.flush()
 
         # Create DB record first (model generates UUID)
         resume = await self.resume_repo.create(filename=filename, user_id=user_id)
@@ -35,9 +59,22 @@ class ResumeService:
         with open(file_path, "wb") as f:
             f.write(file_bytes)
 
+        logger.bind(
+            user_id=user_id,
+            filename=filename,
+            event="upload_saved",
+            severity="info"
+        ).info(f"upload_saved: Saved uploaded file to {file_path}")
+
         try:
             if not sanitize_pdf(file_path, file_path):
                 raise ExternalServiceError("PDF sanitization failed")
+            logger.bind(
+                user_id=user_id,
+                filename=filename,
+                event="pdf_sanitized",
+                severity="info"
+            ).info(f"pdf_sanitized: Sanitized PDF file at {file_path}")
         except ExternalServiceError:
             raise
         except Exception:
@@ -82,16 +119,76 @@ class ResumeService:
             pdf_str = str(pdf)
             if "/JavaScript" in pdf_str or "/JS" in pdf_str:
                 raise ValidationError("PDF contains JavaScript")
+
+            # --- Resume Classification & Validation ---
+            text_lower = text.lower()
+
+            has_experience = any(kw in text_lower for kw in [
+                "experience", "work history", "employment", "positions",
+                "job history", "professional background", "internship", "employment history"
+            ])
+            has_education = any(kw in text_lower for kw in [
+                "education", "university", "college", "degree", "academic",
+                "school", "gpa", "bachelor", "master", "phd", "graduated"
+            ])
+            has_skills = any(kw in text_lower for kw in [
+                "skills", "technologies", "expertise", "languages",
+                "technical skills", "core competencies", "tools", "frameworks"
+            ])
+
+            import re
+            has_contact = (
+                "@" in text_lower or
+                any(kw in text_lower for kw in ["phone", "contact", "email", "address", "linkedin", "github", "cell", "mobile"]) or
+                re.search(r'\b\d{3}[-.]?\d{3}[-.]?\d{4}\b', text_lower) is not None
+            )
+
+            # Identify what elements are missing
+            missing = []
+            if not has_experience: missing.append("Experience")
+            if not has_education: missing.append("Education")
+            if not has_skills: missing.append("Skills")
+            if not has_contact: missing.append("Contact Information")
+
+            # Detect rejected document patterns
+            is_rejected_type = False
+
+            # A blank PDF or one with virtually no text is not a resume
+            if len(text.strip()) < 80:
+                is_rejected_type = True
+            # Check for invoices or bank statements
+            elif any(kw in text_lower for kw in ["invoice date", "amount due", "total due", "billing address", "bank statement", "account balance", "transaction history", "payment due"]):
+                is_rejected_type = True
+            # Check for research papers or college assignments
+            elif any(kw in text_lower for kw in ["abstract", "introduction", "methodology", "conclusion", "references", "table of contents"]) and not (has_experience and has_skills):
+                is_rejected_type = True
+
+            if len(missing) >= 2 or is_rejected_type:
+                raise ValidationError(
+                    "This document does not appear to be a resume.\n\n"
+                    "Please upload a resume containing:\n"
+                    "• Experience\n"
+                    "• Education\n"
+                    "• Skills\n"
+                    "• Contact Information"
+                )
+
         except ValidationError:
             raise
         except Exception as e:
             raise ValidationError(f"PDF parsing failed: {e}")
 
 
+
     async def parse(self, resume_id: str, user_id: str) -> None:
         """Run parsing pipeline on an uploaded resume. Updates resume with extracted data."""
-        import logging
-        logger = logging.getLogger(__name__)
+        from app.logger import logger
+        logger.bind(
+            user_id=user_id,
+            resume_id=resume_id,
+            event="parse_started",
+            severity="info"
+        ).info(f"parse_started: Parsing started for resume {resume_id}")
 
         resume = await self.resume_repo.get_by_id(resume_id, user_id)
         if not resume:
@@ -99,25 +196,89 @@ class ResumeService:
 
         file_path = os.path.join(self._settings.upload_dir, f"{resume.id}_{resume.filename}")
         if not os.path.exists(file_path):
+            logger.bind(
+                user_id=user_id,
+                resume_id=resume_id,
+                event="parsing_failure",
+                severity="error"
+            ).error(f"Resume file not found at {file_path}")
             return
 
         try:
             from app.services.resume_pipeline.profile_builder import build_and_persist_strategic_profile
             # Build and persist the robust strategic profile
-            profile = await build_and_persist_strategic_profile(self.resume_repo.db, user_id, file_path)
+            profile, raw_entities = await build_and_persist_strategic_profile(self.resume_repo.db, user_id, file_path, resume.id)
 
             resume.raw_text = "\n".join(profile.inferred_skills)
             resume.skills = profile.inferred_skills
-            resume.parsed_data = {
-                "skills": profile.inferred_skills,
-                "education": [],
-                "experience": [],
-                "metadata": {"name": ""}
-            }
+            resume.parsed_data = raw_entities
             resume.parse_status = "completed"
             await self.resume_repo.db.flush()
 
+            # Warm response caches from persisted profile (skip heavy recompute)
+            from app.services.cache import cache_set, cache_invalidate
+            if profile.opportunity_alignment:
+                await cache_set(
+                    f"opportunities:matches:{user_id}",
+                    {"matches": profile.opportunity_alignment},
+                    "medium",
+                )
+            await cache_invalidate(f"opportunities:gaps:{user_id}")
+            await cache_invalidate(f"opportunities:radar:{user_id}")
+            await cache_invalidate(f"market_intelligence:snapshot:{user_id}")
+            await cache_invalidate(f"strategic:focus:{user_id}")
+
+            logger.bind(
+                user_id=user_id,
+                resume_id=resume_id,
+                event="parsing_success",
+                severity="info"
+            ).info(f"Parsing successful for resume {resume_id}")
+
         except Exception as e:
-            logger.error(f"Resume parsing failed for {resume_id}: {e}")
+            logger.bind(
+                user_id=user_id,
+                resume_id=resume_id,
+                event="parsing_failure",
+                severity="error"
+            ).exception(f"Resume parsing failed for {resume_id}: {e}")
             resume.parse_status = "failed"
             await self.resume_repo.db.flush()
+            raise e
+
+    async def replace(self, *, resume_id: str, file_bytes: bytes, filename: str, content_type: str,
+                      user_id: str) -> Resume:
+        """Replace an existing resume's physical file and update metadata."""
+        resume = await self.get(resume_id, user_id)
+
+        self._validate_pdf(file_bytes, content_type)
+
+        # Delete old file
+        old_path = os.path.join(self._settings.upload_dir, f"{resume.id}_{resume.filename}")
+        if os.path.exists(old_path):
+            try:
+                os.remove(old_path)
+            except Exception:
+                pass
+
+        # Update resume record
+        from datetime import datetime, timezone
+        resume.filename = filename
+        resume.uploaded_at = datetime.now(timezone.utc)
+        resume.parse_status = "pending"
+
+        # Save new file
+        file_path = os.path.join(self._settings.upload_dir, f"{resume.id}_{filename}")
+        with open(file_path, "wb") as f:
+            f.write(file_bytes)
+
+        try:
+            if not sanitize_pdf(file_path, file_path):
+                from app.exceptions import ExternalServiceError
+                raise ExternalServiceError("PDF sanitization failed")
+        except Exception:
+            from app.exceptions import ExternalServiceError
+            raise ExternalServiceError("PDF sanitization failed")
+
+        await self.resume_repo.db.flush()
+        return resume

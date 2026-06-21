@@ -1,7 +1,7 @@
 "use client";
 import React, { createContext, useContext, useEffect, useState, ReactNode, useCallback, useMemo } from "react";
 import * as auth from "./auth";
-import { apiClient, LoginRequest } from "./api";
+import { apiClient, LoginRequest, ApiError } from "./api";
 import { useRouter } from "next/navigation";
 
 export enum AuthRuntimeState {
@@ -36,6 +36,16 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     async function checkAuth() {
       try {
+        const token = auth.getToken();
+        if (!token || auth.isTokenExpired()) {
+          if (token && auth.isTokenExpired()) {
+            auth.logout();
+          }
+          setUser(null);
+          setRuntimeState(AuthRuntimeState.ANONYMOUS);
+          return;
+        }
+
         const response = await apiClient.getProfile();
         if (response.offline) {
           setUser(null);
@@ -57,8 +67,16 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           setUser(null);
           setRuntimeState(AuthRuntimeState.ANONYMOUS);
         }
-      } catch {
-        // Unexpected errors (not 401 which are handled silently in api.ts)
+      } catch (error: unknown) {
+        // Suppress console logging for expected anonymous guest state (401)
+        if (error instanceof ApiError && error.status === 401) {
+          setUser(null);
+          setRuntimeState(AuthRuntimeState.ANONYMOUS);
+          return;
+        }
+
+        // Unexpected network or application errors should still be logged for diagnostics
+        console.error("Unexpected authentication initialization error:", error);
         setUser(null);
         setRuntimeState(AuthRuntimeState.ANONYMOUS);
       }
@@ -102,6 +120,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const refreshUser = useCallback(async () => {
     try {
+      const token = auth.getToken();
+      if (!token || auth.isTokenExpired()) return;
       const response = await apiClient.getProfile();
       if (response.user) {
         setUser((prev) => prev ? { ...prev, name: response.user!.name, profile_img: response.user!.profile_img } : null);

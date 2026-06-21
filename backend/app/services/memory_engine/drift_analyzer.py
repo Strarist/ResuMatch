@@ -37,22 +37,51 @@ class DriftAnalyzer:
         """Yields SSE formatted intelligence events continuously."""
         from app.services.agents.orchestrator.coordinator import OrchestratorCoordinator
         from app.services.runtime.compression.payload_minimizer import normalize_runtime_payload
+        from app.infrastructure.redis import get_redis
+
         coord = OrchestratorCoordinator.get_instance()
         asyncio.create_task(coord.start_orchestration_loop())
 
         # Wait a bit for orchestrator to have a cycle
         await asyncio.sleep(1)
 
-        while True:
-            # Yield initial state
-            init_data = await self._get_expanded_payload({"type": "init", "data": self._get_current_metrics()})
-            init_data = normalize_runtime_payload(init_data)
-            yield f"event: init\ndata: {json.dumps(init_data)}\n\n"
+        # Yield initial state
+        init_data = await self._get_expanded_payload({"type": "init", "data": self._get_current_metrics()})
+        init_data = normalize_runtime_payload(init_data)
+        yield f"event: init\ndata: {json.dumps(init_data)}\n\n"
 
+        # Setup Redis Pub/Sub if available
+        redis_client = await get_redis()
+        pubsub = None
+        if redis_client:
+            try:
+                pubsub = redis_client.pubsub()
+                await pubsub.subscribe("resumatch:bus:orchestration_cycle")
+            except Exception as e:
+                pubsub = None
+
+        try:
             while True:
+                # If Redis is active, poll for coordinated events
+                if pubsub:
+                    try:
+                        msg = await pubsub.get_message(ignore_subscribe_messages=True, timeout=1.0)
+                        if msg and msg.get("data"):
+                            event_data = json.loads(msg["data"])
+                            data_obj = await self._get_expanded_payload({
+                                "type": "orchestration_cycle",
+                                "cycle": event_data,
+                                "metrics": self._get_current_metrics()
+                            })
+                            data_obj = normalize_runtime_payload(data_obj)
+                            yield f"event: update\ndata: {json.dumps(data_obj)}\n\n"
+                            continue
+                    except Exception:
+                        pass
+
+                # Fallback to local micro-drifts and ticks
                 await asyncio.sleep(random.uniform(4.0, 8.0))
 
-                # Compute random drift
                 drift_type = random.choice(["metrics_tick", "mutation"])
 
                 if drift_type == "metrics_tick":
@@ -81,6 +110,12 @@ class DriftAnalyzer:
                     data_obj = await self._get_expanded_payload({"type": "mutation", "mutation": mutation, "metrics": self._get_current_metrics()})
                     data_obj = normalize_runtime_payload(data_obj)
                     yield f"event: update\ndata: {json.dumps(data_obj)}\n\n"
+        finally:
+            if pubsub:
+                try:
+                    await pubsub.unsubscribe("resumatch:bus:orchestration_cycle")
+                except Exception:
+                    pass
 
     def _get_current_metrics(self):
         return {

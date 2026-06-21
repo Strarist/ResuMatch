@@ -16,7 +16,7 @@ logger.remove()
 
 
 def json_formatter(record):
-    return json.dumps({
+    serialized = json.dumps({
         "timestamp": record["time"].isoformat(),
         "level": record["level"].name,
         "message": record["message"],
@@ -24,6 +24,7 @@ def json_formatter(record):
         "function": record["function"],
         "line": record["line"],
     })
+    return serialized.replace("{", "{{").replace("}", "}}").replace("<", "\\<") + "\n"
 
 
 logger.add(

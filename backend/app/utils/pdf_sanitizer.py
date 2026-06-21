@@ -1,18 +1,22 @@
 import pikepdf
 import logging
 import time
+import os
+import tempfile
 from typing import Optional
 from app.logger import logger
 
 def sanitize_pdf(input_path: str, output_path: Optional[str] = None, user_id: Optional[str] = None, session_hash: Optional[str] = None) -> bool:
     """
     Deep-sanitize a PDF: remove JavaScript, embedded files, annotations, and actions.
-    Overwrites the input file unless output_path is specified.
+    Never overwrites the original input file directly.
+    Creates a temporary sanitized file and atomically replaces the target file upon success.
     Returns True if successful, False otherwise.
     Logs all actions for observability and audit.
     """
-    output_path = output_path or input_path
+    target_path = output_path or input_path
     start_time = time.time()
+
     # Base logging context without the mutable status field
     base_log_context = {
         "user_id": user_id,
@@ -20,8 +24,19 @@ def sanitize_pdf(input_path: str, output_path: Optional[str] = None, user_id: Op
         "filename": input_path,
         "timestamp": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
     }
+
     # Log start of sanitization
     logger.bind(**base_log_context, severity="info").info("Sanitization started")
+
+    # Determine directory for temporary file to allow atomic replacement
+    out_dir = os.path.dirname(target_path) or "."
+    temp_fd, temp_path = tempfile.mkstemp(suffix=".tmp", dir=out_dir)
+    os.close(temp_fd)
+    try:
+        os.remove(temp_path)
+    except Exception:
+        pass
+
     try:
         with pikepdf.open(input_path) as pdf:
             # Remove JavaScript
@@ -46,7 +61,11 @@ def sanitize_pdf(input_path: str, output_path: Optional[str] = None, user_id: Op
             for action_key in ["/OpenAction", "/AA", "/JS", "/JavaScript", "/EmbeddedFiles"]:
                 if action_key in pdf.Root:
                     del pdf.Root[action_key]
-            pdf.save(output_path)
+            pdf.save(temp_path)
+
+        # Atomically replace target file after successful save and close
+        os.replace(temp_path, target_path)
+
         duration = time.time() - start_time
         # Log successful completion
         logger.bind(
@@ -58,6 +77,12 @@ def sanitize_pdf(input_path: str, output_path: Optional[str] = None, user_id: Op
         return True
     except Exception as e:
         duration = time.time() - start_time
+        # Clean up temporary file if it was created
+        if os.path.exists(temp_path):
+            try:
+                os.remove(temp_path)
+            except Exception:
+                pass
         # Log failure with error details
         logger.bind(
             **base_log_context,

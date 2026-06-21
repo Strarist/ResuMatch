@@ -24,5 +24,16 @@ class EventBus:
             for queue in self.subscribers[topic]:
                 await queue.put(event)
 
+        # Publish to Redis channel for multi-worker synchronization
+        from app.infrastructure.redis import get_redis
+        redis_client = await get_redis()
+        if redis_client:
+            try:
+                import json
+                await redis_client.publish(f"resumatch:bus:{topic}", json.dumps(event))
+            except Exception as e:
+                import logging
+                logging.getLogger(__name__).warning(f"Failed to publish event to Redis: {e}")
+
 # Global runtime bus
 runtime_bus = EventBus()

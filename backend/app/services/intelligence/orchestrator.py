@@ -11,7 +11,7 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.strategic_profile import StrategicProfile
-from app.services.intelligence.intelligence_repository import IntelligenceRepository
+from app.services.strategic_profile_service import get_profile_context, load_intelligence_inputs
 from app.services.trajectory import compute_trajectory, TrajectoryRepository, TrajectoryEvent
 from app.services.roadmap_intel import mutate_existing_roadmap, RoadmapRepository
 from app.services.market_intelligence import compute_market_intelligence
@@ -20,17 +20,13 @@ from app.services.intelligence.orchestrator_recommendations import generate_reco
 
 async def run_intelligence_cycle(db: AsyncSession, user_id: str, target_skills: list[str] | None = None) -> dict:
     """Execute full intelligence cycle. Returns unified summary."""
-    intel_repo = IntelligenceRepository(db)
+    inputs = await load_intelligence_inputs(db, user_id)
     traj_repo = TrajectoryRepository(db)
     roadmap_repo = RoadmapRepository(db)
-
-    # 1. Gather current state
-    skills_db = await intel_repo.get_user_skills(user_id)
-    profile = await intel_repo.get_or_create_career_profile(user_id)
     roadmap = await roadmap_repo.get_active(user_id)
 
-    user_skills = [s.normalized_skill for s in skills_db]
-    confidences = {s.normalized_skill: s.confidence_score for s in skills_db}
+    user_skills = inputs["skills"]
+    confidences = inputs["skill_confidences"]
     completed = (roadmap.completed_nodes or []) if roadmap else []
     deferred = (roadmap.deferred_nodes or []) if roadmap else []
     effective_target = target_skills or []
@@ -47,7 +43,7 @@ async def run_intelligence_cycle(db: AsyncSession, user_id: str, target_skills: 
         skill_confidences=confidences,
         completed_nodes=completed,
         deferred_nodes=deferred,
-        growth_velocity=profile.growth_velocity or 0.0,
+        growth_velocity=inputs["growth_velocity"],
         previous_dominant=prev_dominant,
     )
 
@@ -78,9 +74,9 @@ async def run_intelligence_cycle(db: AsyncSession, user_id: str, target_skills: 
     market = compute_market_intelligence(
         user_skills=user_skills,
         skill_confidences=confidences,
-        target_role=roadmap.target_role if roadmap else trajectory["dominant_path"],
-        seniority=profile.inferred_seniority or "mid",
-        growth_velocity=profile.growth_velocity or 0.0,
+        target_role=inputs["target_role"] or (roadmap.target_role if roadmap else trajectory["dominant_path"]),
+        seniority=inputs["seniority"],
+        growth_velocity=inputs["growth_velocity"],
     )
 
     # 5. Strategic recommendations
@@ -114,7 +110,7 @@ async def run_intelligence_cycle(db: AsyncSession, user_id: str, target_skills: 
     profile_result = await db.execute(
         select(StrategicProfile).where(StrategicProfile.user_id == user_id)
     )
-    profile = profile_result.scalar_one_or_none()
+    strategic_profile = profile_result.scalar_one_or_none()
 
     market_alignment = float(market["recruiter_attractiveness"]["overall_score"] * 100)
 
@@ -139,20 +135,22 @@ async def run_intelligence_cycle(db: AsyncSession, user_id: str, target_skills: 
         ]
     }
 
-    if profile:
-        profile.inferred_skills = user_skills
-        profile.active_specialization = trajectory["dominant_path"]
-        profile.target_role = roadmap.target_role if roadmap else trajectory["dominant_path"]
-        profile.market_alignment = market_alignment
-        profile.trajectory_state = trajectory
-        profile.recruiter_signals = recruiter_signals
-        profile.updated_at = datetime.now(timezone.utc)
+    target_role = inputs["target_role"] or (roadmap.target_role if roadmap else trajectory["dominant_path"])
+
+    if strategic_profile:
+        strategic_profile.inferred_skills = user_skills
+        strategic_profile.active_specialization = inputs["specialization"] or trajectory["dominant_path"]
+        strategic_profile.target_role = target_role
+        strategic_profile.market_alignment = market_alignment
+        strategic_profile.trajectory_state = trajectory
+        strategic_profile.recruiter_signals = recruiter_signals
+        strategic_profile.updated_at = datetime.now(timezone.utc)
     else:
-        profile = StrategicProfile(
+        strategic_profile = StrategicProfile(
             user_id=user_id,
             inferred_skills=user_skills,
-            active_specialization=trajectory["dominant_path"],
-            target_role=roadmap.target_role if roadmap else trajectory["dominant_path"],
+            active_specialization=inputs["specialization"] or trajectory["dominant_path"],
+            target_role=target_role,
             roadmap_progress={"completedPercent": 0, "completedCount": 0, "totalCount": len(completed) + len(deferred)},
             opportunity_alignment=[],
             market_alignment=market_alignment,
@@ -161,7 +159,7 @@ async def run_intelligence_cycle(db: AsyncSession, user_id: str, target_skills: 
             calibration_history=[{"timestamp": datetime.now(timezone.utc).isoformat(), "event": "Recomputed intelligence."}],
             recruiter_signals=recruiter_signals
         )
-        db.add(profile)
+        db.add(strategic_profile)
     await db.flush()
 
     return {
@@ -176,48 +174,47 @@ async def get_intelligence_summary_readonly(db: AsyncSession, user_id: str) -> d
     """Read-only variant of intelligence cycle for GET endpoints.
     Fetches latest persisted state without mutations or recomputation.
     """
-    # Fetch strategic profile from persistent database store if present
-    profile_result = await db.execute(
-        select(StrategicProfile).where(StrategicProfile.user_id == user_id)
-    )
-    profile = profile_result.scalar_one_or_none()
+    ctx = await get_profile_context(db, user_id)
 
-    if profile:
+    if ctx["has_profile"] and ctx["profile"]:
+        strategic_profile = ctx["profile"]
+        roadmap_repo = RoadmapRepository(db)
+        roadmap = await roadmap_repo.get_active(user_id)
+        roadmap_progress = ctx["roadmap_progress"]
+        focus_areas = (roadmap.active_focus_areas if roadmap else []) or []
+        trajectory_state = ctx["trajectory_state"] or {}
         summary = {
-            "dominant_path": profile.trajectory_state.get("dominant_path", "Generalist"),
-            "secondary_paths": profile.trajectory_state.get("secondary_paths", []),
-            "competitiveness": profile.trajectory_state.get("competitiveness_score", 0.0),
-            "confidence": profile.trajectory_state.get("confidence", 0.85),
-            "specializations": profile.trajectory_state.get("specializations", {}),
-            "market_alignment": profile.market_alignment / 100.0,
-            "salary_range": profile.recruiter_signals.get("salary_range", "$140k - $170k"),
-            "growth_potential": "high" if profile.market_alignment > 80.0 else "moderate",
-            "roadmap_momentum": profile.roadmap_progress.get("completedCount", 0),
-            "focus_areas": profile.roadmap_progress.get("totalCount", 0),
-            "adjacent_roles": profile.trajectory_state.get("adjacent_roles", [])[:3],
+            "dominant_path": trajectory_state.get("dominant_path", "Generalist"),
+            "secondary_paths": trajectory_state.get("secondary_paths", []),
+            "competitiveness": trajectory_state.get("competitiveness_score", 0.0),
+            "confidence": trajectory_state.get("confidence", 0.85),
+            "specializations": trajectory_state.get("specializations", {}),
+            "market_alignment": ctx["market_alignment"] / 100.0,
+            "salary_range": strategic_profile.recruiter_signals.get("salary_range", "$140k - $170k"),
+            "growth_potential": "high" if ctx["market_alignment"] > 80.0 else "moderate",
+            "roadmap_momentum": roadmap_progress.get("completedCount", 0),
+            "focus_areas": focus_areas,
+            "adjacent_roles": trajectory_state.get("adjacent_roles", [])[:3],
             "drift_detected": False,
             "drift_details": None,
         }
         return {
             "summary": summary,
-            "recommendations": profile.ai_recommendations,
-            "trajectory": profile.trajectory_state,
+            "recommendations": strategic_profile.ai_recommendations or [],
+            "trajectory": trajectory_state,
             "market": {
-                "recruiter_attractiveness": {"overall_score": profile.market_alignment / 100.0},
+                "recruiter_attractiveness": {"overall_score": ctx["market_alignment"] / 100.0},
                 "salary_trajectory": {"estimated_range": {"low": 140000, "high": 170000}, "growth_potential": "high"}
             }
         }
 
-    intel_repo = IntelligenceRepository(db)
+    inputs = await load_intelligence_inputs(db, user_id)
     traj_repo = TrajectoryRepository(db)
     roadmap_repo = RoadmapRepository(db)
-
-    profile = await intel_repo.get_or_create_career_profile(user_id)
     roadmap = await roadmap_repo.get_active(user_id)
     snapshot = await traj_repo.get_latest(user_id)
 
     if not snapshot:
-        # Return empty state if no trajectory has been computed yet
         trajectory = {
             "dominant_path": "Generalist",
             "secondary_paths": [],
@@ -242,23 +239,17 @@ async def get_intelligence_summary_readonly(db: AsyncSession, user_id: str) -> d
             "drift_details": snapshot.drift_detected,
         }
 
-    user_skills = []
-    skills_db = await intel_repo.get_user_skills(user_id)
-    if skills_db:
-        user_skills = [s.normalized_skill for s in skills_db]
-        confidences = {s.normalized_skill: s.confidence_score for s in skills_db}
-    else:
-        confidences = {}
-
+    user_skills = inputs["skills"]
+    confidences = inputs["skill_confidences"]
     completed = (roadmap.completed_nodes or []) if roadmap else []
     deferred = (roadmap.deferred_nodes or []) if roadmap else []
 
     market = compute_market_intelligence(
         user_skills=user_skills,
         skill_confidences=confidences,
-        target_role=roadmap.target_role if roadmap else trajectory["dominant_path"],
-        seniority=profile.inferred_seniority or "mid",
-        growth_velocity=profile.growth_velocity or 0.0,
+        target_role=inputs["target_role"] or (roadmap.target_role if roadmap else trajectory["dominant_path"]),
+        seniority=inputs["seniority"],
+        growth_velocity=inputs["growth_velocity"],
     )
 
     recommendations = generate_recommendations(
@@ -279,7 +270,7 @@ async def get_intelligence_summary_readonly(db: AsyncSession, user_id: str) -> d
         "market_alignment": market["recruiter_attractiveness"]["overall_score"],
         "salary_range": market["salary_trajectory"]["estimated_range"],
         "growth_potential": market["salary_trajectory"]["growth_potential"],
-        "roadmap_momentum": 0,  # Read-only doesn't trigger mutations
+        "roadmap_momentum": 0,
         "focus_areas": (roadmap.active_focus_areas if roadmap else []) or [],
         "adjacent_roles": trajectory["adjacent_roles"][:3],
         "drift_detected": trajectory["drift_detected"],

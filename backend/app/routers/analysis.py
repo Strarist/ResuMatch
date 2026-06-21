@@ -32,6 +32,7 @@ async def analyze(
     current_user: User = Depends(get_current_user),
     analysis_service: AnalysisService = Depends(get_analysis_service),
 ):
+    """Deprecated — use resume pipeline + /v1/strategic/profile instead."""
     try:
         return await analysis_service.analyze(
             resume_id=body.resume_id, job_description=body.job_description, user_id=current_user.id
@@ -81,21 +82,26 @@ async def analyze_stream(
             })
             await asyncio.sleep(0)
 
-            from app.ai.resume_parser import ParsedResume, ParsedMetadata
+            from app.ai.resume_parser import ParsedResume, ParsedMetadata, ParsedEducation, ParsedExperience
             if resume.parsed_data and resume.parse_status == "completed":
                 parsed = ParsedResume.model_validate(resume.parsed_data)
             else:
                 from app.services.resume_pipeline.profile_builder import build_and_persist_strategic_profile
                 # Trigger the real OpenRouter LLM extraction and strategic profile DB builder pipeline
-                profile = await build_and_persist_strategic_profile(resume_repo.db, current_user.id, file_path)
+                profile, raw_entities = await build_and_persist_strategic_profile(resume_repo.db, current_user.id, file_path)
 
                 parsed = ParsedResume(
                     skills=profile.inferred_skills,
-                    education=[],
-                    experience=[],
-                    metadata=ParsedMetadata(name=current_user.name)
+                    education=[ParsedEducation(degree=e.get("degree", ""), institution=e.get("institution", ""), year=e.get("year", "")) for e in raw_entities.get("education", []) or []],
+                    experience=[ParsedExperience(title=e.get("title", ""), company=e.get("company", ""), duration=e.get("duration", ""), description=e.get("description", "")) for e in raw_entities.get("experience", []) or []],
+                    metadata=ParsedMetadata(
+                        name=raw_entities.get("metadata", {}).get("name", current_user.name) if raw_entities.get("metadata") else current_user.name,
+                        email=raw_entities.get("metadata", {}).get("email", "") if raw_entities.get("metadata") else "",
+                        phone=raw_entities.get("metadata", {}).get("phone", "") if raw_entities.get("metadata") else "",
+                        location=raw_entities.get("metadata", {}).get("location", "") if raw_entities.get("metadata") else ""
+                    )
                 )
-                resume.parsed_data = parsed.model_dump()
+                resume.parsed_data = raw_entities
                 resume.skills = parsed.skills
                 resume.parse_status = "completed"
                 await resume_repo.db.flush()

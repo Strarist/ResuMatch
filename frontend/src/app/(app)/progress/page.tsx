@@ -3,46 +3,19 @@
 import { useCallback, useEffect, useState } from 'react';
 import { Panel, SectionHeader, StatusBadge } from '@/components/ds';
 import { EmptyState } from '@/components/workspace';
-import { env } from '@/lib/env';
 import { useLivingSystem } from '@/context/LivingSystemContext';
+import { progress as progressApi, type ProgressSnapshot } from '@/lib/intelligence-client';
 import { TrendingUp } from 'lucide-react';
 
-interface ExecutionProfile {
-  momentum_score: number;
-  execution_consistency: number;
-  completion_velocity: number;
-  acceptance_rate: number;
-  stagnation_risk: string;
-  stagnation_signals: { cause: string; detail: string }[];
-  burnout_risk: string;
-  growth_acceleration: number;
-  execution_style: string;
-  days_since_activity: number;
-  completed_count: number;
-  deferred_count: number;
-}
-
-interface Risk { type: string; severity: string; detail: string; mitigation: string; }
-interface Intervention { type: string; title: string; explanation: string; priority: string; estimated_impact: string; }
-
-interface ProgressData {
-  execution: ExecutionProfile;
-  risks: { risk_score: number; primary_risks: Risk[] };
-  interventions: Intervention[];
-  summary: { dominant_path: string; competitiveness: number; focus_areas: string[] };
-}
-
 export default function ProgressPage() {
-  const [apiData, setApiData] = useState<ProgressData | null>(null);
+  const [apiData, setApiData] = useState<ProgressSnapshot | null>(null);
   const [loading, setLoading] = useState(true);
   const { simulationActive, metrics, roadmap } = useLivingSystem();
 
   const fetchData = useCallback(async () => {
-    const token = localStorage.getItem('access_token');
-    const headers: Record<string, string> = token ? { Authorization: `Bearer ${token}` } : {};
     try {
-      const res = await fetch(`${env.NEXT_PUBLIC_API_URL}/v1/progress/snapshot`, { headers });
-      if (res.ok) setApiData(await res.json());
+      const data = await progressApi.getSnapshot();
+      setApiData(data);
     } catch { /* */ }
     setLoading(false);
   }, []);
@@ -62,7 +35,7 @@ export default function ProgressPage() {
   const deferredCount = simulationActive ? roadmap.filter(n => n.status === 'deferred').length : 0;
 
   // Resolve active telemetry progress data
-  const data: ProgressData | null = simulationActive
+  const data: ProgressSnapshot | null = simulationActive
     ? {
         execution: {
           momentum_score: metrics.careerVelocity / 100,

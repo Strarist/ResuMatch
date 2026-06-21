@@ -47,6 +47,8 @@ class ResumeResponse(BaseModel):
     filename: str
     skills: list[str] | None
     uploaded_at: datetime | None
+    parsed_data: dict | None = None
+    parse_status: str | None = None
 
     model_config = {"from_attributes": True}
 

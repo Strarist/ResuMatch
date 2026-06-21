@@ -1,5 +1,11 @@
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
 
+export interface RegisterRequest {
+  name: string;
+  email: string;
+  password: string;
+}
+
 export interface LoginRequest {
   email: string;
   password: string;
@@ -17,6 +23,16 @@ export interface LoginResponse {
   };
 }
 
+export class ApiError extends Error {
+  status: number;
+  constructor(message: string, status: number) {
+    super(message);
+    this.name = 'ApiError';
+    this.status = status;
+    Object.setPrototypeOf(this, ApiError.prototype);
+  }
+}
+
 class ApiClient {
   private baseUrl: string;
 
@@ -29,8 +45,19 @@ class ApiClient {
     const controller = new AbortController();
     const timeoutId = setTimeout(() => controller.abort(), 4000);
 
+    const token = typeof window !== 'undefined' ? localStorage.getItem('access_token') : null;
+    const headers: Record<string, string> = {
+      'Content-Type': 'application/json',
+    };
+    if (token) {
+      headers['Authorization'] = `Bearer ${token}`;
+    }
+    if (options.headers) {
+      Object.assign(headers, options.headers);
+    }
+
     const config: RequestInit = {
-      headers: { 'Content-Type': 'application/json', ...options.headers },
+      headers,
       credentials: 'include',
       signal: controller.signal,
       ...options,
@@ -40,18 +67,16 @@ class ApiClient {
       const response = await fetch(url, config);
       clearTimeout(timeoutId);
 
-      if (response.status === 401) {
-        return {
-          state: "ANONYMOUS",
-          user: null
-        } as unknown as T;
+      if (!response.ok) {
+        let message = `HTTP ${response.status}: ${response.statusText}`;
+        try {
+          const data = await response.json();
+          if (data && data.detail) message = data.detail;
+        } catch { /* ignored */ }
+        throw new ApiError(message, response.status);
       }
 
       const data = await response.json();
-
-      if (!response.ok) {
-        throw new Error(data.detail || `HTTP ${response.status}: ${response.statusText}`);
-      }
       return data;
     } catch (error: unknown) {
       clearTimeout(timeoutId);
@@ -71,6 +96,13 @@ class ApiClient {
 
   async login(credentials: LoginRequest): Promise<LoginResponse> {
     return this.request<LoginResponse>('/v1/auth/login', {
+      method: 'POST',
+      body: JSON.stringify(credentials),
+    });
+  }
+
+  async register(credentials: RegisterRequest): Promise<LoginResponse> {
+    return this.request<LoginResponse>('/v1/auth/register', {
       method: 'POST',
       body: JSON.stringify(credentials),
     });

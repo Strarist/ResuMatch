@@ -5,6 +5,8 @@ import { toast } from 'sonner';
 import { baselinePersonas, PersonaProfile } from '../data/baseline-profiles';
 import { LifecycleStage } from '../state/user-lifecycle';
 import { propagateIntelligence } from '../utils/intelligence-propagation';
+import { fetchLifecycleBackendState, getLifecyclePollIntervalMs } from '@/lib/lifecycle-sync';
+import { intelligence } from '@/lib/intelligence-client';
 
 export interface FeedItem {
   id: string;
@@ -42,6 +44,7 @@ export interface OpportunityMatch {
   hiringWindow?: string;
   stackCompatibility?: string;
   alignmentReasoning?: string;
+  location?: string;
 }
 
 export interface RecruiterSignalProfile {
@@ -79,15 +82,19 @@ interface LivingSystemContextType {
   lastUpdated: Date;
   completeRoadmapNode: (skill: string) => void;
   deferRoadmapNode: (skill: string) => void;
+  revertRoadmapNode: (skill: string) => void;
   triggerSystemScan: () => Promise<void>;
   addCustomFeedItem: (source: string, message: string, urgency?: 'low' | 'medium' | 'high') => void;
 
   // Phase 11.1 additions
   activePersona: PersonaProfile;
   lifecycleStage: LifecycleStage;
+  hasStrategicProfile: boolean;
+  resumeParseStatus: 'none' | 'pending' | 'processing' | 'completed' | 'failed';
   setLifecycleStage: (stage: LifecycleStage) => void;
   setActivePersonaId: (id: string) => void;
   resetLifecycle: () => void;
+  syncLifecycleFromBackend: () => Promise<void>;
 }
 
 const LivingSystemContext = createContext<LivingSystemContextType | undefined>(undefined);
@@ -99,6 +106,8 @@ type State = {
   feed: FeedItem[];
   activePersonaId: string;
   lifecycleStage: LifecycleStage;
+  hasStrategicProfile: boolean;
+  resumeParseStatus: 'none' | 'pending' | 'processing' | 'completed' | 'failed';
   completedSkills: string[];
   deferredSkills: string[];
 };
@@ -109,12 +118,14 @@ type Action =
   | { type: 'ADD_FEED_ITEM'; payload: FeedItem }
   | { type: 'COMPLETE_NODE'; payload: string }
   | { type: 'DEFER_NODE'; payload: string }
+  | { type: 'UNDO_NODE'; payload: string }
   | { type: 'SYSTEM_SCAN_START' }
   | { type: 'SYSTEM_SCAN_COMPLETE' }
   | { type: 'SET_LIFECYCLE_STAGE'; payload: LifecycleStage }
   | { type: 'SET_ACTIVE_PERSONA'; payload: string }
   | { type: 'RESET_LIFECYCLE' }
-  | { type: 'LOAD_PERSISTED_STATE'; payload: Partial<State> };
+  | { type: 'LOAD_PERSISTED_STATE'; payload: Partial<State> }
+  | { type: 'SYNC_LIFECYCLE_FROM_BACKEND'; payload: { lifecycleStage: LifecycleStage; hasStrategicProfile: boolean; resumeParseStatus: State['resumeParseStatus'] } };
 
 const initialFeedItems: FeedItem[] = [
   { id: 'f-1', source: 'Orchestrator', eventType: 'system_boot', message: 'Career Operating System active. Synthesizing vectors.', createdAt: new Date(Date.now() - 3600000).toISOString() },
@@ -130,6 +141,8 @@ const initialState: State = {
   feed: initialFeedItems,
   activePersonaId: 'full-stack', // Default to Full Stack Engineer
   lifecycleStage: 1, // Start at Stage 1: Onboarding
+  hasStrategicProfile: false,
+  resumeParseStatus: 'none',
   completedSkills: [],
   deferredSkills: [],
 };
@@ -190,6 +203,19 @@ function reducer(state: State, action: Action): State {
       };
       break;
     }
+    case 'UNDO_NODE': {
+      const skillName = action.payload;
+      const newCompleted = state.completedSkills.filter((s) => s !== skillName);
+      const newDeferred = state.deferredSkills.filter((s) => s !== skillName);
+
+      nextState = {
+        ...state,
+        completedSkills: newCompleted,
+        deferredSkills: newDeferred,
+        lastUpdated: new Date(),
+      };
+      break;
+    }
     case 'SYSTEM_SCAN_START':
       nextState = {
         ...state,
@@ -197,11 +223,19 @@ function reducer(state: State, action: Action): State {
       };
       break;
     case 'SYSTEM_SCAN_COMPLETE':
-      // System scan complete auto calibrates profile (advances Stage 1 -> 3)
       nextState = {
         ...state,
         systemStatus: 'active',
-        lifecycleStage: state.lifecycleStage === 1 ? 3 : state.lifecycleStage,
+        lastUpdated: new Date(),
+      };
+      break;
+    case 'SYNC_LIFECYCLE_FROM_BACKEND':
+      nextState = {
+        ...state,
+        lifecycleStage: action.payload.lifecycleStage,
+        hasStrategicProfile: action.payload.hasStrategicProfile,
+        resumeParseStatus: action.payload.resumeParseStatus,
+        systemStatus: action.payload.resumeParseStatus === 'processing' ? 'syncing' : 'active',
         lastUpdated: new Date(),
       };
       break;
@@ -225,6 +259,8 @@ function reducer(state: State, action: Action): State {
       nextState = {
         ...state,
         lifecycleStage: 1,
+        hasStrategicProfile: false,
+        resumeParseStatus: 'none',
         completedSkills: [],
         deferredSkills: [],
         lastUpdated: new Date(),
@@ -243,7 +279,7 @@ function reducer(state: State, action: Action): State {
   // Persist state in localStorage to survive router reloads
   if (typeof window !== 'undefined') {
     try {
-      localStorage.setItem('resumatch_strategic_state', JSON.stringify({
+      localStorage.setItem('skillyn_strategic_state', JSON.stringify({
         activePersonaId: nextState.activePersonaId,
         lifecycleStage: nextState.lifecycleStage,
         completedSkills: nextState.completedSkills,
@@ -265,7 +301,7 @@ export function LivingSystemProvider({ children }: { children: React.ReactNode }
   useEffect(() => {
     if (typeof window !== 'undefined') {
       try {
-        const saved = localStorage.getItem('resumatch_strategic_state');
+        const saved = localStorage.getItem('skillyn_strategic_state');
         if (saved) {
           const parsed = JSON.parse(saved);
           dispatch({ type: 'LOAD_PERSISTED_STATE', payload: parsed });
@@ -301,16 +337,80 @@ export function LivingSystemProvider({ children }: { children: React.ReactNode }
     );
   }, [state.activePersonaId, state.lifecycleStage, state.completedSkills, state.deferredSkills]);
 
+  const syncLifecycleFromBackend = useCallback(async () => {
+    const token = typeof window !== 'undefined' ? localStorage.getItem('access_token') : null;
+    if (!token) return;
+
+    const backend = await fetchLifecycleBackendState();
+    dispatch({
+      type: 'SYNC_LIFECYCLE_FROM_BACKEND',
+      payload: {
+        lifecycleStage: state.lifecycleStage >= 4 && backend.hasStrategicProfile
+          ? 4
+          : backend.lifecycleStage,
+        hasStrategicProfile: backend.hasStrategicProfile,
+        resumeParseStatus: backend.resumeParseStatus,
+      },
+    });
+  }, [state.lifecycleStage]);
+
+  // Sync lifecycle from backend when not in simulation mode
+  useEffect(() => {
+    if (state.simulationActive) return;
+    const token = typeof window !== 'undefined' ? localStorage.getItem('access_token') : null;
+    if (!token) return;
+
+    let cancelled = false;
+    let timeoutId: ReturnType<typeof setTimeout> | null = null;
+
+    const scheduleNext = (backend: Awaited<ReturnType<typeof fetchLifecycleBackendState>>) => {
+      if (cancelled) return;
+      const intervalMs = getLifecyclePollIntervalMs(backend);
+      if (intervalMs === null) return;
+      timeoutId = setTimeout(() => void tick(), intervalMs);
+    };
+
+    const tick = async () => {
+      if (cancelled) return;
+      const backend = await fetchLifecycleBackendState();
+      if (cancelled) return;
+      dispatch({
+        type: 'SYNC_LIFECYCLE_FROM_BACKEND',
+        payload: {
+          lifecycleStage: state.lifecycleStage >= 4 && backend.hasStrategicProfile
+            ? 4
+            : backend.lifecycleStage,
+          hasStrategicProfile: backend.hasStrategicProfile,
+          resumeParseStatus: backend.resumeParseStatus,
+        },
+      });
+      scheduleNext(backend);
+    };
+
+    void tick();
+
+    return () => {
+      cancelled = true;
+      if (timeoutId) clearTimeout(timeoutId);
+    };
+  }, [state.simulationActive, state.lifecycleStage]);
+
   const triggerSystemScan = useCallback(async () => {
     dispatch({ type: 'SYSTEM_SCAN_START' });
-    addCustomFeedItem('Orchestrator', 'Initiating full-stack index re-calibration...', 'medium');
+    addCustomFeedItem('Orchestrator', 'Syncing career profile with backend...', 'medium');
 
-    await new Promise((resolve) => setTimeout(resolve, 1500));
-
-    dispatch({ type: 'SYSTEM_SCAN_COMPLETE' });
-    addCustomFeedItem('Orchestrator', `Profile calibrated. Synthesized strategy for ${activePersona.targetRole}`, 'high');
-    toast.success('Career System Scan Completed');
-  }, [addCustomFeedItem, activePersona.targetRole]);
+    try {
+      await intelligence.recompute();
+      await syncLifecycleFromBackend();
+      dispatch({ type: 'SYSTEM_SCAN_COMPLETE' });
+      addCustomFeedItem('Orchestrator', 'Profile synced with backend intelligence layer.', 'high');
+      toast.success('Career profile synced');
+    } catch (err) {
+      console.error('[LivingSystem] triggerSystemScan failed:', err);
+      dispatch({ type: 'SYSTEM_SCAN_COMPLETE' });
+      toast.error('Profile sync failed — retry from dashboard');
+    }
+  }, [addCustomFeedItem, syncLifecycleFromBackend]);
 
   const completeRoadmapNode = useCallback((skillName: string) => {
     dispatch({ type: 'COMPLETE_NODE', payload: skillName });
@@ -330,6 +430,16 @@ export function LivingSystemProvider({ children }: { children: React.ReactNode }
       'medium'
     );
     toast(`Deferred milestone: ${skillName}`);
+  }, [addCustomFeedItem]);
+
+  const revertRoadmapNode = useCallback((skillName: string) => {
+    dispatch({ type: 'UNDO_NODE', payload: skillName });
+    addCustomFeedItem(
+      'Execution Engine',
+      `Reverted "${skillName}" status. Profile alignment updated.`,
+      'medium'
+    );
+    toast(`Reverted milestone: ${skillName}`);
   }, [addCustomFeedItem]);
 
   const setSimulationActive = useCallback((active: boolean) => {
@@ -369,14 +479,18 @@ export function LivingSystemProvider({ children }: { children: React.ReactNode }
       lastUpdated: state.lastUpdated,
       completeRoadmapNode,
       deferRoadmapNode,
+      revertRoadmapNode,
       triggerSystemScan,
       addCustomFeedItem,
 
       activePersona,
       lifecycleStage: state.lifecycleStage,
+      hasStrategicProfile: state.hasStrategicProfile,
+      resumeParseStatus: state.resumeParseStatus,
       setLifecycleStage,
       setActivePersonaId,
       resetLifecycle,
+      syncLifecycleFromBackend,
     }),
     [
       state.simulationActive,
@@ -386,13 +500,17 @@ export function LivingSystemProvider({ children }: { children: React.ReactNode }
       state.lastUpdated,
       activePersona,
       state.lifecycleStage,
+      state.hasStrategicProfile,
+      state.resumeParseStatus,
       completeRoadmapNode,
       deferRoadmapNode,
+      revertRoadmapNode,
       triggerSystemScan,
       addCustomFeedItem,
       setLifecycleStage,
       setActivePersonaId,
       resetLifecycle,
+      syncLifecycleFromBackend,
     ]
   );
 

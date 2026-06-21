@@ -16,7 +16,7 @@ export function Logo({ size = 24, className = '', showWordmark = true, animate =
           className="font-semibold tracking-[-0.01em] text-white"
           style={{ fontSize: Math.max(14, size * 0.65) }}
         >
-          ResuMatch
+          Skillyn
         </span>
       )}
     </div>

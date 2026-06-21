@@ -27,7 +27,7 @@ class OpenRouterLLMService:
         headers = {
             "Content-Type": "application/json",
             "HTTP-Referer": "http://localhost:3000",
-            "X-Title": "ResuMatch Career Platform"
+            "X-Title": "Skillyn Career Platform"
         }
         if self.api_key:
             headers["Authorization"] = f"Bearer {self.api_key}"
@@ -68,6 +68,8 @@ class OpenRouterLLMService:
 
                         # Handle other errors
                         if response.status_code != 200:
+                            if response.status_code in (401, 403):
+                                raise RuntimeError(f"OpenRouter authentication failed: {response.text}")
                             raise httpx.HTTPStatusError(
                                 f"OpenRouter returned status {response.status_code}: {response.text}",
                                 request=response.request,
@@ -82,6 +84,11 @@ class OpenRouterLLMService:
                         content = choices[0].get("message", {}).get("content", "")
                         return content
 
+                except RuntimeError as re_err:
+                    # Authentication or non-retryable failure: fail fast
+                    last_error = re_err
+                    logger.error(f"Non-retryable failure encountered: {re_err}")
+                    raise re_err
                 except Exception as e:
                     last_error = e
                     wait_time = (attempt + 1) * 2

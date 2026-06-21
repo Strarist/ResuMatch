@@ -24,80 +24,63 @@ export default function HeroV2() {
         {/* Content */}
         <motion.div variants={stagger} initial="hidden" animate="visible" className="space-y-6">
           <motion.div variants={fadeUp} transition={{ duration: 0.6, ease: [0.16, 1, 0.3, 1] }}>
-            <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full border border-white/[0.06] bg-white/[0.02] text-[11px] font-medium text-blue-400/80 tracking-wide">
-              <span className="w-1.5 h-1.5 rounded-full bg-emerald-400/70 animate-pulse" />
-              Career Operating System
+            <span className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full border border-white/[0.06] bg-white/[0.02] text-[12px] font-semibold text-emerald-400 tracking-wide">
+              <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
+              SaaS Career Platform
             </span>
           </motion.div>
 
           <motion.h1
             variants={fadeUp}
             transition={{ duration: 0.7, ease: [0.16, 1, 0.3, 1] }}
-            className="text-[clamp(3rem,5vw,5.4rem)] font-semibold tracking-[-0.02em] leading-[1.05] text-white max-w-[640px]"
+            className="text-[clamp(2.75rem,4.5vw,4.75rem)] font-bold tracking-tight leading-[1.1] text-white max-w-[640px]"
           >
-            The autonomous{' '}
-            <span className="text-white/40">career operating system.</span>
+            Build your personalized{' '}
+            <span className="text-emerald-400">tech career path.</span>
           </motion.h1>
 
           <motion.p
             variants={fadeUp}
             transition={{ duration: 0.6, ease: [0.16, 1, 0.3, 1] }}
-            className="text-[15px] text-white/40 leading-[1.75] max-w-[440px]"
+            className="text-[17px] text-white/50 leading-relaxed max-w-[480px]"
           >
-            Orchestrating skill intelligence, live recruiter signals, and market demand vectors into a self-compounding career runtime.
+            Upload your resume to instantly extract tech stacks, map milestones to bridge your core skill gaps, and match with top opportunities via fit scorecards.
           </motion.p>
 
-          <motion.div
-            variants={fadeUp}
-            transition={{ duration: 0.6, ease: [0.16, 1, 0.3, 1] }}
-            className="flex flex-wrap gap-2 pt-1 font-mono text-[10px]"
-          >
-            <span className="flex items-center gap-1.5 px-2.5 py-1 rounded bg-[#0b101b] border border-blue-500/20 text-blue-300">
-              <span className="w-1.5 h-1.5 rounded-full bg-blue-400 animate-pulse" />
-              ORCHESTRATOR: ACTIVE
-            </span>
-            <span className="flex items-center gap-1.5 px-2.5 py-1 rounded bg-[#0b101b] border border-emerald-500/20 text-emerald-300">
-              RECRUITER ALIGNMENT: 94.0%
-            </span>
-            <span className="flex items-center gap-1.5 px-2.5 py-1 rounded bg-[#0b101b] border border-white/[0.06] text-white/55">
-              VELOCITY VECTOR: +12% QOQ
-            </span>
-          </motion.div>
-
-          <motion.div variants={fadeUp} transition={{ duration: 0.6, ease: [0.16, 1, 0.3, 1] }} className="flex items-center gap-3 pt-2">
+          <motion.div variants={fadeUp} transition={{ duration: 0.6, ease: [0.16, 1, 0.3, 1] }} className="flex items-center gap-4 pt-4">
             <Link
               href="/signup"
-              className="btn-primary inline-flex items-center gap-2 px-5 py-2.5 text-[13px] font-medium text-white bg-blue-600 rounded-lg hover:bg-blue-500 shadow-[0_0_15px_rgba(37,99,235,0.2)]"
+              className="inline-flex items-center gap-2 px-6 py-3.5 text-[15px] font-bold text-black bg-emerald-400 hover:bg-emerald-300 rounded-lg shadow-lg hover:scale-105 transition-all duration-200"
             >
-              Initialize Infrastructure <ArrowRight size={14} />
+              Get Started <ArrowRight size={16} />
             </Link>
             <Link
-              href="#features"
-              className="btn-secondary inline-flex items-center gap-2 px-5 py-2.5 text-[13px] font-medium text-white/40 border border-white/[0.08] rounded-lg hover:text-white/60 hover:border-white/[0.12]"
+              href="#how-it-works"
+              className="inline-flex items-center gap-2 px-6 py-3.5 text-[15px] font-bold text-white/60 border border-white/[0.08] rounded-lg hover:text-white hover:border-white/[0.16] transition-all duration-200"
             >
-              View Architecture
+              Learn More
             </Link>
           </motion.div>
 
           <motion.div
             variants={fadeUp}
             transition={{ duration: 0.6, ease: [0.16, 1, 0.3, 1] }}
-            className="flex items-center gap-8 pt-6"
+            className="flex items-center gap-10 pt-8 border-t border-white/[0.04] max-w-[480px]"
           >
             {[
-              { value: '94%', label: 'Match accuracy' },
-              { value: '<2s', label: 'Analysis time' },
-              { value: '10k+', label: 'Skills mapped' },
+              { value: '95%', label: 'Match accuracy' },
+              { value: '<5s', label: 'Resume extraction' },
+              { value: '10k+', label: 'Engineers matched' },
             ].map((stat) => (
               <div key={stat.label}>
-                <p className="text-[14px] font-semibold text-white/80 tabular-nums">{stat.value}</p>
-                <p className="text-[10px] text-white/25 mt-0.5">{stat.label}</p>
+                <p className="text-[18px] font-bold text-white/90 tabular-nums">{stat.value}</p>
+                <p className="text-[12px] text-white/30 mt-0.5">{stat.label}</p>
               </div>
             ))}
           </motion.div>
         </motion.div>
 
-        {/* Dashboard with depth offset */}
+        {/* Dashboard Preview Card Mockup */}
         <motion.div
           initial={{ opacity: 0, y: 30, scale: 0.98 }}
           animate={{ opacity: 1, y: 0, scale: 1 }}

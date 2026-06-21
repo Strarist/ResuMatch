@@ -20,17 +20,37 @@ from fastapi import HTTPException, Request, Response
 # For multi-process: upgrade to PostgreSQL-backed or Redis-backed.
 
 class RateGovernor:
-    """Per-IP sliding window rate limiter. No external dependencies."""
+    """Per-IP sliding window rate limiter. Handles Redis cluster-safe limiting with in-memory fallback."""
 
     def __init__(self):
         self._windows: dict[str, list[float]] = defaultdict(list)
         self._last_stream_requests: dict[str, float] = {}
 
-    def check(self, key: str, limit: int, window_seconds: int) -> bool:
+    async def check(self, key: str, limit: int, window_seconds: int) -> bool:
         """Returns True if request is allowed, False if rate-limited."""
+        from app.infrastructure.redis import get_redis
+        redis_client = await get_redis()
         now = time.time()
         cutoff = now - window_seconds
-        # Prune old entries
+
+        if redis_client:
+            try:
+                redis_key = f"resumatch:ratelimit:{key}"
+                async with redis_client.pipeline(transaction=True) as pipe:
+                    pipe.zremrangebyscore(redis_key, 0, cutoff)
+                    pipe.zadd(redis_key, {str(now): now})
+                    pipe.zcard(redis_key)
+                    pipe.expire(redis_key, window_seconds)
+                    _, _, count, _ = await pipe.execute()
+
+                if count > limit:
+                    return False
+                return True
+            except Exception as e:
+                import logging
+                logging.getLogger(__name__).warning(f"Redis rate limit failed: {e}. Falling back to in-memory.")
+
+        # In-memory fallback
         valid_times = [t for t in self._windows.get(key, []) if t > cutoff]
 
         if len(valid_times) >= limit:
@@ -42,35 +62,59 @@ class RateGovernor:
 
         # Memory leak protection
         if len(valid_times) == 1:
-            # If it's a new entry (or only 1 valid), check global size
             if len(self._windows) > 10000:
                 self._windows.clear()
 
         return True
 
-    def check_stream_transport(self, client_ip: str, query_params: dict) -> bool:
+    async def check_stream_transport(self, client_ip: str, query_params: dict) -> bool:
         """Transport-aware stream throttling to allow reconnect recovery while preventing storms."""
+        from app.infrastructure.redis import get_redis
+        redis_client = await get_redis()
         now = time.time()
         session_id = query_params.get("session_id", [""])[0]
-        stream_instance_id = query_params.get("stream_instance_id", [""])[0]
         cooldown_state = query_params.get("cooldown_state", [""])[0]
-
-        # Use session_id if available, fallback to client_ip
         track_key = session_id if session_id else client_ip
 
-        # 1. Enforce minimum request spacing (prevent tight-loop reconnect storms)
+        if redis_client:
+            try:
+                last_time_key = f"resumatch:stream_last:{track_key}"
+                last_time_str = await redis_client.get(last_time_key)
+                if last_time_str:
+                    last_time = float(last_time_str)
+                    if now - last_time < 1.0:
+                        return False
+                await redis_client.set(last_time_key, str(now), ex=5)
+
+                limit_key = f"resumatch:stream_limit:{track_key}"
+                cutoff = now - 60
+                max_limit = 10 if cooldown_state == "true" else 30
+
+                async with redis_client.pipeline(transaction=True) as pipe:
+                    pipe.zremrangebyscore(limit_key, 0, cutoff)
+                    pipe.zcard(limit_key)
+                    pipe.zadd(limit_key, {str(now): now})
+                    pipe.expire(limit_key, 60)
+                    _, count, _, _ = await pipe.execute()
+
+                if count > max_limit:
+                    return False
+                return True
+            except Exception as e:
+                import logging
+                logging.getLogger(__name__).warning(f"Redis stream rate limit failed: {e}. Falling back to in-memory.")
+
+        # In-memory fallback
         last_time = self._last_stream_requests.get(track_key, 0.0)
         if now - last_time < 1.0:
             return False
 
         self._last_stream_requests[track_key] = now
 
-        # 2. Allow reconnect recovery unless it is obvious abuse
         limit_key = f"{track_key}:stream_transport"
         cutoff = now - 60
         valid_times = [t for t in self._windows.get(limit_key, []) if t > cutoff]
 
-        # If in cooldown_state, we are more strict (e.g. limit to 10 per 60s)
         max_limit = 10 if cooldown_state == "true" else 30
 
         if len(valid_times) >= max_limit:
@@ -191,19 +235,25 @@ class RateLimitMiddleware:
             return await self.app(scope, receive, send)
 
         path = scope.get("path", "")
-        # Skip health checks and metrics
-        if path in ("/health", "/metrics", "/"):
+        method = scope.get("method", "")
+        # Skip health checks, metrics, and OPTIONS preflight requests
+        if path in ("/health", "/metrics", "/") or method == "OPTIONS":
             return await self.app(scope, receive, send)
 
         client_ip = get_client_ip(scope)
         method = scope.get("method", "")
+
+        from app.config import get_settings
+        if get_settings().env.value == "testing":
+            return await self.app(scope, receive, send)
+
         category = get_rate_category(path, method)
 
         if category == "stream":
             from urllib.parse import parse_qs
             query_string = scope.get("query_string", b"").decode("utf-8")
             query_params = parse_qs(query_string)
-            if not _governor.check_stream_transport(client_ip, query_params):
+            if not await _governor.check_stream_transport(client_ip, query_params):
                 response = Response(
                     content='{"error":"SSE connection storm detected. Throttled."}',
                     status_code=429,
@@ -215,7 +265,7 @@ class RateLimitMiddleware:
         else:
             limit, window = RATE_LIMITS[category]
             key = f"{client_ip}:{category}"
-            if not _governor.check(key, limit, window):
+            if not await _governor.check(key, limit, window):
                 response = Response(
                     content='{"error":"Rate limit exceeded. Try again later."}',
                     status_code=429,

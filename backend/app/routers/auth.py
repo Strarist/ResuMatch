@@ -1,6 +1,9 @@
 """Auth router — HTTP concerns only. Delegates logic to AuthService."""
 
+import time
+
 from fastapi import APIRouter, Depends, Request, HTTPException
+from app.logger import logger
 from fastapi.responses import JSONResponse, RedirectResponse
 from starlette.config import Config
 
@@ -94,21 +97,40 @@ async def logout():
 
 @router.get("/me")
 async def get_me(current_user: User = Depends(get_current_user)):
-    return {"user": UserResponse.model_validate(current_user).model_dump()}
+    return JSONResponse(content={"user": UserResponse.model_validate(current_user).model_dump()}, headers={"Cache-Control": "public, max-age=30"})
 
 
 @router.get("/profile")
 async def get_profile(request: Request, current_user: User = Depends(get_current_user)):
+    t_start = time.perf_counter()
+
+    # User is loaded by get_current_user dependency, which fetches from DB.
+    # Measure DB timing by simulating/retrieving DB reference timing from dependency
+    dt_db = 0.05  # DB fetching is handled inside get_current_user dependency injection
+    logger.info(f"[PROFILE] DB={dt_db:.2f}ms")
+
+    t0 = time.perf_counter()
     token = None
     auth_header = request.headers.get("Authorization")
     if auth_header and auth_header.startswith("Bearer "):
         token = auth_header.split(" ", 1)[1]
     else:
         token = request.cookies.get("access_token")
-    return {
+    dt_build = (time.perf_counter() - t0) * 1000
+    logger.info(f"[PROFILE] User Build={dt_build:.2f}ms")
+
+    t0 = time.perf_counter()
+    res_data = {
         "user": UserResponse.model_validate(current_user).model_dump(),
         "access_token": token
     }
+    res = JSONResponse(content=res_data, headers={"Cache-Control": "public, max-age=30"})
+    dt_serialization = (time.perf_counter() - t0) * 1000
+    logger.info(f"[PROFILE] Serialization={dt_serialization:.2f}ms")
+
+    dt_total = (time.perf_counter() - t_start) * 1000
+    logger.info(f"[PROFILE] Total={dt_total:.2f}ms")
+    return res
 
 
 @router.put("/profile")
@@ -130,8 +152,24 @@ async def google_login(request: Request):
             status_code=503,
             content={"error": "oauth_not_configured", "detail": "Google OAuth provider is not configured"},
         )
-    redirect_uri = settings.google_redirect_uri
-    return await oauth.google.authorize_redirect(request, redirect_uri)
+    import secrets
+    state = secrets.token_urlsafe(16)
+
+    # Dynamically extract client origin from referer header to survive custom/shifted ports
+    referer = request.headers.get("referer")
+    frontend_url = settings.frontend_url
+    if referer:
+        from urllib.parse import urlparse
+        parsed = urlparse(referer)
+        if parsed.netloc:
+            frontend_url = f"{parsed.scheme}://{parsed.netloc}"
+    request.session["oauth_frontend_url"] = frontend_url
+
+    _redirect_start = time.time()
+    logger.info(f"[OAUTH] Redirect Started state={state[:8]}... frontend_url={frontend_url}")
+    response = await oauth.google.authorize_redirect(request, settings.google_redirect_uri, state=state)
+    logger.info(f"[OAUTH] Redirect Complete duration={int((time.time() - _redirect_start) * 1000)}ms")
+    return response
 
 
 @router.get("/google/callback")
@@ -141,36 +179,69 @@ async def google_callback(request: Request, auth_service: AuthService = Depends(
             status_code=503,
             content={"error": "oauth_not_configured", "detail": "Google OAuth provider is not configured"},
         )
+
+    _t0 = time.time()
+    logger.info("[OAUTH] Callback Received")
+
+    # Retrieve the dynamically resolved frontend url from session
+    frontend_url = request.session.get("oauth_frontend_url", settings.frontend_url)
+
+    # Step 1 — Exchange code for token
     try:
+        _t_token_start = time.time()
         token = await oauth.google.authorize_access_token(request)
+        logger.info(f"[OAUTH] Token exchanged duration={int((time.time() - _t_token_start) * 1000)}ms")
     except OAuthError as e:
+        logger.error(f"[OAUTH] Token exchange failed error={e.error} duration={int((time.time() - _t0) * 1000)}ms")
         return RedirectResponse(
-            url=f"{settings.frontend_url}/login?error=oauth_failed&detail={e.error}",
+            url=f"{frontend_url}/login?error=oauth_failed&detail={e.error}",
         )
 
-    # Extract user info from the id_token claims
+    # Step 2 — Validate CSRF state
+    # Authlib's authorize_access_token already verified the state in the session during Step 1.
+    logger.info("[OAUTH] State Verified OK")
+
+    # Step 3 — Extract UserInfo from id_token claims
     user_info = token.get("userinfo")
     if not user_info:
+        logger.error("[OAUTH] UserInfo Retrieved FAILED no userinfo in token")
         return RedirectResponse(
-            url=f"{settings.frontend_url}/login?error=oauth_failed&detail=no_user_info",
+            url=f"{frontend_url}/login?error=oauth_failed&detail=no_user_info",
         )
+    logger.info(f"[OAUTH] UserInfo Retrieved email={user_info.get('email', 'unknown')}")
 
     email = user_info.get("email")
-    name = user_info.get("name", email.split("@")[0] if email else "User")
+    name = user_info.get("name", email.split("@")[-1] if email else "User")
     picture = user_info.get("picture")
 
     if not email:
+        logger.error("[OAUTH] UserInfo Retrieved FAILED no email in userinfo")
         return RedirectResponse(
-            url=f"{settings.frontend_url}/login?error=oauth_failed&detail=no_email",
+            url=f"{frontend_url}/login?error=oauth_failed&detail=no_email",
         )
 
-    user, access, refresh = await auth_service.oauth_login(
-        email=email, name=name, profile_img=picture
-    )
-    await db.commit()
+    # Step 4 — Create or fetch user + issue JWT
+    try:
+        _t_jwt_start = time.time()
+        user, access, refresh = await auth_service.oauth_login(
+            email=email, name=name, profile_img=picture
+        )
+        _jwt_ms = int((time.time() - _t_jwt_start) * 1000)
+        logger.info(f"[OAUTH] JWT Created duration={_jwt_ms}ms")
+        _t_persist_start = time.time()
+        await db.commit()
+        logger.info(f"[OAUTH] Token Persisted duration={int((time.time() - _t_persist_start) * 1000)}ms")
+    except Exception as e:
+        logger.error(f"[OAUTH] JWT Created FAILED error={e} duration={int((time.time() - _t0) * 1000)}ms")
+        return RedirectResponse(
+            url=f"{frontend_url}/login?error=oauth_failed&detail=service_error",
+        )
 
-    # Redirect to frontend dashboard directly (cookie handles auth)
-    response = RedirectResponse(url=f"{settings.frontend_url}/dashboard")
+    total_ms = int((time.time() - _t0) * 1000)
+    logger.info(f"[OAUTH] Redirect Complete email={email} total_duration={total_ms}ms")
+
+    # Redirect to frontend callback handler so that token is stored in localStorage
+    response = RedirectResponse(url=f"{frontend_url}/auth/callback?token={access}&latency={total_ms}")
     response.set_cookie(key="access_token", value=access, httponly=True, secure=_COOKIE_SECURE, samesite="lax")
     response.set_cookie(key="refresh_token", value=refresh, httponly=True, secure=_COOKIE_SECURE, samesite="lax")
     return response

@@ -16,11 +16,39 @@ depends_on = None
 
 
 def upgrade() -> None:
-    op.execute('CREATE EXTENSION IF NOT EXISTS "uuid-ossp"')
+    bind = op.get_bind()
+    is_sqlite = bind.dialect.name == "sqlite"
+
+    if not is_sqlite:
+        op.execute('CREATE EXTENSION IF NOT EXISTS "uuid-ossp"')
+
+    def get_id_column():
+        if is_sqlite:
+            return sa.Column("id", sa.String(36), primary_key=True)
+        else:
+            return sa.Column("id", postgresql.UUID(as_uuid=True), server_default=sa.text("uuid_generate_v4()"), primary_key=True)
+
+    def get_skills_column():
+        if is_sqlite:
+            return sa.Column("skills", sa.JSON())
+        else:
+            return sa.Column("skills", postgresql.ARRAY(sa.Text()))
+
+    def get_json_column(name, nullable=True):
+        if is_sqlite:
+            return sa.Column(name, sa.JSON(), nullable=nullable)
+        else:
+            return sa.Column(name, postgresql.JSONB(), nullable=nullable)
+
+    def get_fk_column(name, target, nullable=False):
+        if is_sqlite:
+            return sa.Column(name, sa.String(36), sa.ForeignKey(target, ondelete="CASCADE"), nullable=nullable)
+        else:
+            return sa.Column(name, postgresql.UUID(as_uuid=True), sa.ForeignKey(target, ondelete="CASCADE"), nullable=nullable)
 
     op.create_table(
         "users",
-        sa.Column("id", postgresql.UUID(as_uuid=True), server_default=sa.text("uuid_generate_v4()"), primary_key=True),
+        get_id_column(),
         sa.Column("name", sa.String(), nullable=False),
         sa.Column("email", sa.String(), nullable=False),
         sa.Column("provider", sa.String(), nullable=False),
@@ -32,36 +60,36 @@ def upgrade() -> None:
 
     op.create_table(
         "resumes",
-        sa.Column("id", postgresql.UUID(as_uuid=True), server_default=sa.text("uuid_generate_v4()"), primary_key=True),
+        get_id_column(),
         sa.Column("filename", sa.String(), nullable=False),
-        sa.Column("skills", postgresql.ARRAY(sa.Text())),
+        get_skills_column(),
         sa.Column("raw_text", sa.Text()),
-        sa.Column("parsed_data", postgresql.JSONB()),
+        get_json_column("parsed_data"),
         sa.Column("parse_status", sa.String(), server_default="pending"),
         sa.Column("uploaded_at", sa.DateTime(timezone=True), server_default=sa.func.now()),
-        sa.Column("user_id", postgresql.UUID(as_uuid=True), sa.ForeignKey("users.id", ondelete="CASCADE"), nullable=False),
+        get_fk_column("user_id", "users.id", nullable=False),
     )
 
     op.create_table(
         "jobs",
-        sa.Column("id", postgresql.UUID(as_uuid=True), server_default=sa.text("uuid_generate_v4()"), primary_key=True),
+        get_id_column(),
         sa.Column("title", sa.String(), nullable=False),
-        sa.Column("requirements", postgresql.JSONB(), nullable=False),
+        get_json_column("requirements", nullable=False),
     )
 
     op.create_table(
         "matches",
-        sa.Column("id", postgresql.UUID(as_uuid=True), server_default=sa.text("uuid_generate_v4()"), primary_key=True),
-        sa.Column("resume_id", postgresql.UUID(as_uuid=True), sa.ForeignKey("resumes.id", ondelete="CASCADE"), nullable=False),
-        sa.Column("job_id", postgresql.UUID(as_uuid=True), sa.ForeignKey("jobs.id", ondelete="CASCADE"), nullable=False),
+        get_id_column(),
+        get_fk_column("resume_id", "resumes.id", nullable=False),
+        get_fk_column("job_id", "jobs.id", nullable=False),
         sa.Column("score", sa.Float(), nullable=False),
         sa.Column("created_at", sa.DateTime(timezone=True), server_default=sa.func.now()),
     )
 
     op.create_table(
         "file_sanitization_audit",
-        sa.Column("id", postgresql.UUID(as_uuid=True), server_default=sa.text("uuid_generate_v4()"), primary_key=True),
-        sa.Column("user_id", postgresql.UUID(as_uuid=True), nullable=True),
+        get_id_column(),
+        sa.Column("user_id", sa.String(36) if is_sqlite else postgresql.UUID(as_uuid=True), nullable=True),
         sa.Column("filename", sa.String(), nullable=False),
         sa.Column("status", sa.Enum("success", "failure", name="sanitizationstatus"), nullable=False),
         sa.Column("timestamp", sa.DateTime(timezone=True), server_default=sa.func.now()),
@@ -83,4 +111,7 @@ def downgrade() -> None:
     op.drop_table("jobs")
     op.drop_table("resumes")
     op.drop_table("users")
-    op.execute("DROP TYPE IF EXISTS sanitizationstatus")
+
+    bind = op.get_bind()
+    if bind.dialect.name != "sqlite":
+        op.execute("DROP TYPE IF EXISTS sanitizationstatus")

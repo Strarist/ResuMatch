@@ -47,6 +47,7 @@ async def lifespan(app: FastAPI):
     from app.models.base import Base
     from app.db import engine
     import app.models.strategic_profile  # noqa: F401
+    import app.models.strategic_memory  # noqa: F401
     import app.models.user_progress  # noqa: F401
     import app.services.intelligence.intelligence_models  # noqa: F401
 
@@ -63,12 +64,21 @@ async def lifespan(app: FastAPI):
     async with engine.begin() as conn:
         await conn.run_sync(Base.metadata.create_all)
     logging.info("Database tables verified")
+
+    # P2 — Database verification log (sprint requirement)
+    import re as _re
+    _db_url = settings.database_url
+    _sanitized_url = _re.sub(r'(?<=://)[^@]+@', '***:***@', _db_url)
+    _db_engine = engine.url.get_backend_name()
+    logging.info(f"DATABASE_ENGINE={_db_engine}")
+    logging.info(f"DATABASE_URL={_sanitized_url}")
+
     logging.info("Application started")
     yield
     logging.info("Application shutting down")
 
 
-app = FastAPI(title="ResuMatch API", version="1.0.0", docs_url="/docs", lifespan=lifespan)
+app = FastAPI(title="Skillyn API", version="1.0.0", docs_url="/docs", lifespan=lifespan)
 
 # Middleware
 try:
@@ -93,7 +103,7 @@ app.add_middleware(
 )
 
 # Session middleware for OAuth state (must be after CORS)
-app.add_middleware(SessionMiddleware, secret_key=settings.jwt_secret)
+app.add_middleware(SessionMiddleware, secret_key=settings.jwt_secret, session_cookie="skillyn_session")
 
 if _instrumentator:
     _instrumentator.instrument(app).expose(app, endpoint="/metrics")
@@ -143,7 +153,7 @@ async def external_service_handler(request: Request, exc: ExternalServiceError):
 
 @app.get("/")
 async def root():
-    return {"message": "ResuMatch API", "version": "1.0.0", "status": "running"}
+    return {"message": "Skillyn API", "version": "1.0.0", "status": "running"}
 
 
 @app.get("/health")

@@ -1,12 +1,12 @@
 'use client';
 
 import { useCallback, useEffect, useState } from 'react';
-import { Panel, SectionHeader, StatusBadge } from '@/components/ds';
-import { env } from '@/lib/env';
+import { Panel, SectionHeader } from '@/components/ds';
+import { opportunities as opportunitiesApi } from '@/lib/intelligence-client';
 import { useLivingSystem } from '@/context/LivingSystemContext';
-import { Radar, ArrowDown, ArrowUp, Clock, ShieldCheck, HelpCircle } from 'lucide-react';
+import { Radar, ArrowDown, ArrowUp, HelpCircle } from 'lucide-react';
 import InteractiveCard from '@/components/effects/InteractiveCard';
-import { HardenedOpportunityMatch } from '@/data/baseline-profiles';
+
 
 interface Match {
   type: string;
@@ -26,6 +26,11 @@ interface Match {
   hiringWindow?: string;
   stackCompatibility?: string;
   alignmentReasoning?: string;
+  location?: string;
+  url?: string;
+  source?: string;
+  posted_at?: string;
+  status?: string;
 }
 
 interface Gap {
@@ -47,27 +52,30 @@ export default function OpportunitiesPage() {
   const [apiMatches, setApiMatches] = useState<Match[]>([]);
   const [apiGaps, setApiGaps] = useState<Gap[]>([]);
   const [apiRadar, setApiRadar] = useState<MarketRadar | null>(null);
+  const [matchStatus, setMatchStatus] = useState<string | undefined>();
+  const [matchMessage, setMatchMessage] = useState<string | undefined>();
   const [loading, setLoading] = useState(true);
 
   const {
     simulationActive,
     opportunities: simOpportunities,
-    lifecycleStage,
+    hasStrategicProfile,
     activePersona
   } = useLivingSystem();
 
   const fetchData = useCallback(async () => {
-    const token = localStorage.getItem('access_token');
-    const h: Record<string, string> = token ? { Authorization: `Bearer ${token}` } : {};
-    const [m, g, r] = await Promise.allSettled([
-      fetch(`${env.NEXT_PUBLIC_API_URL}/v1/opportunities/matches`, { headers: h }).then(res => res.ok ? res.json() : null),
-      fetch(`${env.NEXT_PUBLIC_API_URL}/v1/opportunities/gaps`, { headers: h }).then(res => res.ok ? res.json() : null),
-      fetch(`${env.NEXT_PUBLIC_API_URL}/v1/opportunities/radar`, { headers: h }).then(res => res.ok ? res.json() : null),
-    ]);
-    if (m.status === 'fulfilled' && m.value) setApiMatches(m.value.matches || []);
-    if (g.status === 'fulfilled' && g.value) setApiGaps(g.value.gaps || []);
-    if (r.status === 'fulfilled' && r.value) setApiRadar(r.value);
-    setLoading(false);
+    try {
+      const { matches, gaps, radar, matchStatus: status, matchMessage: message } = await opportunitiesApi.getAll();
+      setApiMatches(matches as Match[]);
+      setApiGaps(gaps as Gap[]);
+      setApiRadar(radar);
+      setMatchStatus(status);
+      setMatchMessage(message);
+    } catch {
+      /* Fail silently — page shows empty state */
+    } finally {
+      setLoading(false);
+    }
   }, []);
 
   useEffect(() => {
@@ -78,11 +86,22 @@ export default function OpportunitiesPage() {
     }
   }, [simulationActive, fetchData]);
 
-  if (loading) return <div className="flex justify-center py-20"><div className="animate-spin rounded-full h-8 w-8 border-b-2 border-accent" /></div>;
+  if (loading) {
+    return (
+      <div className="space-y-6">
+        <SectionHeader
+          title="Opportunities Matcher"
+          subtitle="Aligning real-world career vectors..."
+        />
+        <OpportunitiesSkeleton />
+      </div>
+    );
+  }
 
   // Resolve active opportunities data
   const activeMatches: Match[] = simulationActive
-    ? (simOpportunities as HardenedOpportunityMatch[]).map((opp) => ({
+    /* eslint-disable-next-line @typescript-eslint/no-explicit-any */
+    ? (simOpportunities as any[]).map((opp) => ({
         type: opp.type || 'full_time',
         title: opp.title,
         company: opp.company,
@@ -99,6 +118,10 @@ export default function OpportunitiesPage() {
         hiringWindow: opp.hiringWindow,
         stackCompatibility: opp.stackCompatibility,
         alignmentReasoning: opp.alignmentReasoning,
+        location: opp.location || 'Remote',
+        url: opp.url || 'https://skillyn.com',
+        source: opp.source || 'Simulation Ingestion',
+        posted_at: opp.posted_at || new Date().toISOString()
       }))
     : apiMatches;
 
@@ -127,78 +150,12 @@ export default function OpportunitiesPage() {
       }
     : apiRadar;
 
-  const isDormant = lifecycleStage === 1;
+  const matchesToRender = activeMatches;
+  const gapsToRender = activeGaps;
+  const radarToRender = activeRadar;
 
-  const fallbackMatches: Match[] = [
-    {
-      type: 'full_time',
-      title: 'Staff Full Stack Developer (Target)',
-      company: 'Vercel (Standby)',
-      alignment_score: 0.72,
-      confidence: 0.65,
-      estimated_career_impact: '$190k - $240k',
-      matching_signals: ['System standby mode'],
-      missing_requirements: ['GraphQL Federation', 'Distributed Caching (Redis)'],
-      proof_gaps: ['WASM optimization proof'],
-      urgency: 'low',
-      compensation: '$190k - $240k',
-      recruiterPressure: 'medium',
-      hiringWindow: 'Calibration Standby',
-      stackCompatibility: 'React, Next.js, GraphQL',
-      alignmentReasoning: 'Opportunities engine is uncalibrated. Ingest resume portfolio artifacts to align target parameters.',
-    },
-    {
-      type: 'full_time',
-      title: 'Senior Site Reliability Engineer (Target)',
-      company: 'Stripe (Standby)',
-      alignment_score: 0.68,
-      confidence: 0.60,
-      estimated_career_impact: '$200k - $250k',
-      matching_signals: ['System standby mode'],
-      missing_requirements: ['Istio Service Mesh', 'Prometheus Tuning'],
-      proof_gaps: ['Distributed transactional ledger validation'],
-      urgency: 'low',
-      compensation: '$200k - $250k',
-      recruiterPressure: 'low',
-      hiringWindow: 'Calibration Standby',
-      stackCompatibility: 'AWS, Terraform, Kubernetes',
-      alignmentReasoning: 'Awaiting portfolio ingestion to calculate causal stack matching indices.',
-    }
-  ];
-
-  const fallbackGaps: Gap[] = [
-    {
-      target_role: 'Staff Full Stack Developer (Target)',
-      readiness_percentage: 72,
-      missing_skills: ['GraphQL Federation'],
-      missing_proof: ['Production router setup proof'],
-      estimated_completion_time: 'Awaiting Ingestion',
-    },
-    {
-      target_role: 'Senior Site Reliability Engineer (Target)',
-      readiness_percentage: 68,
-      missing_skills: ['Istio Service Mesh'],
-      missing_proof: ['mTLS setup logs'],
-      estimated_completion_time: 'Awaiting Ingestion',
-    }
-  ];
-
-  const fallbackRadar: MarketRadar = {
-    emerging_domains: ['Cloud native platforms', 'Edge routing runtimes', 'Service meshes'],
-    high_roi_skills: [
-      { skill: 'GraphQL Federation', roi: 0.88, trend: 'rising' },
-      { skill: 'Istio Service Mesh', roi: 0.92, trend: 'rising' },
-    ],
-    salary_growth_paths: [
-      'Staff Full Stack Developer (Average: $190k - $240k base)',
-      'Senior Site Reliability Engineer (Average: $200k - $250k base)',
-    ],
-    underutilized_strengths: ['Standard developer runtime config'],
-  };
-
-  const matchesToRender = isDormant ? fallbackMatches : activeMatches;
-  const gapsToRender = isDormant ? fallbackGaps : activeGaps;
-  const radarToRender = isDormant ? fallbackRadar : activeRadar;
+  const showEmptyState = !simulationActive && !hasStrategicProfile;
+  const showPendingState = !simulationActive && hasStrategicProfile && activeMatches.length === 0;
 
   return (
     <div className="space-y-6">
@@ -207,30 +164,48 @@ export default function OpportunitiesPage() {
         subtitle={simulationActive ? "Real-world career acceleration (Simulation Sandbox)" : "Real-world career acceleration"}
       />
 
-      {/* Dormant state banner */}
-      {isDormant && (
-        <div className="p-4 rounded-xl border border-blue-500/20 bg-blue-500/5 flex items-start gap-4 animate-fade-in">
-          <div className="p-2 rounded-lg bg-blue-500/10 text-blue-400">
-            <Radar size={16} className="animate-pulse" />
+      {showEmptyState ? (
+        <div className="p-8 rounded-2xl border border-white/[0.04] bg-white/[0.01] text-center max-w-2xl mx-auto my-12 space-y-6">
+          <div className="w-12 h-12 rounded-full bg-purple-500/10 flex items-center justify-center mx-auto text-purple-400">
+            <Radar size={24} />
           </div>
-          <div>
-            <h3 className="text-xs font-semibold text-white mb-0.5">Opportunities Engine in Standby Mode</h3>
-            <p className="text-[11px] text-white/50 leading-relaxed">
-              Your profile is currently uncalibrated. Ingest resume portfolio artifacts on the{' '}
-              <a href="/resumes" className="text-blue-400 underline hover:text-blue-300">Resumes & Portfolio</a>{' '}
-              view or select a baseline persona in the sidebar to initialize dynamic opportunity matches and recruiter signals.
+          <div className="space-y-2">
+            <h3 className="text-base font-bold text-white">Find Target Career Opportunities</h3>
+            <p className="text-xs text-slate-400 leading-relaxed">
+              We match you with real-world jobs and pinpoint missing skills based on your profile. Upload your resume or configure your career parameters to initialize the matching process.
             </p>
           </div>
+          <div className="flex justify-center gap-3">
+            <a
+              href="/resumes"
+              className="rounded-lg px-4 py-2 bg-purple-500 hover:bg-purple-600 text-black text-xs font-bold transition-colors"
+            >
+              Upload Resume
+            </a>
+            <a
+              href="/profile"
+              className="rounded-lg px-4 py-2 border border-white/10 hover:bg-white/[0.03] text-white text-xs font-bold transition-colors"
+            >
+              Configure Profile
+            </a>
+          </div>
         </div>
-      )}
-
-      {/* Top Matches */}
+      ) : showPendingState ? (
+        <div className="p-8 rounded-2xl border border-amber-500/20 bg-amber-500/5 text-center max-w-2xl mx-auto my-12 space-y-4">
+          <Radar size={24} className="mx-auto text-amber-400" />
+          <h3 className="text-base font-bold text-white">Matches are being prepared</h3>
+          <p className="text-xs text-slate-400 leading-relaxed">
+            {matchMessage || 'Your profile is calibrated. Opportunity matching will appear after resume processing or profile update completes.'}
+          </p>
+        </div>
+      ) : (
+        <>
       {matchesToRender.length > 0 && (
         <Panel className="border-white/[0.04] bg-white/[0.015]">
           <div className="flex items-center justify-between mb-3 border-b border-white/[0.04] pb-2">
-            <h3 className="text-xs font-bold uppercase tracking-wider text-white/60">Top Career Opportunity Matches</h3>
+            <h3 className="text-xs font-bold uppercase tracking-wider text-white/60">Matching Opportunities</h3>
             <span className="text-[8px] text-white/20 font-mono tracking-wider">
-              {isDormant ? 'CALIBRATION STANDBY' : 'DYNAMIC MATCHER ACTIVE'}
+              {simulationActive ? 'SIMULATION' : matchStatus === 'ready' ? 'LIVE MATCHES' : 'DYNAMIC MATCHER ACTIVE'}
             </span>
           </div>
           <div className="space-y-4 mt-3">
@@ -241,97 +216,95 @@ export default function OpportunitiesPage() {
                 <div className="flex flex-col md:flex-row md:items-center justify-between gap-2.5 mb-3">
                   <div>
                     <h4 className="text-sm font-semibold text-white/95">{m.title}</h4>
-                    <span className="text-xs text-slate-400 mt-0.5 block">@ {m.company}</span>
+                    <div className="flex items-center gap-1.5 text-xs text-slate-400 mt-1">
+                      <span>{m.company}</span>
+                      <span>•</span>
+                      <span>{m.location || 'Remote'}</span>
+                    </div>
                   </div>
 
-                  <div className="flex gap-2">
-                    {m.compensation && (
-                      <span className="text-[10px] px-2 py-0.5 rounded font-mono font-bold bg-emerald-500/10 border border-emerald-500/25 text-emerald-400">
-                        {m.compensation}
-                      </span>
-                    )}
-                    {m.hiringWindow && (
-                      <span className="text-[10px] px-2 py-0.5 rounded font-mono bg-blue-500/10 border border-blue-500/20 text-blue-300 flex items-center gap-1">
-                        <Clock size={10} /> {m.hiringWindow}
-                      </span>
-                    )}
-                    {m.recruiterPressure && (
-                      <span className={`text-[10px] px-2 py-0.5 rounded font-mono font-bold uppercase border ${
-                        m.recruiterPressure === 'high'
-                          ? 'border-red-500/20 text-red-400 bg-red-500/[0.04]'
-                          : 'border-amber-500/20 text-amber-400 bg-amber-500/[0.04]'
-                      }`}>
-                        Demand: {m.recruiterPressure}
-                      </span>
-                    )}
-                    <StatusBadge status={m.urgency === 'high' ? 'error' : 'warning'}>{m.urgency.toUpperCase()}</StatusBadge>
+                  <div className="flex items-center gap-2">
+                    <span className="text-[10px] px-2 py-0.5 rounded font-mono font-bold bg-emerald-500/10 border border-emerald-500/25 text-emerald-400">
+                      {m.compensation || m.estimated_career_impact}
+                    </span>
+                    <span className="text-[10px] px-2 py-0.5 rounded font-mono font-bold bg-blue-500/10 border border-blue-500/25 text-blue-400">
+                      {Math.round(m.alignment_score * 100)}% match
+                    </span>
                   </div>
                 </div>
 
-                {/* Compatibility stats */}
-                <div className="flex items-center gap-4 text-xs text-white/35 mt-1 border-t border-white/[0.03] pt-2">
-                  <span>Alignment Match: <span className="text-white/60 font-semibold font-mono">{Math.round(m.alignment_score * 100)}%</span></span>
-                  <span>Screening Confidence: <span className="text-white/60 font-mono">{Math.round(m.confidence * 100)}%</span></span>
-                  {m.stackCompatibility && (
-                    <span className="truncate max-w-[250px] hidden md:inline">Required Stack: <span className="text-slate-400 font-mono text-[11px]">{m.stackCompatibility}</span></span>
-                  )}
-                </div>
-
-                {/* WHY IS THIS RELEVANT TO ME? narrative card */}
+                {/* Why you match */}
                 {m.alignmentReasoning && (
-                  <div className="mt-3 p-3 rounded-lg bg-blue-950/20 border border-blue-500/10 text-xs text-slate-300 leading-relaxed">
+                  <div className="mt-3 p-3 rounded-lg bg-blue-950/20 border border-blue-500/10 text-xs text-slate-300 leading-relaxed font-sans">
                     <span className="font-semibold text-blue-400 flex items-center gap-1 mb-1">
-                      <HelpCircle size={12} /> Why this matches your trajectory:
+                      <HelpCircle size={12} /> Why you match this role:
                     </span>
                     {m.alignmentReasoning}
                   </div>
                 )}
 
-                <div className="grid md:grid-cols-2 gap-3 mt-3 pt-2.5 border-t border-white/[0.03]">
-                  <div>
-                    <span className="text-[9px] text-slate-500 font-mono uppercase block mb-1">Outstanding Skill Gaps</span>
-                    {m.missing_requirements.length > 0 ? (
-                      <div className="flex flex-wrap gap-1">
-                        {m.missing_requirements.map(req => (
-                          <span key={req} className="text-[9px] px-1.5 py-0.5 rounded bg-red-500/10 border border-red-500/20 text-red-400 font-mono">
-                            {req}
-                          </span>
-                        ))}
-                      </div>
+                {/* Source, Date & Apply Link CTA */}
+                <div className="mt-4 flex flex-wrap items-center justify-between gap-3 pt-3 border-t border-white/[0.04] text-[11px]">
+                  <div className="flex items-center gap-2.5 text-slate-500 font-mono">
+                    {m.status === 'LIVE' || (m.source && !['Vercel Seed', 'Stripe Seed', 'HashiCorp Seed', 'Anthropic Seed', 'Supabase Seed'].includes(m.source)) ? (
+                      <span className="px-1.5 py-0.5 rounded bg-emerald-500/10 border border-emerald-500/25 text-[9px] uppercase tracking-wider font-bold text-emerald-400">
+                        LIVE MATCH
+                      </span>
                     ) : (
-                      <span className="text-[10px] text-emerald-400 font-semibold flex items-center gap-1">
-                        <ShieldCheck size={11} /> 100% Skill coverage confirmed
+                      <span className="px-1.5 py-0.5 rounded bg-amber-500/10 border border-amber-500/25 text-[9px] uppercase tracking-wider font-bold text-amber-400">
+                        DEMO DATA
+                      </span>
+                    )}
+                    {m.source && (
+                      <span className="px-1.5 py-0.5 rounded bg-white/[0.02] border border-white/[0.04] text-[9px] uppercase tracking-wider font-bold text-slate-400 font-mono">
+                        {m.source}
+                      </span>
+                    )}
+                    {m.posted_at && (
+                      <span className="text-[10px]">
+                        Posted: {new Date(m.posted_at).toLocaleDateString()}
                       </span>
                     )}
                   </div>
-                  <div>
-                    <span className="text-[9px] text-slate-500 font-mono uppercase block mb-1">Recruiter Proof Gaps</span>
-                    {m.proof_gaps.length > 0 ? (
-                      <div className="flex flex-wrap gap-1">
-                        {m.proof_gaps.map(gap => (
-                          <span key={gap} className="text-[9px] px-1.5 py-0.5 rounded bg-amber-500/10 border border-amber-500/20 text-amber-400 font-mono truncate max-w-[200px]">
-                            {gap}
-                          </span>
-                        ))}
-                      </div>
-                    ) : (
-                      <span className="text-[10px] text-emerald-400 font-semibold flex items-center gap-1">
-                        <ShieldCheck size={11} /> All required portfolio credentials validated
-                      </span>
-                    )}
-                  </div>
+                  {m.url ? (
+                    <a
+                      href={m.url}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="inline-flex items-center gap-1 px-3 py-1.5 bg-emerald-500 hover:bg-emerald-600 text-black text-xs font-bold rounded transition-colors"
+                    >
+                      Apply Now →
+                    </a>
+                  ) : (
+                    <span className="text-slate-600 italic">No direct link</span>
+                  )}
                 </div>
-
               </InteractiveCard>
             ))}
           </div>
         </Panel>
       )}
 
+      {matchesToRender.length === 0 && (
+        <Panel className="border-white/[0.04] bg-white/[0.015] p-8 text-center max-w-lg mx-auto rounded-2xl">
+          <Radar size={40} className="text-slate-500 mx-auto mb-4 animate-pulse" />
+          <h3 className="text-sm font-semibold text-white mb-2">No Relevant Opportunities Found</h3>
+          <p className="text-xs text-slate-400 leading-relaxed mb-4">
+            No relevant opportunities found today. We&apos;ll continue monitoring the market and notify you when new matches appear.
+          </p>
+          <button
+            onClick={fetchData}
+            className="rounded px-4 py-2 text-xs bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 hover:bg-emerald-500/20 font-bold transition-all"
+          >
+            Refresh Opportunities
+          </button>
+        </Panel>
+      )}
+
       {/* Gap-to-Opportunity */}
       {gapsToRender.length > 0 && (
         <Panel className="border-white/[0.04] bg-white/[0.015]">
-          <SectionHeader title="Target Profile Readiness Index" />
+          <SectionHeader title="Target Career Readiness" />
           <div className="mt-3 space-y-3">
             {gapsToRender.map((g, i) => (
               <div key={i} className="flex flex-col sm:flex-row sm:items-center gap-4 py-3 border-b border-white/[0.04] last:border-0">
@@ -341,7 +314,7 @@ export default function OpportunitiesPage() {
                     {g.missing_skills.length > 0 ? (
                       g.missing_skills.map(s => <span key={s} className="text-[10px] bg-white/[0.02] border border-white/[0.04] px-2 py-0.5 rounded text-white/40">{s}</span>)
                     ) : (
-                      <span className="text-[10px] text-emerald-400 font-mono">ALL TRAJECTORY VECTOR GAPS CURED</span>
+                      <span className="text-[10px] text-emerald-400 font-mono">ALL SKILL REQUIREMENTS MET</span>
                     )}
                   </div>
                 </div>
@@ -362,7 +335,7 @@ export default function OpportunitiesPage() {
         <div className="grid gap-4 sm:grid-cols-2">
           {radarToRender.high_roi_skills.length > 0 && (
             <Panel className="border-white/[0.04] bg-white/[0.015]">
-              <SectionHeader title="High ROI Skills Tuning" />
+              <SectionHeader title="Skill Value Assessment" />
               <div className="mt-3 space-y-2.5">
                 {radarToRender.high_roi_skills.map(s => (
                   <div key={s.skill} className="flex items-center justify-between py-1.5 border-b border-white/[0.02] last:border-0">
@@ -377,7 +350,7 @@ export default function OpportunitiesPage() {
                           <span className="text-white/30 flex items-center font-mono uppercase">Stable</span>
                         )}
                       </span>
-                      <span className="text-[10px] text-white/25 font-mono">Value: +{Math.round(s.roi * 100)} ROI</span>
+                      <span className="text-[10px] text-white/25 font-mono">Potential Impact: +{Math.round(s.roi * 100)}%</span>
                     </div>
                   </div>
                 ))}
@@ -386,14 +359,14 @@ export default function OpportunitiesPage() {
           )}
 
           <Panel className="border-white/[0.04] bg-white/[0.015]">
-            <SectionHeader title="Salary & Compounding Paths" />
+            <SectionHeader title="Salary Progression Paths" />
             <div className="mt-3 space-y-3">
               {radarToRender.salary_growth_paths.map((p, i) => (
                 <p key={i} className="text-xs text-white/40 leading-relaxed font-medium">• {p}</p>
               ))}
               {radarToRender.emerging_domains.length > 0 && (
                 <div className="mt-4 pt-3 border-t border-white/[0.03]">
-                  <p className="text-[9px] text-white/20 uppercase tracking-wider font-mono mb-2">Emerging domains detected:</p>
+                  <p className="text-[9px] text-white/20 uppercase tracking-wider font-mono mb-2">Emerging industry sectors:</p>
                   <div className="flex flex-wrap gap-1.5">
                     {radarToRender.emerging_domains.map(d => (
                       <span key={d} className="text-[10px] border border-blue-500/20 bg-blue-500/[0.04] text-blue-300 px-2 py-0.5 rounded capitalize">
@@ -407,6 +380,73 @@ export default function OpportunitiesPage() {
           </Panel>
         </div>
       )}
+        </>
+      )}
+    </div>
+  );
+}
+
+function OpportunitiesSkeleton() {
+  return (
+    <div className="space-y-6 animate-pulse">
+      {/* Top Matching Opportunities Panel Skeleton */}
+      <div className="p-6 rounded-2xl border border-white/[0.04] bg-white/[0.015] space-y-4">
+        <div className="h-5 w-40 bg-white/10 rounded mb-2" />
+        {[1, 2].map((i) => (
+          <div key={i} className="p-5 rounded-xl border border-white/[0.04] bg-white/[0.005] space-y-4">
+            <div className="flex justify-between items-start">
+              <div className="space-y-2">
+                <div className="h-4 w-48 bg-white/20 rounded" />
+                <div className="h-3.5 w-32 bg-white/10 rounded" />
+              </div>
+              <div className="flex gap-2">
+                <div className="h-5 w-20 bg-white/10 rounded" />
+                <div className="h-5 w-16 bg-white/10 rounded" />
+              </div>
+            </div>
+            <div className="h-10 w-full bg-white/[0.02] rounded" />
+          </div>
+        ))}
+      </div>
+
+      {/* Target Career Readiness Panel Skeleton */}
+      <div className="p-6 rounded-2xl border border-white/[0.04] bg-white/[0.015] space-y-4">
+        <div className="h-5 w-44 bg-white/10 rounded mb-2" />
+        {[1, 2].map((i) => (
+          <div key={i} className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 py-3 border-b border-white/[0.04] last:border-0">
+            <div className="flex-1 space-y-2">
+              <div className="h-4 w-40 bg-white/20 rounded" />
+              <div className="flex gap-1.5 mt-2">
+                {[1, 2, 3].map((j) => (
+                  <div key={j} className="h-4.5 w-16 bg-white/10 rounded" />
+                ))}
+              </div>
+            </div>
+            <div className="space-y-2 text-right">
+              <div className="h-4.5 w-20 bg-white/20 rounded" />
+              <div className="h-3 w-12 bg-white/10 rounded ml-auto" />
+            </div>
+          </div>
+        ))}
+      </div>
+
+      {/* Radar 2-Column Grid Skeleton */}
+      <div className="grid gap-4 sm:grid-cols-2">
+        <div className="p-6 rounded-2xl border border-white/[0.04] bg-white/[0.015] space-y-4">
+          <div className="h-5 w-36 bg-white/10 rounded" />
+          {[1, 2, 3].map((i) => (
+            <div key={i} className="flex justify-between items-center py-2">
+              <div className="h-3.5 w-24 bg-white/20 rounded" />
+              <div className="h-3.5 w-16 bg-white/10 rounded" />
+            </div>
+          ))}
+        </div>
+        <div className="p-6 rounded-2xl border border-white/[0.04] bg-white/[0.015] space-y-4">
+          <div className="h-5 w-32 bg-white/10 rounded" />
+          <div className="h-3.5 w-full bg-white/[0.04] rounded" />
+          <div className="h-3.5 w-5/6 bg-white/[0.04] rounded" />
+        </div>
+      </div>
     </div>
   );
 }

@@ -1,5 +1,7 @@
 'use client';
 
+/** @deprecated Legacy job-description SSE roadmap. Use /roadmap-v2 with roadmap-intel API instead. */
+
 import { useState } from 'react';
 import { useStreamingRoadmap } from '@/lib/useStreamingRoadmap';
 import { Panel, SectionHeader, StreamingBlock } from '@/components/ds';

@@ -1,4 +1,4 @@
-/* eslint-disable @typescript-eslint/no-unused-vars, @typescript-eslint/no-explicit-any */
+/* eslint-disable @typescript-eslint/no-unused-vars */
 'use client';
 
 import React, { useEffect, useState } from 'react';
@@ -60,7 +60,7 @@ export default function SettingsPage() {
     localStorage.removeItem('email_alerts');
     localStorage.removeItem('recruiter_alerts');
     localStorage.removeItem('digest_alerts');
-    
+
     // Reset local states
     setResumeAutoAnalysis(true);
     setProfileVisibility(true);
@@ -74,7 +74,7 @@ export default function SettingsPage() {
   return (
     <PageContainer title="Settings" subtitle="Manage your profile settings and customize your upskilling preferences">
       <div className="space-y-6 animate-fade-in">
-        
+
         {/* Account profile info */}
         <GlassPanel className="p-5 flex items-center justify-between flex-wrap gap-4 border border-white/[0.04] bg-white/[0.01]">
           <div className="flex items-center gap-4">
@@ -220,10 +220,10 @@ export default function SettingsPage() {
             <Database size={14} className="text-cyan-400/60" />
             <SectionLabel>Offline Storage & Data Control</SectionLabel>
           </div>
-          
+
           <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
             <p className="text-xs text-slate-500 leading-relaxed max-w-xl">
-              ResuMatch caches your customized layout templates and settings preferences in your local browser sandbox to guarantee high-performance loads. Wiping this cache resets local preferences.
+              Skillyn caches your customized layout templates and settings preferences in your local browser sandbox to guarantee high-performance loads. Wiping this cache resets local preferences.
             </p>
             <div className="flex flex-wrap gap-3">
               <button

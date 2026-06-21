@@ -34,7 +34,13 @@ class OpenRouterProvider(AIProvider):
         formatted_messages = [
             {"role": m.role, "content": m.content} for m in messages
         ]
-        content = await llm_service.generate(formatted_messages)
+        temperature = kwargs.get("temperature", 0.1)
+        max_tokens = kwargs.get("max_tokens")
+        content = await llm_service.generate(
+            messages=formatted_messages,
+            temperature=temperature,
+            max_tokens=max_tokens,
+        )
         yield AIStreamChunk(content=content, done=True)
 
     async def generate_json(self, messages: list[AIMessage], **kwargs) -> dict:

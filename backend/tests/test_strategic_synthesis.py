@@ -68,7 +68,7 @@ def test_signal_compressor(sample_synthesis_data):
     result = engine.synthesize(sample_synthesis_data)
     assert "signals" in result
     assert len(result["signals"]) >= 2
-    
+
     # Check CompressedSignal schema integrity
     for signal in result["signals"]:
         assert "signal_type" in signal
@@ -83,7 +83,7 @@ def test_opportunity_synthesis(sample_synthesis_data):
     result = engine.synthesize(sample_synthesis_data)
     assert "opportunity_clusters" in result
     assert len(result["opportunity_clusters"]) == 2
-    
+
     cluster = result["opportunity_clusters"][0]
     assert cluster["cluster_name"] == "Cloud-Native Realtime API Architecture"
     assert cluster["compound_leverage_multiplier"] > 1.0
@@ -117,36 +117,33 @@ def test_narrative_synthesis(sample_synthesis_data):
 # 4. Integration REST API Tests
 
 @pytest.mark.asyncio
-async def test_synthesis_api_endpoints():
+async def test_synthesis_api_endpoints(client):
     app.dependency_overrides[get_current_user] = mock_get_current_user
     try:
-        async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as ac:
+        # GET /v1/intelligence/synthesis/narrative
+        resp = await client.get("/v1/intelligence/synthesis/narrative")
+        assert resp.status_code == 200
+        data = resp.json()
+        assert "narrative_brief" in data
+        assert "execution_storyline" in data
 
-            
-            # GET /v1/intelligence/synthesis/narrative
-            resp = await ac.get("/v1/intelligence/synthesis/narrative")
-            assert resp.status_code == 200
-            data = resp.json()
-            assert "narrative_brief" in data
-            assert "execution_storyline" in data
-            
-            # GET /v1/intelligence/synthesis/digest
-            resp = await ac.get("/v1/intelligence/synthesis/digest")
-            assert resp.status_code == 200
-            data = resp.json()
-            assert "trajectory_summary" in data
-            assert "compressed_signals" in data
+        # GET /v1/intelligence/synthesis/digest
+        resp = await client.get("/v1/intelligence/synthesis/digest")
+        assert resp.status_code == 200
+        data = resp.json()
+        assert "trajectory_summary" in data
+        assert "compressed_signals" in data
 
-            # GET /v1/intelligence/synthesis/opportunity
-            resp = await ac.get("/v1/intelligence/synthesis/opportunity")
-            assert resp.status_code == 200
-            data = resp.json()
-            assert "opportunity_clusters" in data
+        # GET /v1/intelligence/synthesis/opportunity
+        resp = await client.get("/v1/intelligence/synthesis/opportunity")
+        assert resp.status_code == 200
+        data = resp.json()
+        assert "opportunity_clusters" in data
 
-            # GET /v1/intelligence/synthesis/risk
-            resp = await ac.get("/v1/intelligence/synthesis/risk")
-            assert resp.status_code == 200
-            data = resp.json()
-            assert "stagnation_coefficient" in data
+        # GET /v1/intelligence/synthesis/risk
+        resp = await client.get("/v1/intelligence/synthesis/risk")
+        assert resp.status_code == 200
+        data = resp.json()
+        assert "stagnation_coefficient" in data
     finally:
         app.dependency_overrides.clear()

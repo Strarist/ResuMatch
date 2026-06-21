@@ -1,7 +1,7 @@
 'use client';
 
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { env } from '@/lib/env';
+import { workspace, roadmap as roadmapApi } from '@/lib/intelligence-client';
 import { useLivingSystem } from '@/context/LivingSystemContext';
 import { GlassPanel, SectionLabel, WorkspaceCard } from '@/components/workspace';
 import { Plus, Send, Brain, HelpCircle, ShieldCheck } from 'lucide-react';
@@ -9,6 +9,14 @@ import { toast } from 'sonner';
 
 interface Message { id: string; role: string; content: string; created_at: string; }
 interface Session { id: string; title: string; type: string; }
+interface RealMilestone {
+  skill: string;
+  priority: string;
+  effortWeeks: number;
+  impactEstimate: number;
+  reason: string;
+  status: string;
+}
 
 export default function WorkspacePage() {
   const {
@@ -16,51 +24,64 @@ export default function WorkspacePage() {
     roadmap,
     opportunities,
     activePersona,
-    lifecycleStage,
+    hasStrategicProfile,
     completeRoadmapNode,
   } = useLivingSystem();
 
   const [sessions, setSessions] = useState<Session[]>([]);
+  const [realRoadmap, setRealRoadmap] = useState<RealMilestone[]>([]);
   const [activeSession, setActiveSession] = useState<string | null>(null);
+
+  const fetchRealRoadmap = useCallback(async () => {
+    if (simulationActive) return;
+    try {
+      const d = await roadmapApi.getState();
+      if (d.state?.snapshot?.milestones) {
+        setRealRoadmap(d.state.snapshot.milestones.map((m) => ({
+          skill: m.skill,
+          priority: m.priority || 'medium',
+          effortWeeks: m.effort_weeks || 4,
+          impactEstimate: m.impact_estimate || 80,
+          reason: m.reason || '',
+          status: m.status || 'active',
+        })));
+      }
+    } catch { /* */ }
+  }, [simulationActive]);
+
+  useEffect(() => {
+    fetchRealRoadmap();
+  }, [fetchRealRoadmap, activeSession]);
+
+  const displayRoadmap = simulationActive ? roadmap : realRoadmap;
   const [messages, setMessages] = useState<Message[]>([]);
   const [input, setInput] = useState('');
   const [sending, setSending] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
-  const headers = useCallback((): Record<string, string> => {
-    const t = localStorage.getItem('access_token');
-    return { 'Content-Type': 'application/json', ...(t ? { Authorization: `Bearer ${t}` } : {}) };
-  }, []);
-
   // Fetch sessions on mount
   useEffect(() => {
     if (!simulationActive) {
-      const h = headers();
-      fetch(`${env.NEXT_PUBLIC_API_URL}/v1/workspace/sessions`, { headers: h })
-        .then(r => r.ok ? r.json() : null)
-        .then(d => {
-          if (d) {
-            const s = d.sessions || [];
-            setSessions(s);
-            if (s.length > 0) {
-              setActiveSession(s[0].id);
-            }
-          }
-        });
+      workspace.getSessions()
+        .then((d) => {
+          const s = d.sessions || [];
+          setSessions(s);
+          if (s.length > 0 && s[0]) setActiveSession(s[0].id);
+        })
+        .catch(() => null);
     } else {
-      // Simulation mode default session
       setSessions([{ id: 'sim-session', title: 'Strategic Career Plan', type: 'general' }]);
       setActiveSession('sim-session');
     }
-  }, [headers, simulationActive]);
+  }, [simulationActive]);
 
   // Preloaded static message in fallback state
   const getContextualWelcomeMessage = useCallback(() => {
-    if (lifecycleStage === 1) {
-      return "Hello! I am your AI career copilot. I've initiated a baseline Career Strategy session.\n\nI can help you review your target trajectory, optimize high-impact skills (like CUDA optimization and Raft consensus), or analyze market demand and salary trajectories. Ask me anything to get started, or upload a resume to calibrate my recommendations!";
+    if (!hasStrategicProfile) {
+      return "Hello! I am your career mentor. I've initialized a personalized Career Advisory session for you.\n\nI am here to help you evaluate your career goals, build a clean upskilling learning plan, prepare for interviews, or check salary growth potentials in the current market. To get started with custom, real-world advice, feel free to ask a question or upload a resume to your portfolio!";
     }
 
-    const gapsStr = roadmap
+    const gapsStr = displayRoadmap
       .filter((n) => n.status === 'active')
       .map((n) => `* **${n.skill}** (Priority: ${n.priority}) - *${n.reason}*`)
       .join('\n');
@@ -70,20 +91,20 @@ export default function WorkspacePage() {
       .map((o) => `* **${o.company}** targeting **${o.title}** (${Math.round(o.alignmentScore * 100)}% match)`)
       .join('\n');
 
-    return `Hello! I am your AI career copilot, currently calibrated to your **${activePersona.name}** profile.
+    return `Hello! I am your career mentor. I have carefully reviewed your profile as a **${activePersona.name}** and mapped out the best path forward.
 
-Here is the strategic vector map I'm referencing:
+Here is the current focus area we are targeting:
 * **Target Role**: ${activePersona.targetRole}
-* **Validated Competencies**: ${activePersona.strongestSkills.slice(0, 3).join(', ') || 'None'}
+* **Verified Skills**: ${activePersona.strongestSkills.slice(0, 3).join(', ') || 'None'}
 
-**Outstanding Skill Gaps**:
+**High-Priority Skill Gaps to Address**:
 ${gapsStr || 'No outstanding skill gaps detected.'}
 
-**Target Opportunity Pipelines**:
+**Recommended Job Pipelines**:
 ${oppsStr || 'No matched opportunities.'}
 
-I can help you outline learning sprint schedules, draft custom projects to bridge outstanding credentials gaps, or analyze recruiter signals. What strategic gap shall we optimize first?`;
-  }, [activePersona, roadmap, opportunities, lifecycleStage]);
+I can help you draft a custom learning plan, design portfolio projects to prove your skills, or prepare for technical interviews. What shall we focus on first to advance your career?`;
+  }, [activePersona, displayRoadmap, opportunities, hasStrategicProfile]);
 
   // Fetch messages for active session
   useEffect(() => {
@@ -102,12 +123,12 @@ I can help you outline learning sprint schedules, draft custom projects to bridg
       return;
     }
 
-    fetch(`${env.NEXT_PUBLIC_API_URL}/v1/workspace/session/${activeSession}`, { headers: headers() })
-      .then(r => r.ok ? r.json() : null)
-      .then(d => {
-        if (d) setMessages(d.messages || []);
-      });
-  }, [activeSession, headers, getContextualWelcomeMessage]);
+    if (!activeSession) return;
+
+    workspace.getSession(activeSession)
+      .then((d) => setMessages(d.messages || []))
+      .catch(() => null);
+  }, [activeSession, simulationActive, getContextualWelcomeMessage]);
 
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
@@ -129,16 +150,13 @@ I can help you outline learning sprint schedules, draft custom projects to bridg
       return;
     }
 
-    const res = await fetch(`${env.NEXT_PUBLIC_API_URL}/v1/workspace/session`, {
-      method: 'POST',
-      headers: headers(),
-      body: JSON.stringify({ title: 'Career Strategy' })
-    });
-    if (res.ok) {
-      const d = await res.json();
+    try {
+      const d = await workspace.createSession('Career Strategy');
       setSessions(prev => [{ id: d.id, title: d.title, type: d.type }, ...prev]);
       setActiveSession(d.id);
       setMessages([]);
+    } catch {
+      toast.error('Failed to create session.');
     }
   };
 
@@ -184,7 +202,7 @@ I can help you outline learning sprint schedules, draft custom projects to bridg
 
 ### 2. High-Impact GitHub Project Proof
 * Clone the target open-source repositories (e.g. Apollo Federation, HashiCorp plugins, or PyTorch models).
-* Create a repository named \`resumatch-${matchedSkill.skill.toLowerCase().replace(/[^a-z0-9]/g, '-')}\`.
+* Create a repository named \`skillyn-${matchedSkill.skill.toLowerCase().replace(/[^a-z0-9]/g, '-')}\`.
 * Code a functional proof, configure Github Actions validation tests, and write a structured README detailing performance stats.
 
 ### 3. Resume Proof Description
@@ -217,34 +235,24 @@ Would you like me to draft a custom learning sprint or design a mock interview q
 
     let targetSessionId = activeSession;
     if (!targetSessionId) {
-      const res = await fetch(`${env.NEXT_PUBLIC_API_URL}/v1/workspace/session`, {
-        method: 'POST',
-        headers: headers(),
-        body: JSON.stringify({ title: 'Career Strategy' })
-      });
-      if (res.ok) {
-        const d = await res.json();
+      try {
+        const d = await workspace.createSession('Career Strategy');
         setSessions(prev => [{ id: d.id, title: d.title, type: d.type }, ...prev]);
         targetSessionId = d.id;
         setActiveSession(d.id);
-      } else {
+      } catch {
         setSending(false);
         return;
       }
     }
 
-    const res = await fetch(`${env.NEXT_PUBLIC_API_URL}/v1/workspace/session/${targetSessionId}/message`, {
-      method: 'POST',
-      headers: headers(),
-      body: JSON.stringify({ content })
-    });
-    if (res.ok) {
-      const d = await res.json();
+    try {
+      const d = await workspace.sendMessage(targetSessionId!, content);
       setMessages(prev => {
         const filtered = prev.filter(m => !m.id.startsWith('temp-'));
         return [...filtered, { id: `user-${Date.now()}`, role: 'user', content, created_at: new Date().toISOString() }, d.message];
       });
-    } else {
+    } catch {
       toast.error('Failed to get response from server.');
       setMessages(prev => prev.filter(m => !m.id.startsWith('temp-')));
     }
@@ -252,7 +260,7 @@ Would you like me to draft a custom learning sprint or design a mock interview q
   };
 
   // Generate suggested prompt chips dynamically from active gaps
-  const activeGaps = roadmap.filter((n) => n.status === 'active').slice(0, 3);
+  const activeGaps = displayRoadmap.filter((n) => n.status === 'active').slice(0, 3);
   const promptChips = activeGaps.map((node) => ({
     label: `Bridge ${node.skill}`,
     text: `How do I bridge my "${node.skill}" gap for the "${activePersona.targetRole}" trajectory? Please draft a structured learning sprint and suggest a portfolio project proof.`,
@@ -273,12 +281,27 @@ Would you like me to draft a custom learning sprint or design a mock interview q
   }
 
   // Handle accepting a roadmap recommendation card in the Action Center
-  const handleRecAction = (recTitle: string, action: 'accept' | 'defer') => {
-    if (action === 'accept') {
-      completeRoadmapNode(recTitle);
-      toast.success(`Completed milestone: ${recTitle}`);
-    } else {
-      toast(`Deferred recommendation: ${recTitle}`);
+  const handleRecAction = async (recTitle: string, action: 'accept' | 'defer') => {
+    if (simulationActive) {
+      if (action === 'accept') {
+        completeRoadmapNode(recTitle);
+        toast.success(`Completed milestone: ${recTitle}`);
+      } else {
+        toast(`Deferred recommendation: ${recTitle}`);
+      }
+      return;
+    }
+
+    try {
+      if (action === 'accept') {
+        await roadmapApi.completeNode(recTitle);
+      } else {
+        await roadmapApi.deferNode(recTitle);
+      }
+      toast.success(`${action === 'accept' ? 'Completed' : 'Deferred'} milestone: ${recTitle}`);
+      fetchRealRoadmap();
+    } catch {
+      toast.error(`Failed to update milestone: ${recTitle}`);
     }
   };
 
@@ -351,7 +374,7 @@ Would you like me to draft a custom learning sprint or design a mock interview q
         </div>
 
         {/* Dynamic Prompt Chips */}
-        {lifecycleStage > 1 && (
+        {hasStrategicProfile && (
           <div className="mt-3 space-y-1 shrink-0">
             <span className="text-[9px] font-mono text-slate-500 uppercase tracking-wider block">Suggested Prompts</span>
             <div className="flex flex-wrap gap-1.5">
@@ -399,7 +422,7 @@ Would you like me to draft a custom learning sprint or design a mock interview q
           </p>
 
           <div className="space-y-3 overflow-y-auto flex-1 pr-1">
-            {roadmap.filter(node => node.status === 'active').map((rec, i) => (
+            {displayRoadmap.filter(node => node.status === 'active').map((rec, i) => (
               <WorkspaceCard key={i} className="p-3.5 space-y-2 border-white/[0.03] bg-white/[0.005]">
                 <div className="flex items-center justify-between">
                   <span className={`text-[8px] px-1.5 py-0.2 rounded border uppercase font-mono font-bold ${
@@ -431,7 +454,7 @@ Would you like me to draft a custom learning sprint or design a mock interview q
               </WorkspaceCard>
             ))}
 
-            {roadmap.filter(node => node.status === 'active').length === 0 && (
+            {displayRoadmap.filter(node => node.status === 'active').length === 0 && (
               <div className="p-4 border border-dashed border-white/[0.06] rounded-xl text-center py-8">
                 <ShieldCheck size={20} className="text-emerald-400/60 mx-auto mb-2" />
                 <p className="text-[10px] text-slate-500">No active gaps to resolve.</p>

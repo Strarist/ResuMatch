@@ -24,12 +24,40 @@ const badgeVariants = cva(
 
 export interface BadgeProps
   extends React.HTMLAttributes<HTMLDivElement>,
-    VariantProps<typeof badgeVariants> {}
+    VariantProps<typeof badgeVariants> {
+    /**
+     * Badge type determines preset colors and icon.
+     * If provided, overrides `variant` styling.
+     */
+    type?: 'high' | 'medium' | 'low' | 'live' | 'demo' | 'archived';
+  }
 
-function Badge({ className, variant, ...props }: BadgeProps) {
+import { CheckCircle, AlertTriangle, Ban, CircleDot, Archive } from 'lucide-react';
+
+function Badge({ className, variant, type, children, ...props }: BadgeProps) {
+  const typeMap: Record<'high' | 'medium' | 'low' | 'live' | 'demo' | 'archived', { className: string; Icon: typeof CheckCircle }> = {
+    high: { className: 'bg-primary text-primary-foreground', Icon: CheckCircle },
+    medium: { className: 'bg-amber text-amber-foreground', Icon: AlertTriangle },
+    low: { className: 'bg-gray text-gray-foreground', Icon: Ban },
+    live: { className: 'bg-primary text-primary-foreground', Icon: CheckCircle },
+    demo: { className: 'bg-gray text-gray-foreground', Icon: CircleDot },
+    archived: { className: 'bg-orange text-orange-foreground', Icon: Archive },
+  };
+
+  const typeConfig = type ? typeMap[type] : null;
+  const finalClass = cn(
+    typeConfig ? typeConfig.className : badgeVariants({ variant }),
+    className
+  );
+
+  const Icon = typeConfig?.Icon;
   return (
-    <div className={cn(badgeVariants({ variant }), className)} {...props} />
-  )
+    <div className={cn('inline-flex items-center gap-1', finalClass)} {...props}>
+      {Icon && <Icon className="h-3 w-3" aria-hidden="true" />}
+      {children}
+    </div>
+  );
 }
 
-export { Badge, badgeVariants } 
+
+export { Badge, badgeVariants }

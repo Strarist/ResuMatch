@@ -2,8 +2,8 @@
 
 import { useCallback, useEffect, useState } from 'react';
 import { Panel, SectionHeader, StatusBadge } from '@/components/ds';
-import { env } from '@/lib/env';
 import { useLivingSystem } from '@/context/LivingSystemContext';
+import { trajectory as trajectoryApi } from '@/lib/intelligence-client';
 
 interface ReadinessScore {
   score: number;
@@ -44,11 +44,9 @@ export default function TrajectoryPage() {
   const { simulationActive, metrics, recruiterProfile } = useLivingSystem();
 
   const fetchTrajectory = useCallback(async () => {
-    const token = localStorage.getItem('access_token');
-    const headers: Record<string, string> = token ? { Authorization: `Bearer ${token}` } : {};
     try {
-      const res = await fetch(`${env.NEXT_PUBLIC_API_URL}/v1/trajectory/snapshot`, { headers });
-      if (res.ok) setApiData(await res.json());
+      const data = await trajectoryApi.getSnapshot();
+      setApiData(data as TrajectoryData);
     } catch { /* non-critical */ }
     setLoading(false);
   }, []);

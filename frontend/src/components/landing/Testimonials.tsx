@@ -11,7 +11,7 @@ const testimonials = [
     company: 'Series B AI Startup',
   },
   {
-    quote: 'ResuMatch candidates come with context — trajectory, market fit, growth velocity. I stopped guessing and started hiring with confidence.',
+    quote: 'Skillyn candidates come with context — trajectory, market fit, growth velocity. I stopped guessing and started hiring with confidence.',
     name: 'Marcus Webb',
     role: 'Engineering Hiring Lead',
     company: 'Enterprise SaaS',

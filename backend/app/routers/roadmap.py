@@ -37,7 +37,7 @@ async def stream_roadmap(
     current_user: User = Depends(get_current_user),
     resume_repo: ResumeRepository = Depends(get_resume_repo),
 ):
-    """Stream skill gap roadmap generation via SSE."""
+    """Deprecated — use /v1/roadmap-intel/* instead of legacy SSE roadmap."""
 
     async def _generate() -> AsyncGenerator[str, None]:
         settings = get_settings()

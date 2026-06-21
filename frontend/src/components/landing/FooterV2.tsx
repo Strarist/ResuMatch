@@ -6,8 +6,8 @@ import { Github, FileText, Mail } from 'lucide-react';
 
 const footerSections = [
   { title: 'Product', links: [{ label: 'Features', href: '#features' }, { label: 'Pricing', href: '#pricing' }, { label: 'Dashboard', href: '/dashboard' }, { label: 'Upload', href: '/upload' }] },
-  { title: 'Intelligence', links: [{ label: 'Market Data', href: '/market-intelligence' }, { label: 'Career Trajectory', href: '/trajectory' }, { label: 'Skill Analysis', href: '/analysis' }, { label: 'Roadmap', href: '/roadmap' }] },
-  { title: 'Recruiters', links: [{ label: 'Recruiter Intel', href: '/recruiter-intelligence' }, { label: 'Opportunity Radar', href: '/opportunities' }, { label: 'Match Engine', href: '/matches' }] },
+  { title: 'Intelligence', links: [{ label: 'Market Data', href: '/market-intelligence' }, { label: 'Career Trajectory', href: '/trajectory' }, { label: 'Roadmap', href: '/roadmap-v2' }] },
+  { title: 'Recruiters', links: [{ label: 'Recruiter Intel', href: '/recruiter-intelligence' }, { label: 'Opportunity Radar', href: '/opportunities' }] },
   { title: 'Resources', links: [{ label: 'Documentation', href: '#' }, { label: 'API Reference', href: '#' }, { label: 'Blog', href: '#' }, { label: 'Changelog', href: '#' }] },
   { title: 'Company', links: [{ label: 'About', href: '#' }, { label: 'Privacy', href: '#' }, { label: 'Terms', href: '#' }, { label: 'Contact', href: '#' }] },
 ];
@@ -20,8 +20,8 @@ export default function FooterV2() {
           {/* Brand */}
           <div className="col-span-2 md:col-span-1">
             <Link href="/" className="flex items-center gap-2 mb-4">
-              <Image src="/logo.svg" alt="ResuMatch" width={24} height={24} />
-              <span className="font-semibold text-white text-sm">ResuMatch</span>
+              <Image src="/logo.svg" alt="Skillyn" width={24} height={24} />
+              <span className="font-semibold text-white text-sm">Skillyn</span>
             </Link>
             <p className="text-xs text-white/30 leading-relaxed mb-4">
               AI-powered career intelligence platform.
@@ -33,7 +33,7 @@ export default function FooterV2() {
               <a href="#" className="text-white/30 hover:text-white/60 transition-colors" aria-label="Documentation">
                 <FileText size={16} />
               </a>
-              <a href="mailto:support@resumatch.com" className="text-white/30 hover:text-white/60 transition-colors" aria-label="Contact">
+              <a href="mailto:support@skillyn.com" className="text-white/30 hover:text-white/60 transition-colors" aria-label="Contact">
                 <Mail size={16} />
               </a>
             </div>
@@ -58,7 +58,7 @@ export default function FooterV2() {
 
         {/* Bottom bar */}
         <div className="mt-12 pt-6 border-t border-white/[0.04] flex flex-col sm:flex-row items-center justify-between gap-4">
-          <p className="text-[11px] text-white/20">© {new Date().getFullYear()} ResuMatch. All rights reserved.</p>
+          <p className="text-[11px] text-white/20">© {new Date().getFullYear()} Skillyn. All rights reserved.</p>
           <div className="flex gap-4">
             <Link href="#" className="text-[11px] text-white/20 hover:text-white/40 transition-colors">Privacy</Link>
             <Link href="#" className="text-[11px] text-white/20 hover:text-white/40 transition-colors">Terms</Link>

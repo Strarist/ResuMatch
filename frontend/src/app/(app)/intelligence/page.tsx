@@ -1,7 +1,7 @@
 'use client';
 
 import { useCallback, useEffect, useState } from 'react';
-import { env } from '@/lib/env';
+import { intelligence } from '@/lib/intelligence-client';
 import { PageContainer, DashboardGrid, MetricCard, GlassPanel, SectionLabel, InsightPanel, WorkspaceCard, LoadingPulse, EmptyState } from '@/components/workspace';
 import { Brain, Target, TrendingUp, DollarSign, AlertTriangle } from 'lucide-react';
 import { useLivingSystem } from '@/context/LivingSystemContext';
@@ -38,15 +38,13 @@ export default function IntelligenceDashboard() {
   const { simulationActive, metrics, feed, roadmap } = useLivingSystem();
 
   const fetchData = useCallback(async () => {
-    const token = localStorage.getItem('access_token');
-    const h: Record<string, string> = token ? { Authorization: `Bearer ${token}` } : {};
     try {
       const [s, r] = await Promise.all([
-        fetch(`${env.NEXT_PUBLIC_API_URL}/v1/intelligence/summary`, { headers: h }).then(res => res.ok ? res.json() : null),
-        fetch(`${env.NEXT_PUBLIC_API_URL}/v1/intelligence/recommendations`, { headers: h }).then(res => res.ok ? res.json() : null),
+        intelligence.getSummary(),
+        intelligence.getRecommendations(),
       ]);
-      if (s) setApiSummary(s);
-      if (r) setApiRecs(r.recommendations || []);
+      setApiSummary(s);
+      setApiRecs(r.recommendations || []);
     } catch { /* non-critical */ }
     setLoading(false);
   }, []);

@@ -2,6 +2,7 @@
 
 import { AppShell } from '@/components/shell/AppShell';
 import { CommandPalette } from '@/components/shell/CommandPalette';
+import { DevRouteGuard } from '@/components/shell/DevRouteGuard';
 import { DetailDrawer } from '@/components/shell/DetailDrawer';
 import { WorkspaceProvider } from '@/lib/WorkspaceContext';
 import ProtectedRoute from '@/components/ProtectedRoute';
@@ -12,7 +13,9 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
     <ProtectedRoute>
       <WorkspaceProvider>
         <LivingSystemProvider>
-          <AppShell>{children}</AppShell>
+          <DevRouteGuard>
+            <AppShell>{children}</AppShell>
+          </DevRouteGuard>
           <DetailDrawer />
           <CommandPalette />
         </LivingSystemProvider>

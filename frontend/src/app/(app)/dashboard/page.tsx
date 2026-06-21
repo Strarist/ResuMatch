@@ -4,27 +4,16 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import Link from 'next/link';
 import { useLivingSystem } from '@/context/LivingSystemContext';
-import {
-  PageContainer,
-  DashboardGrid,
-  MetricCard,
-  SectionLabel,
-  WorkspaceCard,
-} from '@/components/workspace';
-import {
-  Target,
-  Compass,
-  Globe,
-  Award,
-  ChevronRight,
-  TrendingUp,
-  Briefcase,
-  AlertTriangle,
-  Lightbulb,
-  CheckCircle2,
-  Sparkles
-} from 'lucide-react';
-import { env } from '@/lib/env';
+import { PageContainer, WorkspaceCard } from '@/components/workspace';
+import { CareerSnapshot } from '@/components/dashboard/CareerSnapshot';
+import { CurrentFocus } from '@/components/dashboard/CurrentFocus';
+import { TopOpportunity } from '@/components/dashboard/TopOpportunity';
+import { MarketMovement } from '@/components/dashboard/MarketMovement';
+import { AIInsight } from '@/components/dashboard/AIInsight';
+import { DashboardEmptyState } from '@/components/dashboard/DashboardEmptyState';
+import { Compass, ChevronRight, Sparkles, FileText } from 'lucide-react';
+import { fetchDashboardData, type Recommendation, type MarketRadar, type MarketSnapshot } from '@/lib/intelligence-client';
+import type { Milestone } from '@/types/dashboard';
 
 export default function DashboardPage() {
   const {
@@ -33,6 +22,7 @@ export default function DashboardPage() {
     recruiterProfile: simProfile,
     activePersona,
     simulationActive,
+    hasStrategicProfile,
   } = useLivingSystem();
 
   const [loading, setLoading] = useState(true);
@@ -40,28 +30,37 @@ export default function DashboardPage() {
   const [apiOpportunities, setApiOpportunities] = useState<any[]>([]);
   const [apiRoadmap, setApiRoadmap] = useState<any>(null);
   const [apiGaps, setApiGaps] = useState<any[]>([]);
+  const [apiRecommendations, setApiRecommendations] = useState<Recommendation[]>([]);
+  const [apiRadar, setApiRadar] = useState<MarketRadar | null>(null);
+  const [apiMarket, setApiMarket] = useState<MarketSnapshot | null>(null);
+  const [fetchError, setFetchError] = useState(false);
 
   const fetchData = useCallback(async () => {
     if (simulationActive) {
       setLoading(false);
       return;
     }
-    const token = typeof window !== 'undefined' ? localStorage.getItem('access_token') : null;
-    const headers: Record<string, string> = token ? { Authorization: `Bearer ${token}` } : {};
     try {
-      const [focusRes, oppsRes, roadmapRes, gapsRes] = await Promise.allSettled([
-        fetch(`${env.NEXT_PUBLIC_API_URL}/v1/strategic/focus`, { headers }).then(res => res.ok ? res.json() : null),
-        fetch(`${env.NEXT_PUBLIC_API_URL}/v1/opportunities/matches`, { headers }).then(res => res.ok ? res.json() : null),
-        fetch(`${env.NEXT_PUBLIC_API_URL}/v1/roadmap-intel/state`, { headers }).then(res => res.ok ? res.json() : null),
-        fetch(`${env.NEXT_PUBLIC_API_URL}/v1/opportunities/gaps`, { headers }).then(res => res.ok ? res.json() : null),
-      ]);
-      
-      if (focusRes.status === 'fulfilled' && focusRes.value) setApiFocus(focusRes.value);
-      if (oppsRes.status === 'fulfilled' && oppsRes.value) setApiOpportunities(oppsRes.value.matches || []);
-      if (roadmapRes.status === 'fulfilled' && roadmapRes.value) setApiRoadmap(roadmapRes.value);
-      if (gapsRes.status === 'fulfilled' && gapsRes.value) setApiGaps(gapsRes.value.gaps || []);
+      const { focus, matches, roadmapState, gaps, recommendations, radar, marketSnapshot } = await fetchDashboardData();
+      if (focus.status === 'fulfilled' && focus.value) setApiFocus(focus.value);
+      if (matches.status === 'fulfilled' && matches.value) setApiOpportunities(matches.value.matches || []);
+      if (roadmapState.status === 'fulfilled' && roadmapState.value) setApiRoadmap(roadmapState.value);
+      if (gaps.status === 'fulfilled' && gaps.value) setApiGaps(gaps.value.gaps || []);
+      if (recommendations.status === 'fulfilled' && recommendations.value) {
+        setApiRecommendations(recommendations.value.recommendations || []);
+      }
+      if (radar.status === 'fulfilled' && radar.value) setApiRadar(radar.value);
+      if (marketSnapshot.status === 'fulfilled' && marketSnapshot.value) {
+        setApiMarket(marketSnapshot.value);
+      }
+      setFetchError(
+        focus.status === 'rejected' &&
+        matches.status === 'rejected' &&
+        roadmapState.status === 'rejected'
+      );
     } catch (e) {
       console.error("Dashboard fetching error", e);
+      setFetchError(true);
     }
     setLoading(false);
   }, [simulationActive]);
@@ -78,272 +77,251 @@ export default function DashboardPage() {
     careerVelocity: apiFocus?.focus?.execution_profile?.growth_velocity ? (apiFocus.focus.execution_profile.growth_velocity * 100) : (metrics.careerVelocity || 0)
   };
 
-  const displaySpecialization = simulationActive 
-    ? activePersona.specialization 
+  const displaySpecialization = simulationActive
+    ? activePersona.specialization
     : (apiFocus?.focus?.trajectory?.dominant_path ? `${apiFocus.focus.trajectory.dominant_path} Engineering` : activePersona.specialization);
 
-  const displayTargetRole = simulationActive 
-    ? activePersona.targetRole 
+  const displayTargetRole = simulationActive
+    ? activePersona.targetRole
     : (apiFocus?.focus?.trajectory?.dominant_path ? `Senior ${apiFocus.focus.trajectory.dominant_path} Specialist` : activePersona.targetRole);
 
   const dominantPath = apiFocus?.focus?.trajectory?.dominant_path || "Software Engineer";
   const dominantReadiness = apiFocus?.focus?.trajectory?.readiness_scores?.[dominantPath] || {};
 
-  const displayValidatedSkills = simulationActive 
-    ? activePersona.strongestSkills 
-    : (dominantReadiness.matched_core || ["Python", "FastAPI", "React"]);
+  const displayValidatedSkills = simulationActive
+    ? activePersona.strongestSkills
+    : (dominantReadiness.matched_core || []);
 
-  const displayGaps = simulationActive 
-    ? activePersona.weakestSkills 
-    : (dominantReadiness.missing_core || ["Kubernetes", "Redis"]);
+  const displayGaps = simulationActive
+    ? activePersona.weakestSkills
+    : (dominantReadiness.missing_core || []);
 
   const displayMilestone = simulationActive
     ? roadmap.find((node) => node.status === 'active')
-    : (apiRoadmap?.state?.snapshot?.milestones?.find((n: any) => n.status === 'active') || apiRoadmap?.state?.snapshot?.milestones?.[0]);
+    : (apiRoadmap?.state?.snapshot?.milestones?.find((n: Milestone) => n.status === 'active') || apiRoadmap?.state?.snapshot?.milestones?.[0]);
 
-  const displayOpportunities = simulationActive ? activePersona.opportunities : apiOpportunities;
+  const displayOpportunities = simulationActive
+    ? activePersona.opportunities.map((opp) => ({
+        title: opp.title,
+        company: opp.company,
+        alignment_score: opp.alignmentScore,
+        confidence: opp.confidence,
+      }))
+    : apiOpportunities;
 
-  // AI coach action chips based on specialization
-  const getAiRecommendations = () => {
-    if (displaySpecialization.toLowerCase().includes('ai')) {
-      return [
-        { title: "Optimize GPU pipeline memory layouts", desc: "Build a cuda-benchmark project proving distributed GPU inference knowledge." },
-        { title: "Bridge vLLM container orchestration limits", desc: "Write an active roadmap project verifying multi-node cluster configurations." }
-      ];
-    }
-    return [
-      { title: "Build a Redis-backed notification system", desc: "Validate distributed caching and queue engineering benchmarks." },
-      { title: "Write an Infrastructure-as-Code Terraform script", desc: "Verify secure container networking policies for AWS clusters." }
-    ];
-  };
+  const showDashboardGrid = simulationActive || hasStrategicProfile;
 
-  return (
-    <PageContainer
-      title="Today's Career Command Center"
-      subtitle={`Upskilling, matched opportunities, and coach strategies calibrated for: ${displayTargetRole}`}
-    >
-      <div className="space-y-6 animate-fade-in">
-        
-        {/* TOP SECTION: Consolidated Profile Metrics & Skills */}
-        <section className="grid md:grid-cols-12 gap-6">
-          {/* Main Stat Cards (8 cols) */}
-          <div className="md:col-span-8 grid grid-cols-2 gap-4">
-            <MetricCard
-              label="Hiring Readiness Score"
-              value={`${Math.round(displayMetrics.matchScore)}%`}
-              icon={Target}
-            />
-            <MetricCard
-              label="Recruiter Alignment Index"
-              value={`${Math.round(displayMetrics.recruiterConfidence)}%`}
-              icon={Award}
-            />
-            <MetricCard
-              label="Market Fit Index"
-              value={`${Math.round(displayMetrics.marketFit)}%`}
-              icon={Globe}
-            />
-            <MetricCard
-              label="Execution Velocity"
-              value={`${Math.round(displayMetrics.careerVelocity)}%`}
-              icon={TrendingUp}
-            />
+  const topRecommendation = simulationActive
+    ? null
+    : apiRecommendations[0];
+
+  const marketDemandDirection = simulationActive
+    ? `${activePersona.marketIntel.title} ↑ ${activePersona.marketIntel.growthRate}`
+    : apiRadar?.high_roi_skills?.[0]
+      ? `${apiRadar.high_roi_skills[0].skill} ↑ ${apiRadar.high_roi_skills[0].trend === 'rising' ? 'High Growth' : 'Stable Demand'}`
+      : apiMarket?.roi_skills?.[0]
+        ? `${apiMarket.roi_skills[0].skill} ↑ ${apiMarket.roi_skills[0].trend === 'rising' ? 'High Growth' : 'Stable Demand'}`
+        : apiMarket?.status === 'pending'
+          ? 'Market data pending calibration'
+          : 'No market data yet';
+
+  const trendingSkills = simulationActive
+    ? activePersona.strongestSkills.slice(0, 3)
+    : apiRadar?.high_roi_skills?.slice(0, 3).map((s) => s.skill)
+      || apiMarket?.skill_demand?.slice(0, 3).map((s) => s.skill)
+      || [];
+
+  const hasRealProfile = simulationActive || hasStrategicProfile || (
+    apiFocus?.focus?.trajectory?.competitiveness_score > 0
+  );
+
+  if (loading) {
+    return (
+      <PageContainer title="Career Command Center" subtitle="Accessing your Skillyn credentials...">
+        <DashboardSkeleton />
+      </PageContainer>
+    );
+  }
+
+  if (!hasRealProfile) {
+    return (
+      <PageContainer
+        title="Welcome to Skillyn"
+        subtitle="Set up your profile to track your learning goals and job recommendations."
+      >
+        <div className="max-w-3xl mx-auto my-10 space-y-8 animate-fade-in">
+          <div className="p-6 rounded-2xl border border-blue-500/20 bg-blue-500/5 flex items-start gap-4">
+            <div className="p-3 rounded-xl bg-blue-500/10 text-blue-400">
+              <Sparkles size={24} className="animate-pulse" />
+            </div>
+            <div className="space-y-1">
+              <h3 className="text-sm font-bold text-white">Getting Started with Skillyn</h3>
+              <p className="text-xs text-slate-400 leading-relaxed">
+                Skillyn matches your technical skills against job requirements. Follow the checklist below to get started.
+              </p>
+            </div>
           </div>
 
-          {/* Verified Technical Skills Panel (4 cols) */}
-          <WorkspaceCard className="md:col-span-4 flex flex-col justify-between border border-white/[0.04] bg-white/[0.01]">
-            <div>
-              <span className="text-[9px] font-mono text-slate-500 uppercase block mb-2">Verified Core Skills</span>
-              <div className="flex flex-wrap gap-1.5 max-h-[85px] overflow-y-auto">
-                {displayValidatedSkills.map((skill: string, idx: number) => (
-                  <span
-                    key={idx}
-                    className="text-[9px] px-2 py-0.5 rounded bg-emerald-500/[0.05] border border-emerald-500/20 text-emerald-300 font-mono font-medium"
-                  >
-                    {skill}
-                  </span>
-                ))}
-              </div>
-            </div>
-            <Link
-              href="/resumes"
-              className="mt-3 text-[10px] text-slate-400 hover:text-white font-bold uppercase tracking-wider flex items-center gap-0.5"
-            >
-              Update Resume <ChevronRight size={10} />
-            </Link>
-          </WorkspaceCard>
-        </section>
-
-        {/* MIDDLE SECTION: Current Roadmap, Top Opportunities, & Gaps */}
-        <section className="grid lg:grid-cols-12 gap-6">
-          
-          {/* 1. Current Roadmap Milestone Sprint (5 cols) */}
-          <WorkspaceCard className="lg:col-span-5 flex flex-col justify-between">
-            <div>
-              <div className="flex items-center justify-between mb-4">
-                <div className="flex items-center gap-2">
-                  <Compass size={14} className="text-blue-400" />
-                  <SectionLabel>Active Upskilling Goal</SectionLabel>
-                </div>
-                <span className="text-[9px] px-2 py-0.5 rounded bg-blue-500/10 text-blue-400 font-mono uppercase font-bold">Active</span>
-              </div>
-
-              {displayMilestone ? (
-                <div className="space-y-3">
-                  <div>
-                    <h4 className="text-sm font-bold text-white mb-0.5">{displayMilestone.skill || displayMilestone.title}</h4>
-                    <p className="text-[10px] text-slate-500 font-mono">
-                      Estimated effort: {displayMilestone.effortWeeks || displayMilestone.effort_weeks || 4} weeks
-                    </p>
-                  </div>
-                  <p className="text-xs text-slate-400 leading-relaxed font-sans font-normal">
-                    {displayMilestone.strategicRationale || displayMilestone.reason || displayMilestone.strategic_rationale}
+          <div className="grid md:grid-cols-2 gap-4">
+            {[
+              {
+                title: "1. Upload Resume",
+                desc: "Upload your resume PDF to import your skills and experience.",
+                link: "/resumes",
+                actionText: "Upload PDF",
+              },
+              {
+                title: "2. Update Profile Details",
+                desc: "Refine your target role, years of experience, and specialization track.",
+                link: "/profile",
+                actionText: "Configure Profile",
+              },
+              {
+                title: "3. Create Learning Roadmap",
+                desc: "Create a milestone path to learn missing skills.",
+                link: "/roadmap-v2",
+                actionText: "Check Roadmap",
+              },
+              {
+                title: "4. Find Matching Jobs",
+                desc: "View matching job postings and salary estimates.",
+                link: "/opportunities",
+                actionText: "Find Matches",
+              }
+            ].map((step, idx) => (
+              <WorkspaceCard key={idx} className="p-5 border-white/[0.04] bg-white/[0.01] hover:bg-white/[0.02] flex flex-col justify-between h-44">
+                <div>
+                  <h4 className="text-xs font-bold text-white mb-1.5 flex items-center gap-2">
+                    <span className="w-1.5 h-1.5 rounded-full bg-blue-400" />
+                    {step.title}
+                  </h4>
+                  <p className="text-[11px] text-slate-400 leading-relaxed font-sans font-normal">
+                    {step.desc}
                   </p>
                 </div>
-              ) : (
-                <p className="text-xs text-slate-500 italic">No active milestone target selected. Complete or configure targets on your Roadmap.</p>
-              )}
-            </div>
+                <Link
+                  href={step.link}
+                  className="inline-flex items-center gap-1 mt-4 px-3 py-1.5 bg-blue-500 hover:bg-blue-600 text-black text-[10px] font-bold rounded transition-colors w-fit"
+                >
+                  {step.actionText} <ChevronRight size={10} />
+                </Link>
+              </WorkspaceCard>
+            ))}
+          </div>
+        </div>
+      </PageContainer>
+    );
+  }
 
-            <Link
-              href="/roadmap-v2"
-              className="mt-4 inline-flex items-center gap-1.5 px-3 py-1.5 bg-blue-500 hover:bg-blue-600 text-black text-[11px] font-bold rounded-lg transition-colors w-fit"
-            >
-              Bridge Skill Gap <ChevronRight size={12} />
-            </Link>
-          </WorkspaceCard>
+  return (
+    <PageContainer title="Career Command Center" subtitle={`Overview for ${displayTargetRole}`}>
+      {fetchError && (
+        <div className="mb-4 p-3 rounded-lg border border-amber-500/30 bg-amber-500/10 text-xs text-amber-200">
+          Some dashboard data could not be loaded.{' '}
+          <button type="button" onClick={() => { setLoading(true); fetchData(); }} className="underline">
+            Retry
+          </button>
+        </div>
+      )}
+      {/* Partial data notice for real profiles */}
+      {!simulationActive && hasStrategicProfile && !apiRoadmap && (
+        <DashboardEmptyState
+          missingResume={false}
+          missingRoadmap
+          missingOpportunities={displayOpportunities.length === 0}
+        />
+      )}
 
-          {/* 2. Top Job Matches (4 cols) */}
-          <WorkspaceCard className="lg:col-span-4 flex flex-col justify-between">
-            <div>
-              <div className="flex items-center gap-2 mb-4">
-                <Briefcase size={14} className="text-purple-400" />
-                <SectionLabel>Top Target Opportunities</SectionLabel>
-              </div>
+      {/* Main Dashboard when data is available */}
+      {showDashboardGrid && (
+        <div className="space-y-8 animate-fade-in">
+          {/* Section 1 – Career Snapshot */}
+          <CareerSnapshot
+            matchScore={Math.round(displayMetrics.matchScore)}
+            profileStrength={Math.round(displayMetrics.recruiterConfidence)}
+            careerGoal={displayTargetRole}
+            resumeStatus={hasRealProfile ? 'Verified Resume Uploaded' : 'No Resume'}
+          />
 
-              <div className="space-y-2">
-                {displayOpportunities.slice(0, 2).map((opp: any, idx: number) => (
-                  <div key={idx} className="p-2.5 rounded-lg bg-[#080c14] border border-white/[0.02] flex items-center justify-between">
-                    <div className="min-w-0 flex-1 pr-2">
-                      <h4 className="text-xs font-semibold text-white truncate">{opp.title}</h4>
-                      <p className="text-[10px] text-slate-500 truncate">{opp.company} • {opp.compensation || "$140k–$180k"}</p>
-                    </div>
-                    <span className="text-[11px] font-bold text-emerald-400 font-mono">
-                      {opp.alignmentScore ? Math.round(opp.alignmentScore * 100) : 85}%
-                    </span>
-                  </div>
-                ))}
-              </div>
-            </div>
+          {/* Section 2 – Current Focus */}
+          <CurrentFocus
+            milestone={displayMilestone}
+            topGap={displayGaps[0]}
+            progressText={displayMilestone?.progress ? `${displayMilestone.progress}%` : ''}
+            onViewRoadmap={() => (window.location.href = '/roadmap-v2')}
+          />
 
-            <Link
-              href="/opportunities"
-              className="mt-4 text-[10px] text-slate-400 hover:text-white font-bold uppercase tracking-wider flex items-center gap-0.5"
-            >
-              Analyze Opportunities <ChevronRight size={10} />
-            </Link>
-          </WorkspaceCard>
+          {/* Section 3 – Top Opportunity */}
+          <TopOpportunity
+            opportunity={displayOpportunities[0]}
+            onViewOpportunities={() => (window.location.href = '/opportunities')}
+          />
 
-          {/* 3. Skill Deficits / Gaps (3 cols) */}
-          <WorkspaceCard className="lg:col-span-3 flex flex-col justify-between">
-            <div>
-              <div className="flex items-center gap-2 mb-4">
-                <AlertTriangle size={14} className="text-amber-500" />
-                <SectionLabel>Outstanding Gaps</SectionLabel>
-              </div>
+          {/* Section 4 – Market Movement */}
+          <MarketMovement
+            trendingSkills={trendingSkills}
+            demandDirection={marketDemandDirection}
+            onViewMarket={() => (window.location.href = '/market-intelligence')}
+          />
 
-              <div className="flex flex-wrap gap-1.5 max-h-[110px] overflow-y-auto">
-                {displayGaps.length === 0 ? (
-                  <span className="text-xs text-slate-500 italic">No remaining skill gaps!</span>
-                ) : (
-                  displayGaps.map((gap: string, idx: number) => (
-                    <span
-                      key={idx}
-                      className="text-[9px] px-2 py-0.5 rounded bg-amber-500/[0.05] border border-amber-500/20 text-amber-300 font-mono font-medium"
-                    >
-                      {gap}
-                    </span>
-                  ))
-                )}
-              </div>
-            </div>
-
-            <Link
-              href="/market-intelligence"
-              className="mt-4 text-[10px] text-slate-400 hover:text-white font-bold uppercase tracking-wider flex items-center gap-0.5"
-            >
-              Check Salary Impact <ChevronRight size={10} />
-            </Link>
-          </WorkspaceCard>
-        </section>
-
-        {/* BOTTOM SECTION: AI Coach Suggestions & Upskilling Timeline */}
-        <section className="grid lg:grid-cols-12 gap-6">
-          
-          {/* AI Suggested Portfolio Projects (8 cols) */}
-          <WorkspaceCard className="lg:col-span-8">
-            <div className="flex items-center gap-2 mb-4">
-              <Lightbulb size={14} className="text-amber-400" />
-              <SectionLabel>AI Coach — Portfolio Projects</SectionLabel>
-            </div>
-
-            <div className="grid md:grid-cols-2 gap-4">
-              {getAiRecommendations().map((rec, idx) => (
-                <div key={idx} className="p-3 bg-white/[0.005] border border-white/[0.03] rounded-lg flex flex-col justify-between h-28">
-                  <div>
-                    <h4 className="text-xs font-bold text-white mb-1 flex items-center gap-1.5">
-                      <Sparkles size={11} className="text-amber-400" /> {rec.title}
-                    </h4>
-                    <p className="text-[11px] text-slate-400 leading-relaxed font-sans">
-                      {rec.desc}
-                    </p>
-                  </div>
-                  <Link
-                    href="/workspace"
-                    className="text-[9px] text-blue-400 hover:underline font-bold uppercase tracking-wider flex items-center gap-0.5"
-                  >
-                    Draft Spec in Coach <ChevronRight size={10} />
-                  </Link>
-                </div>
-              ))}
-            </div>
-          </WorkspaceCard>
-
-          {/* Recent Upskilling Timeline (4 cols) */}
-          <WorkspaceCard className="lg:col-span-4">
-            <div className="flex items-center gap-2 mb-4">
-              <CheckCircle2 size={14} className="text-emerald-400" />
-              <SectionLabel>Recent Progress</SectionLabel>
-            </div>
-
-            <div className="space-y-3 font-sans text-xs">
-              <div className="flex gap-2">
-                <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 mt-1.5 flex-shrink-0" />
-                <div>
-                  <p className="text-white/80 font-medium">Uploaded Ingest Portfolio</p>
-                  <p className="text-[10px] text-slate-500">Skills calibrated successfully</p>
-                </div>
-              </div>
-              <div className="flex gap-2">
-                <span className="w-1.5 h-1.5 rounded-full bg-blue-500 mt-1.5 flex-shrink-0" />
-                <div>
-                  <p className="text-white/80 font-medium">Roadmap Calibrated</p>
-                  <p className="text-[10px] text-slate-500">Active milestone targeted</p>
-                </div>
-              </div>
-              <div className="flex gap-2">
-                <span className="w-1.5 h-1.5 rounded-full bg-slate-700 mt-1.5 flex-shrink-0" />
-                <div>
-                  <p className="text-white/40 font-medium">Job Matches Refreshed</p>
-                  <p className="text-[10px] text-slate-500">Opportunities updated based on skills</p>
-                </div>
-              </div>
-            </div>
-          </WorkspaceCard>
-
-        </section>
-
-      </div>
+          {/* Section 5 – AI Insight */}
+          <AIInsight
+            insight={topRecommendation?.title}
+            onAskAI={() => (window.location.href = '/workspace')}
+          />
+        </div>
+      )}
     </PageContainer>
+  );
+}
+
+function DashboardSkeleton() {
+  return (
+    <div className="space-y-8 animate-pulse">
+      {/* Career Snapshot Skeleton */}
+      <div className="p-6 rounded-2xl border border-white/[0.06] bg-white/[0.02] space-y-4">
+        <div className="h-6 w-48 bg-white/10 rounded" />
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+          {[1, 2, 3, 4].map((i) => (
+            <div key={i} className="p-4 rounded-xl bg-white/[0.04] space-y-2">
+              <div className="h-4 w-16 bg-white/10 rounded" />
+              <div className="h-8 w-24 bg-white/20 rounded" />
+            </div>
+          ))}
+        </div>
+      </div>
+
+      {/* Focus & Top Opp Double Column Skeleton */}
+      <div className="grid md:grid-cols-2 gap-6">
+        <div className="p-6 rounded-2xl border border-white/[0.06] bg-white/[0.02] space-y-4">
+          <div className="h-6 w-32 bg-white/10 rounded" />
+          <div className="h-4 w-full bg-white/[0.04] rounded" />
+          <div className="h-4 w-2/3 bg-white/[0.04] rounded" />
+          <div className="h-10 w-full bg-white/10 rounded mt-4" />
+        </div>
+        <div className="p-6 rounded-2xl border border-white/[0.06] bg-white/[0.02] space-y-4">
+          <div className="h-6 w-36 bg-white/10 rounded" />
+          <div className="h-4 w-full bg-white/[0.04] rounded" />
+          <div className="h-4 w-5/6 bg-white/[0.04] rounded" />
+          <div className="h-10 w-full bg-white/10 rounded mt-4" />
+        </div>
+      </div>
+
+      {/* Market & AI insights Skeleton */}
+      <div className="grid md:grid-cols-3 gap-6">
+        <div className="col-span-2 p-6 rounded-2xl border border-white/[0.06] bg-white/[0.02] space-y-4">
+          <div className="h-6 w-40 bg-white/10 rounded" />
+          <div className="h-4 w-full bg-white/[0.04] rounded" />
+          <div className="h-4 w-full bg-white/[0.04] rounded" />
+        </div>
+        <div className="p-6 rounded-2xl border border-white/[0.06] bg-white/[0.02] space-y-4 flex flex-col justify-between">
+          <div className="space-y-4">
+            <div className="h-6 w-24 bg-white/10 rounded" />
+            <div className="h-4 w-full bg-white/[0.04] rounded" />
+          </div>
+          <div className="h-10 w-full bg-white/10 rounded mt-4" />
+        </div>
+      </div>
+    </div>
   );
 }

@@ -13,3 +13,6 @@ export { default as CTAv2Section } from './CTAv2Section';
 export { default as FooterV3 } from './FooterV3';
 export { default as Reveal } from './Reveal';
 export { default as DashboardV4 } from './DashboardV4';
+export { default as ProblemSolutionSection } from './ProblemSolutionSection';
+export { default as PricingSection } from './PricingSection';
+export { default as FAQSection } from './FAQSection';

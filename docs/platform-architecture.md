@@ -1,8 +1,8 @@
-# ResuMatch Platform Architecture
+# Skillyn Platform Architecture
 
 ## System Overview
 
-ResuMatch is an AI-native SaaS platform for resume analysis, job matching, and career intelligence.
+Skillyn is an AI career intelligence platform: resume → profile → roadmap → opportunities → market insights → dashboard command center.
 
 ```
 ┌─────────────────────────────────────────────────────────┐
@@ -12,14 +12,19 @@ ResuMatch is an AI-native SaaS platform for resume analysis, job matching, and c
                            │ HTTP/REST + SSE
 ┌──────────────────────────┴──────────────────────────────┐
 │                    Backend (FastAPI)                      │
-│  Auth │ Resume │ Analysis │ Intelligence │ Roadmap       │
+│  Auth │ Resume Pipeline │ StrategicProfile │ Opportunities │
+│  Roadmap Intel │ Market Intelligence │ Workspace Copilot  │
 └──────────────────────────┬──────────────────────────────┘
                            │ SQLAlchemy Async
 ┌──────────────────────────┴──────────────────────────────┐
 │              Database (PostgreSQL / SQLite dev)           │
-│  12 tables │ JSON columns │ UUID string PKs              │
+│  StrategicProfile (canonical) │ Legacy intelligence tables│
 └─────────────────────────────────────────────────────────┘
 ```
+
+## Canonical Data Model
+
+**`StrategicProfile`** is the single source of truth for career state after resume ingestion. Use `GET /v1/strategic/profile` for canonical reads. Legacy `GET /v1/intelligence/profile` remains for backward compatibility. Legacy `UserSkillProfile` / `RoadmapState` tables are read-only mirrors synced via `sync_legacy_intelligence_from_profile()` and `sync_legacy_roadmap_from_profile()`.
 
 ## Backend Architecture
 
@@ -28,56 +33,68 @@ backend/app/
 ├── main.py              → FastAPI app, lifespan, middleware
 ├── config.py            → Pydantic settings (loads .env)
 ├── db.py                → Async engine + session factory
-├── models.py            → Core ORM models (User, Resume, Job, Match)
+├── models/              → ORM models (User, Resume, StrategicProfile, …)
 ├── schemas.py           → Pydantic request/response schemas
-├── dependencies.py      → DI factories (repos, services, auth)
-├── exceptions.py        → Domain exceptions
-├── routers/             → HTTP route handlers
-│   ├── auth.py          → Login, register, OAuth, profile
-│   ├── resumes.py       → Upload, list, delete
-│   ├── analysis.py      → Job match analysis
-│   ├── intelligence.py  → Career intelligence
-│   ├── roadmap.py       → Career roadmap
-│   ├── roadmap_intel.py → Adaptive roadmap
-│   ├── recruiter.py     → Recruiter intelligence
-│   ├── cover_letter.py  → Cover letter generation
-│   └── matches.py       → Match history
-├── services/            → Business logic
-│   ├── auth_service.py
-│   ├── resume_service.py
-│   ├── analysis_service.py
-│   ├── intelligence/    → Career intelligence engine
-│   ├── roadmap_intel/   → Adaptive roadmap engine
-│   └── recruiter_intelligence/ → Recruiter signal engine
-├── repositories/        → Database queries
-├── ai/                  → ML pipeline (embeddings, parsing)
-└── utils/               → PDF sanitizer
+├── routers/             → HTTP route handlers (/v1/*)
+│   ├── auth.py
+│   ├── resumes.py
+│   ├── strategic.py     → Career identity + focus
+│   ├── opportunities.py → Live job matching
+│   ├── market_intelligence.py
+│   ├── roadmap_intel.py → Primary roadmap API
+│   └── roadmap.py       → Legacy SSE (deprecated)
+├── services/
+│   ├── strategic_profile_service.py  → Canonical profile reads
+│   ├── resume_pipeline/              → Primary resume intelligence
+│   ├── opportunity_engine/           → Live crawl + 6-factor scoring
+│   └── market_intelligence/
+└── ai/                  → Legacy analysis stack (deprecated)
 ```
+
+Phase 9 research routers (prediction, resilience, convergence, observability) are **gated off in production**.
 
 ## Frontend Architecture
 
 ```
 frontend/src/
-├── app/
-│   ├── page.tsx         → Landing page (public)
-│   ├── layout.tsx       → Root layout (providers)
-│   ├── global-error.tsx → Global error boundary
-│   ├── (auth)/          → Public auth pages
-│   │   ├── login/
-│   │   ├── signup/
-│   │   └── auth/callback/
-│   └── (app)/           → Protected workspace
-│       ├── layout.tsx   → ProtectedRoute + AppShell
-│       ├── dashboard/
-│       ├── upload/
-│       ├── analysis/
-│       ├── resumes/
-│       ├── profile/
-│       ├── settings/
-│       ├── matches/
-│       ├── intelligence/
-│       ├── roadmap/
-│       └── recruiter-intelligence/
+├── app/(app)/
+│   ├── dashboard/       → Career command center (5 cards)
+│   ├── profile/         → Career identity hub
+│   ├── roadmap-v2/      → Primary roadmap UI
+│   ├── opportunities/   → Live job matcher
+│   ├── market-intelligence/
+│   └── workspace/       → AI coach
+├── context/LivingSystemContext.tsx  → Lifecycle sync with backend
+├── lib/intelligence-client.ts       → Centralized API client
+└── lib/lifecycle-sync.ts            → parse_status → lifecycle stage
+```
+
+## Known Dual-Stack Areas (Deprecation Intent)
+
+| Layer | Canonical (use this) | Legacy (read-only mirror) | Status |
+|-------|---------------------|---------------------------|--------|
+| Career profile | `StrategicProfile` + `GET /v1/strategic/profile` | `UserSkillProfile`, `UserCareerProfile`, `GET /v1/intelligence/profile` | Legacy synced via `sync_legacy_intelligence_from_profile()` |
+| Roadmap | `GET /v1/roadmap-intel/*` | `RoadmapState`, `POST /v1/roadmap/stream` (SSE) | Legacy synced via `sync_legacy_roadmap_from_profile()` |
+| Resume analysis | `services/resume_pipeline/` | `backend/app/ai/`, `POST /v1/analyze` | Deprecated — dev-gated in frontend |
+| Research APIs | N/A | prediction, resilience, convergence, observability | Excluded in production (`ENV=production`) |
+
+All product routers (`opportunities`, `market_intelligence`, `roadmap_intel`, `trajectory`, orchestrator) read from `get_profile_context()` when a StrategicProfile exists.
+
+## LivingSystem Lifecycle
+
+| Stage | Meaning | Backend signal |
+|-------|---------|----------------|
+| 1 | Onboarding | No resume / no StrategicProfile |
+| 2 | Parsing | Resume `parse_status` = processing |
+| 3 | Calibrated | StrategicProfile with skills |
+| 4 | Optimized | Roadmap milestones completed |
+
+Dormant mock data is shown only when `!hasStrategicProfile && simulationActive === false`.
+
+## Frontend Module Layout
+
+```
+frontend/src/
 ├── auth/                → Auth context, API client, token utils
 ├── components/          → Shared UI components
 ├── lib/                 → Hooks, utilities, contexts

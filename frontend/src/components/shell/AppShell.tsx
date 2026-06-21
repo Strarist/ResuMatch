@@ -1,4 +1,4 @@
-/* eslint-disable @typescript-eslint/no-unused-vars, @typescript-eslint/no-explicit-any */
+/* eslint-disable @typescript-eslint/no-unused-vars */
 'use client';
 
 import { type ReactNode, useState, useEffect } from 'react';
@@ -7,8 +7,12 @@ import { usePathname } from 'next/navigation';
 import { useAuth } from '@/auth/AuthContext';
 import { useLivingSystem } from '@/context/LivingSystemContext';
 import { motion, AnimatePresence } from 'framer-motion';
+import { Button } from '@/components/ui/button';
 import { LayoutDashboard, Map, Radar, Compass, Globe, Award, MessageSquare, FileText, Settings, LogOut, ChevronLeft, Menu, Sparkles, Info, Shield, Activity, GitMerge } from 'lucide-react';
-import { Logo } from '@/branding/Logo';
+import { ClickableLogo } from '@/components/common/ClickableLogo';
+import { SimulationBanner } from '@/components/shell/SimulationBanner';
+import { devOnlyNavItems } from '@/lib/dev-mode';
+import { env } from '@/lib/env';
 
 const coreItems = [
   { href: '/dashboard', label: 'Dashboard', icon: LayoutDashboard },
@@ -39,6 +43,10 @@ export function AppShell({ children }: { children: ReactNode }) {
   } = useLivingSystem();
 
   useEffect(() => {
+    if (env.NEXT_PUBLIC_DEV_MODE) {
+      setDevMode(true);
+      return;
+    }
     const params = new URLSearchParams(window.location.search);
     if (params.get('dev') === 'true') {
       localStorage.setItem('dev_mode', 'true');
@@ -55,7 +63,9 @@ export function AppShell({ children }: { children: ReactNode }) {
     <aside className={`flex flex-col h-full border-r border-white/[0.04] bg-[#080c14]/90 backdrop-blur-xl transition-all duration-300 ${collapsed ? 'w-16' : 'w-60'}`}>
       {/* Logo */}
       <div className="flex h-16 items-center px-4 border-b border-white/[0.04]">
-        <Logo size={28} showWordmark={!collapsed} className="text-white" />
+        <Link href="/dashboard" className="inline-flex">
+          <ClickableLogo size={28} showWordmark={!collapsed} className="text-white" />
+        </Link>
       </div>
 
       {/* Navigation */}
@@ -114,6 +124,35 @@ export function AppShell({ children }: { children: ReactNode }) {
             })}
           </div>
         </div>
+
+        {devMode && (
+          <div>
+            {!collapsed && (
+              <p className="px-3 mb-2 text-[10px] font-bold text-amber-500/80 uppercase tracking-widest">
+                Dev / Research
+              </p>
+            )}
+            <div className="space-y-0.5">
+              {devOnlyNavItems.map((item) => {
+                const isActive = pathname === item.href || pathname.startsWith(item.href + '/');
+                return (
+                  <Link
+                    key={item.href}
+                    href={item.href}
+                    className={`flex items-center gap-2.5 rounded-lg px-3 py-2.5 text-[13px] transition-all duration-200 ${
+                      isActive
+                        ? 'text-amber-200 bg-amber-500/10 font-bold border border-amber-500/20'
+                        : 'text-slate-500 font-semibold hover:text-amber-200/80 hover:bg-amber-500/5'
+                    }`}
+                  >
+                    <Sparkles size={16} className={isActive ? 'text-amber-400' : 'text-slate-600'} />
+                    {!collapsed && <span>{item.label}</span>}
+                  </Link>
+                );
+              })}
+            </div>
+          </div>
+        )}
 
       </nav>
 
@@ -181,6 +220,7 @@ export function AppShell({ children }: { children: ReactNode }) {
 
         <main className="flex-1 overflow-y-auto">
           <div className="mx-auto max-w-6xl px-5 py-6">
+            <SimulationBanner />
             {children}
           </div>
         </main>

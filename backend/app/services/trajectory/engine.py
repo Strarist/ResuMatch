@@ -8,6 +8,11 @@ from __future__ import annotations
 # === Role Templates: skills that define readiness for each role ===
 
 ROLE_TEMPLATES: dict[str, dict] = {
+    "Frontend Engineer": {
+        "core": ["react", "typescript", "next.js", "javascript", "tailwind"],
+        "supporting": ["redux", "css", "html", "testing", "git", "web performance"],
+        "weight": {"core": 0.6, "supporting": 0.4},
+    },
     "DevOps Engineer": {
         "core": ["docker", "kubernetes", "ci/cd", "linux", "terraform"],
         "supporting": ["aws", "gcp", "azure", "ansible", "monitoring", "git"],
@@ -19,8 +24,8 @@ ROLE_TEMPLATES: dict[str, dict] = {
         "weight": {"core": 0.7, "supporting": 0.3},
     },
     "Backend Engineer": {
-        "core": ["python", "sql", "rest api", "postgresql", "redis"],
-        "supporting": ["docker", "fastapi", "django", "node.js", "microservices", "testing"],
+        "core": ["python", "java", "spring boot", "postgresql", "sql", "redis", "rest api"],
+        "supporting": ["docker", "fastapi", "django", "node.js", "microservices", "kafka", "testing"],
         "weight": {"core": 0.6, "supporting": 0.4},
     },
     "Full Stack Engineer": {
@@ -60,7 +65,7 @@ ROLE_TEMPLATES: dict[str, dict] = {
 DOMAIN_CLUSTERS: dict[str, list[str]] = {
     "infrastructure": ["docker", "kubernetes", "terraform", "ansible", "linux", "networking"],
     "cloud": ["aws", "gcp", "azure", "serverless", "iam", "cloudformation"],
-    "backend": ["python", "fastapi", "django", "node.js", "rest api", "graphql", "sql", "postgresql"],
+    "backend": ["python", "fastapi", "django", "node.js", "rest api", "graphql", "sql", "postgresql", "java", "spring boot", "kafka", "microservices"],
     "frontend": ["react", "next.js", "typescript", "javascript", "css", "html", "vue", "angular"],
     "data": ["sql", "spark", "airflow", "kafka", "data pipelines", "dbt", "etl"],
     "ml": ["machine learning", "pytorch", "tensorflow", "numpy", "statistics", "scikit-learn"],

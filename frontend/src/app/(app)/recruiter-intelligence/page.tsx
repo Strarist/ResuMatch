@@ -1,10 +1,10 @@
 'use client';
 
 import { useCallback, useEffect, useState } from 'react';
-import { env } from '@/lib/env';
 import { PageContainer, DashboardGrid, MetricCard, GlassPanel, SectionLabel, WorkspaceCard, LoadingPulse, EmptyState } from '@/components/workspace';
 import { UserCheck, Shield, Award, Target, TrendingUp, AlertTriangle } from 'lucide-react';
 import { useLivingSystem } from '@/context/LivingSystemContext';
+import { portfolio as portfolioApi } from '@/lib/intelligence-client';
 
 interface RecruiterProfile {
   hiring_confidence: number;
@@ -26,26 +26,21 @@ export default function RecruiterViewPage() {
   const { simulationActive, recruiterProfile: simProfile } = useLivingSystem();
 
   const fetchData = useCallback(async () => {
-    const token = localStorage.getItem('access_token');
-    const headers: Record<string, string> = token ? { Authorization: `Bearer ${token}` } : {};
     try {
-      const res = await fetch(`${env.NEXT_PUBLIC_API_URL}/v1/portfolio/recruiter-profile`, { headers });
-      if (res.ok) {
-        const data = await res.json();
-        setApiProfile({
-          hiring_confidence: data.hiring_confidence,
-          production_readiness: data.production_readiness,
-          technical_depth: data.technical_depth,
-          specialization_strength: data.specialization_strength,
-          differentiation_score: data.differentiation_score,
-          portfolio_maturity: data.portfolio_maturity,
-          strongest_signals: data.strongest_signals || [],
-          hiring_risks: data.hiring_risks || [],
-          role_fit: data.role_fit || [],
-          project_count: data.project_count || 0,
-          deployed_count: data.deployed_count || 0,
-        });
-      }
+      const data = await portfolioApi.getRecruiterProfile();
+      setApiProfile({
+        hiring_confidence: data.hiring_confidence,
+        production_readiness: data.production_readiness,
+        technical_depth: data.technical_depth,
+        specialization_strength: data.specialization_strength,
+        differentiation_score: data.differentiation_score,
+        portfolio_maturity: data.portfolio_maturity,
+        strongest_signals: data.strongest_signals || [],
+        hiring_risks: data.hiring_risks || [],
+        role_fit: data.role_fit || [],
+        project_count: data.project_count || 0,
+        deployed_count: data.deployed_count || 0,
+      });
     } catch { /* */ }
     setLoading(false);
   }, []);

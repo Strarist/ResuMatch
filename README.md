@@ -1,6 +1,8 @@
-# ResuMatch - AI-Powered Resume Job Matcher
+# Skillyn - AI-Powered Career Growth Platform
 
-A full-stack web application that uses AI to analyze resumes and match them with job descriptions, providing detailed insights and recommendations.
+> From Resume to Career Growth
+
+A full-stack career growth and upskilling platform that transforms resumes into personalized learning roadmaps, opportunities, market insights, and career coaching.
 
 ## 🚀 Features
 
@@ -26,7 +28,7 @@ A full-stack web application that uses AI to analyze resumes and match them with
 
 ## 🏗️ Architecture
 
-### Frontend (Next.js 14)
+### Frontend (Next.js 15)
 - **Framework**: Next.js with App Router
 - **Styling**: Tailwind CSS + shadcn/ui components
 - **State Management**: React Context for authentication
@@ -34,10 +36,10 @@ A full-stack web application that uses AI to analyze resumes and match them with
 
 ### Backend (FastAPI)
 - **Framework**: FastAPI with async/await
-- **Database**: PostgreSQL with SQLAlchemy ORM
-- **AI/ML**: spaCy, sentence-transformers, scikit-learn
-- **Authentication**: JWT with OAuth2 (Google, LinkedIn)
-- **File Processing**: PyPDF2, pikepdf for secure PDF handling
+- **Database**: SQLite (local dev default) or PostgreSQL (production)
+- **AI/ML**: OpenRouter LLM + spaCy, heuristic fallbacks
+- **Authentication**: JWT with Google OAuth
+- **API prefix**: `/v1/*` (not `/api/v1`)
 
 ### AI Pipeline
 1. **Resume Parser**: Extract structured data from PDFs
@@ -51,8 +53,8 @@ A full-stack web application that uses AI to analyze resumes and match them with
 ### Prerequisites
 - Python 3.11+
 - Node.js 18+
-- PostgreSQL
-- Redis (optional, for caching)
+- PostgreSQL (production) or SQLite (local dev — default in `.env.example`)
+- Redis (optional, for caching and rate limiting)
 
 ### Backend Setup
 ```bash
@@ -110,21 +112,21 @@ npm run dev
 
 ## 🔧 API Endpoints
 
+All endpoints use the `/v1` prefix (not `/api/v1`):
+
 ### Authentication
-- `POST /api/v1/auth/login` - User login
-- `POST /api/v1/auth/register` - User registration
-- `GET /api/v1/auth/google/login` - Google OAuth
-- `GET /api/v1/auth/linkedin/login` - LinkedIn OAuth
+- `POST /v1/auth/login` - User login
+- `POST /v1/auth/register` - User registration
+- `GET /v1/auth/google/login` - Google OAuth
 
-### Resume Management
-- `POST /api/v1/resumes` - Upload resume
-- `GET /api/v1/resumes` - List user resumes
-- `GET /api/v1/resumes/{id}` - Get specific resume
-- `DELETE /api/v1/resumes/{id}` - Delete resume
+### Career Intelligence
+- `POST /v1/resumes` - Upload resume
+- `GET /v1/strategic/profile` - Career identity profile
+- `GET /v1/opportunities/matches` - Job opportunity matches
+- `GET /v1/market-intelligence/snapshot` - Market intelligence
+- `GET /v1/roadmap-intel/state` - Adaptive roadmap state
 
-### Analysis
-- `POST /api/v1/analyze` - Analyze resume against job description
-- `POST /api/v1/analyze/batch` - Analyze against multiple jobs
+Legacy (deprecated): `/v1/analyze`, `/v1/roadmap/stream`
 
 ## 🎯 AI Pipeline Details
 
@@ -165,7 +167,7 @@ npm run dev
 
 ### Environment Variables
 ```bash
-# Database
+# Database (keeps internal database name for stability)
 DATABASE_URL=postgresql://user:pass@localhost/resumatch
 
 # Authentication
@@ -204,8 +206,8 @@ This project is licensed under the MIT License - see the LICENSE file for detail
 
 ## 🆘 Support
 
-For support, email support@resumatch.com or create an issue in the repository.
+For support, email support@skillyn.com or create an issue in the repository.
 
 ---
 
-**ResuMatch** - Making job applications smarter with AI 🚀 
+**Skillyn** - From Resume to Career Growth 🚀
