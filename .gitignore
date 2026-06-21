@@ -109,3 +109,5 @@ startup_stdout*
 startup_stderr*
 simulation_history.json
 scratch/
+.secrets.baseline.bak
+.secrets.baseline.regen
