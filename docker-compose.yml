@@ -1,32 +1,36 @@
 services:
   postgres:
     image: postgres:16-alpine
+    container_name: skillyn-postgres
+    restart: unless-stopped
     environment:
       POSTGRES_USER: resumatch
-      POSTGRES_PASSWORD: resumatch_dev
+      POSTGRES_PASSWORD: resumatch_dev  # pragma: allowlist secret
       POSTGRES_DB: resumatch
     ports:
       - "5432:5432"
     volumes:
-      - pgdata:/var/lib/postgresql/data
+      - skillyn_postgres_data:/var/lib/postgresql/data
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U resumatch"]
+      test: ["CMD-SHELL", "pg_isready -U resumatch -d resumatch"]
       interval: 5s
-      timeout: 3s
-      retries: 5
+      timeout: 5s
+      retries: 10
 
   redis:
     image: redis:7-alpine
+    container_name: skillyn-redis
+    restart: unless-stopped
     ports:
       - "6379:6379"
     volumes:
-      - redisdata:/data
+      - skillyn_redis_data:/data
     healthcheck:
       test: ["CMD", "redis-cli", "ping"]
       interval: 5s
-      timeout: 3s
-      retries: 5
+      timeout: 5s
+      retries: 10
 
 volumes:
-  pgdata:
-  redisdata:
+  skillyn_postgres_data:
+  skillyn_redis_data:

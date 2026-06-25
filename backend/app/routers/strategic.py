@@ -30,10 +30,15 @@ async def get_lifecycle_state(
     from app.models.resume import Resume
 
     profile = await get_strategic_profile(db, current_user.id)
-    result = await db.execute(
-        select(Resume.parse_status).where(Resume.user_id == current_user.id).order_by(Resume.uploaded_at.desc())
+    latest_resume = await db.execute(
+        select(Resume)
+        .where(Resume.user_id == current_user.id)
+        .order_by(Resume.uploaded_at.desc())
+        .limit(1)
     )
-    statuses = [s for s in result.scalars().all() if s]
+    latest = latest_resume.scalar_one_or_none()
+    latest_status = latest.parse_status if latest else None
+    parse_stage = latest_status or "none"
 
     has_profile = bool(
         profile
@@ -43,13 +48,16 @@ async def get_lifecycle_state(
         )
     )
 
-    if not statuses:
+    if not latest_status:
         parse_status = "none"
-    elif any(s in ("processing", "pending", "extracting_text", "parsing_resume", "extracting_skills") for s in statuses):
+    elif latest_status in ("processing", "pending", "extracting_text", "parsing_resume", "extracting_skills", "building_profile"):
         parse_status = "processing"
-    elif all(s == "failed" for s in statuses):
+    elif latest_status == "enriching_profile":
+        parse_status = "completed"
+        parse_stage = "enriching_profile"
+    elif latest_status == "failed":
         parse_status = "failed"
-    elif any(s == "completed" for s in statuses):
+    elif latest_status == "completed":
         parse_status = "completed"
     else:
         parse_status = "pending"
@@ -64,6 +72,7 @@ async def get_lifecycle_state(
     return {
         "has_strategic_profile": has_profile,
         "resume_parse_status": parse_status,
+        "parse_stage": parse_stage,
         "lifecycle_stage": lifecycle_stage,
     }
 
@@ -148,6 +157,15 @@ class ProfileUpdateRequest(BaseModel):
     specialization: str
     years_of_experience: Optional[float] = 1.0
 
+
+def _resolve_years_of_experience(trajectory_state: Optional[dict]) -> float:
+    if not trajectory_state:
+        return 5.0
+    years = trajectory_state.get("years_of_experience")
+    if years is not None:
+        return round(float(years), 1)
+    return 5.0
+
 @router.get("/profile")
 async def get_strategic_profile(
     current_user: User = Depends(get_current_user),
@@ -203,7 +221,7 @@ async def get_strategic_profile(
         "skills": decorated_skills,
         "target_role": profile.target_role or "Senior Full Stack Engineer",
         "specialization": profile.active_specialization or "Full Stack",
-        "years_of_experience": float(profile.trajectory_state.get("competitiveness_score", 0.5) * 10) if profile.trajectory_state else 5.0,
+        "years_of_experience": _resolve_years_of_experience(profile.trajectory_state),
         "completeness_score": completeness
     }
     dt_serialization = (time.perf_counter() - t0) * 1000
@@ -254,8 +272,8 @@ async def update_strategic_profile(
     readiness = trajectory.get("readiness_scores", {})
     dominant_readiness = readiness.get(dominant_path, {})
     gaps = dominant_readiness.get("missing_core", [])
-    if not gaps and normalized_skills:
-        gaps = ["System Architecture Modeling", "Production Observability Protocols"]
+
+    years_of_experience = round(float(body.years_of_experience or 5.0), 1)
 
     # 3. Regenerate roadmap
     roadmap_nodes = await generate_adaptive_roadmap(
@@ -319,7 +337,9 @@ async def update_strategic_profile(
                 "readiness_scores": readiness,
                 "adjacent_roles": trajectory.get("adjacent_roles", []),
                 "competitiveness_score": trajectory.get("competitiveness_score", 0.80),
-                "skill_origins": new_origins
+                "years_of_experience": years_of_experience,
+                "skill_origins": new_origins,
+                "user_calibrated": True,
             },
             calibration_history=[
                 {
@@ -342,7 +362,9 @@ async def update_strategic_profile(
             "readiness_scores": readiness,
             "adjacent_roles": trajectory.get("adjacent_roles", []),
             "competitiveness_score": trajectory.get("competitiveness_score", 0.80),
-            "skill_origins": new_origins
+            "years_of_experience": years_of_experience,
+            "skill_origins": new_origins,
+            "user_calibrated": True,
         }
         profile.recruiter_signals = recruiter_signals
         profile.calibration_history.append({
@@ -369,8 +391,17 @@ async def update_strategic_profile(
     await db.flush()
 
     # Generate opportunities
-    real_matches = await match_jobs_for_candidate(profile)
-    profile.opportunity_alignment = real_matches
+    match_result = await match_jobs_for_candidate(profile)
+    profile.opportunity_alignment = match_result["matches"]
+    trajectory_state = profile.trajectory_state or {}
+    if match_result.get("degraded"):
+        trajectory_state["opportunity_feed"] = {
+            "degraded": True,
+            "message": match_result.get("message"),
+        }
+    else:
+        trajectory_state.pop("opportunity_feed", None)
+    profile.trajectory_state = trajectory_state
 
     # Calibrate User Progress
     from app.services.user_progress_service import track_score_update
@@ -389,5 +420,4 @@ async def update_strategic_profile(
     await cache_invalidate(f"opportunities:radar:{current_user.id}")
     await cache_invalidate(f"market_intelligence:snapshot:{current_user.id}")
 
-    await db.commit()
     return {"message": "Strategic Profile saved and calibrated successfully", "target_role": body.target_role}

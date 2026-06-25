@@ -9,7 +9,7 @@ import traceback
 import asyncio
 import time
 from datetime import datetime, timezone
-from typing import List, Dict, Any
+from typing import List, Dict, Any, TypedDict
 
 from app.models.strategic_profile import StrategicProfile
 from app.services.opportunity_engine.scoring.compatibility_score import calculate_compatibility_score
@@ -84,6 +84,23 @@ FALLBACK_JOBS = [
         "source": "Supabase Seed"
     }
 ]
+
+
+class MatchJobsResult(TypedDict):
+    matches: List[Dict[str, Any]]
+    degraded: bool
+    message: str | None
+    match_status: str
+
+
+def _empty_match_result(degraded: bool = False, message: str | None = None) -> MatchJobsResult:
+    return {
+        "matches": [],
+        "degraded": degraded,
+        "message": message,
+        "match_status": "degraded" if degraded else "ready",
+    }
+
 
 async def _load_jobs_from_cache() -> List[Dict[str, Any]]:
     """Load crawled jobs from Redis."""
@@ -164,13 +181,8 @@ async def _get_crawled_jobs_inner() -> List[Dict[str, Any]]:
             logger.info("Using in-memory stale job cache after crawl failure.")
             return _crawl_memory_jobs
 
-        from app.config import get_settings
-        settings = get_settings()
-        if settings.is_production:
-            logger.warning("Crawling failed or returned 0 jobs in production mode.")
-            return []
-        logger.info("Using high-fidelity fallback pre-seeded job directory.")
-        all_jobs = FALLBACK_JOBS
+        logger.warning("Live crawl returned 0 jobs; not substituting seed data.")
+        return []
 
     seen_urls = set()
     deduped = []
@@ -185,19 +197,30 @@ async def _get_crawled_jobs_inner() -> List[Dict[str, Any]]:
 
     return deduped
 
-async def match_jobs_for_candidate(profile: StrategicProfile) -> List[Dict[str, Any]]:
+async def match_jobs_for_candidate(profile: StrategicProfile) -> MatchJobsResult:
     """Determine dynamic opportunity alignments using 6-factor intelligence ranking engine."""
     if not profile:
-        return []
+        return _empty_match_result()
+
+    degraded = False
+    degraded_message: str | None = None
 
     try:
         from app.services.opportunity_engine.quality import sanitize_and_rank_opportunities
         crawled_raw = await get_crawled_jobs()
+        if not crawled_raw:
+            return _empty_match_result(
+                degraded=True,
+                message="Live opportunity feeds are temporarily unavailable.",
+            )
         jobs = sanitize_and_rank_opportunities(crawled_raw)
     except Exception as e:
         logger.error(f"Error during job crawling or quality pipeline: {e}")
         logger.error(traceback.format_exc())
-        jobs = FALLBACK_JOBS
+        return _empty_match_result(
+            degraded=True,
+            message="Opportunity matching failed while loading live feeds.",
+        )
 
     candidate_skills = profile.inferred_skills or []
     target_role = profile.target_role or "Software Engineer"
@@ -206,14 +229,18 @@ async def match_jobs_for_candidate(profile: StrategicProfile) -> List[Dict[str, 
     # Estimate candidate experience from trajectory_state
     user_exp = 5.0
     if profile.trajectory_state:
-        # Read from skill origins or competitiveness
-        user_exp = float((profile.trajectory_state.get("competitiveness_score") or 0.5) * 10)
+        stored_years = profile.trajectory_state.get("years_of_experience")
+        if stored_years is not None:
+            user_exp = float(stored_years)
 
     matches = []
 
     for job in jobs:
         try:
-            req_skills = job.get("tags", [])
+            req_skills = job.get("tags") or job.get("skills") or []
+            if not req_skills:
+                from app.services.opportunity_engine.quality.text_encoding import extract_skills_from_description
+                req_skills = extract_skills_from_description(job.get("description", ""))
             job_title = job.get("title", "")
             job_company = job.get("company", "")
             posted_str = job.get("posted_at")
@@ -317,13 +344,18 @@ async def match_jobs_for_candidate(profile: StrategicProfile) -> List[Dict[str, 
 
             # Explainability reasoning
             reasons = []
-            reasons.append(f"Matched {len(req_skills) - len(missing)} core technology requirements.")
-            if spec_score >= 0.7:
-                reasons.append(f"High specialization overlap ({int(spec_score*100)}%) with your target career track as a {target_role}.")
-            if missing_redis_penalty:
-                reasons.append(f"Missing high-impact requirement decreases backend platform alignment by {penalty}%.")
+            if req_skills:
+                reasons.append(f"Matched {len(req_skills) - len(missing)} core technology requirements.")
+                if spec_score >= 0.7:
+                    reasons.append(f"High specialization overlap ({int(spec_score*100)}%) with your target career track as a {target_role}.")
+                if missing_redis_penalty:
+                    reasons.append(f"Missing high-impact requirement decreases backend platform alignment by {penalty}%.")
+                elif missing:
+                    reasons.append(f"Strong overall stack alignment (Missing {len(missing)} requirements: {', '.join(missing[:2])}).")
             else:
-                reasons.append(f"Strong overall stack alignment (Missing {len(missing)} requirements: {', '.join(missing[:2]) or 'None'}).")
+                reasons.append("Limited skill metadata from source; score based on role fit, specialization, and recency.")
+                if spec_score >= 0.7:
+                    reasons.append(f"High specialization overlap ({int(spec_score*100)}%) with your target career track as a {target_role}.")
 
             alignment_reasoning = " ".join(reasons)
 
@@ -365,4 +397,9 @@ async def match_jobs_for_candidate(profile: StrategicProfile) -> List[Dict[str, 
 
     # Sort matches by alignment score
     matches.sort(key=lambda x: x["alignment_score"], reverse=True)
-    return matches[:6]
+    return {
+        "matches": matches[:6],
+        "degraded": degraded,
+        "message": degraded_message,
+        "match_status": "degraded" if degraded else "ready",
+    }

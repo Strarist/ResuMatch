@@ -1,74 +1,96 @@
 # Backend Database Bootstrap
 
-## How It Works
+> **Canonical guide:** See [dev-bootstrap.md](dev-bootstrap.md) for full local setup.
 
-On startup, the backend automatically creates all tables via `Base.metadata.create_all()` in the FastAPI lifespan. This is idempotent — existing tables are not modified.
+## Schema authority
 
-## Fresh Environment Setup
+**Alembic is the single source of truth** for schema. Do not rely on `create_all` or runtime patches in normal development.
+
+| Environment | Schema source |
+|-------------|---------------|
+| Local dev (Postgres) | `alembic upgrade head` |
+| CI / pytest | `alembic upgrade head` on fresh SQLite, or `ENV=testing` + `create_all` in tests |
+| Production (Docker) | `alembic upgrade head` in `docker-entrypoint.sh` |
+
+## Fresh environment setup
 
 ```bash
+# From repo root
+docker compose up -d postgres redis
+
 cd backend
 python -m venv venv
 venv\Scripts\activate   # Windows
-pip install -r requirements.txt
+pip install -r requirements-dev.txt
 
-# Create .env with required vars
-cp .env.example .env    # or create manually
+cp .env.example .env
 
-# Start server (tables auto-created)
-uvicorn app.main:app --reload
+# Apply all migrations (required)
+alembic upgrade head
+
+python -m uvicorn app.main:app --reload
 ```
 
-## Dev Database Reset
+## Existing database created outside Alembic
+
+If tables already exist but `alembic_version` is missing (common after early dev):
 
 ```bash
 cd backend
-rm dev.db              # Delete SQLite database
-uvicorn app.main:app --reload   # Tables recreated on startup
+
+# Option A — stamp current schema then upgrade any missing revisions
+alembic stamp head
+alembic upgrade head
+
+# Option B — wipe and recreate (dev only)
+# From repo root:
+docker compose down -v
+docker compose up -d postgres redis
+cd backend && alembic upgrade head
 ```
 
-## Required Environment Variables
+Verify:
+
+```sql
+SELECT version_num FROM alembic_version;
+SELECT column_name FROM information_schema.columns
+  WHERE table_name = 'workspace_sessions' AND column_name = 'pinned';
+```
+
+## Dev database reset
+
+```bash
+docker compose down -v
+docker compose up -d postgres redis
+cd backend
+alembic upgrade head
+python -m uvicorn app.main:app --reload
+```
+
+## Required environment variables
 
 ```env
-DATABASE_URL=sqlite+aiosqlite:///./dev.db
+DATABASE_URL=postgresql+asyncpg://resumatch:resumatch_dev@localhost:5432/resumatch  # pragma: allowlist secret
+REDIS_URL=redis://localhost:6379
 JWT_SECRET=your-secret-at-least-16-chars
-GOOGLE_CLIENT_ID=your-google-client-id
-GOOGLE_CLIENT_SECRET=your-google-client-secret
-GOOGLE_REDIRECT_URI=http://localhost:8000/v1/auth/google/callback
 ```
-
-## Schema (tables created automatically)
-
-| Table | Purpose |
-|-------|---------|
-| `users` | User accounts (email, OAuth, password) |
-| `resumes` | Uploaded resume files and parsed data |
-| `jobs` | Job descriptions for matching |
-| `matches` | Resume-to-job match scores |
-| `file_sanitization_audit` | PDF sanitization audit log |
-
-## OAuth Schema Requirements
-
-The `users` table supports both OAuth and email/password auth:
-- `id` — UUID string (auto-generated)
-- `email` — unique, indexed
-- `provider` — "google", "email", etc.
-- `password_hash` — nullable (null for OAuth users)
-- `profile_img` — nullable (populated from OAuth)
-- `created_at` / `updated_at` — timestamps
 
 ## Troubleshooting
 
-### "no such table: users"
-- The dev.db file may have been created with old (incompatible) schema
-- Fix: delete `dev.db` and restart the server
+### Connection refused (PostgreSQL)
 
-### "UUID type not supported"
-- Models must use `String(36)` for IDs, not `UUID` from PostgreSQL dialect
-- `JSON` column type instead of `JSONB`
-- No `ARRAY` types — use `JSON` with list values
+- Ensure Docker is running: `docker compose up -d postgres`
+- Verify `DATABASE_URL` in `backend/.env` matches `docker-compose.yml` credentials
 
-### Production (PostgreSQL)
-- Set `DATABASE_URL=postgresql+asyncpg://user:pass@host/db`
-- Tables auto-create on first startup
-- For schema migrations, use Alembic: `alembic upgrade head`
+### `column workspace_sessions.pinned does not exist`
+
+- Run `alembic upgrade head` from `backend/`
+- If migrations fail because tables exist without `alembic_version`, use `alembic stamp head` then `alembic upgrade head`
+
+### Emergency SQLite (not recommended)
+
+```env
+DATABASE_URL=sqlite+aiosqlite:///./dev.db
+```
+
+Run `alembic upgrade head` after changing the URL.

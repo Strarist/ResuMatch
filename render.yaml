@@ -1,6 +1,6 @@
 services:
   - type: web
-    name: resumatch-backend
+    name: skillyn-backend
     runtime: docker
     plan: starter
     region: oregon
@@ -13,16 +13,22 @@ services:
         sync: false
       - key: JWT_ALGORITHM
         value: HS256
-      - key: GEMINI_API_KEY
+      - key: OPENROUTER_API_KEY
+        sync: false
+      - key: OPENROUTER_MODEL
+        value: meta-llama/llama-3.1-8b-instruct:free
+      - key: REDIS_URL
         sync: false
       - key: GOOGLE_CLIENT_ID
         sync: false
       - key: GOOGLE_CLIENT_SECRET
         sync: false
+      - key: GOOGLE_REDIRECT_URI
+        sync: false
       - key: FRONTEND_URL
         value: https://resu-match-one.vercel.app
       - key: CORS_ORIGINS
-        value: '["https://resu-match-one.vercel.app"]'
+        value: https://resu-match-one.vercel.app
       - key: UPLOAD_DIR
         value: /app/uploads
       - key: ENV
@@ -31,6 +37,6 @@ services:
         sync: false
 
 databases:
-  - name: resumatch-db
+  - name: skillyn-db
     plan: starter
     region: oregon

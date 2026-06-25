@@ -26,7 +26,7 @@ export function CommandPalette() {
     { id: 'nav-cover', label: 'Go to Cover Letter', group: 'Navigation', action: () => router.push('/cover-letter') },
     { id: 'nav-roadmap', label: 'Go to Roadmap', group: 'Navigation', action: () => router.push('/roadmap-v2') },
     { id: 'nav-settings', label: 'Go to Settings', group: 'Navigation', action: () => router.push('/settings') },
-    { id: 'action-upload', label: 'Upload Resume', group: 'Actions', action: () => router.push('/resumes?upload=true') },
+    { id: 'action-upload', label: 'Upload Resume', group: 'Actions', action: () => router.push('/resumes?upload=1') },
     ...(isDevModeEnabled()
       ? [
           { id: 'nav-analysis', label: 'Go to Analysis (Dev)', group: 'Dev', action: () => router.push('/analysis') },

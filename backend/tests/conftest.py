@@ -22,17 +22,6 @@ from app.models.base import Base
 import app.models.user
 import app.models.strategic_profile
 import app.models.user_progress
-import asyncio
-
-
-
-@pytest.fixture(scope="session")
-def event_loop():
-    """Create a session-scoped event loop to support session-scoped async fixtures."""
-    policy = asyncio.get_event_loop_policy()
-    loop = policy.new_event_loop()
-    yield loop
-    loop.close()
 
 
 @pytest.fixture(scope="session")

@@ -8,6 +8,7 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.strategic_profile import StrategicProfile
+from app.services.opportunities.normalize import normalize_opportunity_alignment
 
 
 def _empty_profile_context() -> dict:
@@ -57,7 +58,7 @@ async def get_profile_context(db: AsyncSession, user_id: str) -> dict:
         "skill_confidences": {s: 0.9 for s in skills},
         "trajectory_state": trajectory,
         "roadmap_progress": profile.roadmap_progress or {},
-        "opportunity_alignment": profile.opportunity_alignment or [],
+        "opportunity_alignment": normalize_opportunity_alignment(profile.opportunity_alignment),
         "market_alignment": float(profile.market_alignment or 0.0),
         "preferred_domains": [specialization] if specialization else [],
         "has_profile": len(skills) > 0 or bool(profile.target_role),

@@ -17,7 +17,7 @@ Skillyn is an AI career intelligence platform: resume → profile → roadmap �
 └──────────────────────────┬──────────────────────────────┘
                            │ SQLAlchemy Async
 ┌──────────────────────────┴──────────────────────────────┐
-│              Database (PostgreSQL / SQLite dev)           │
+│              Database (PostgreSQL)                        │
 │  StrategicProfile (canonical) │ Legacy intelligence tables│
 └─────────────────────────────────────────────────────────┘
 ```
@@ -103,11 +103,37 @@ frontend/src/
 
 ## Database Strategy
 
-- **Development**: SQLite (`sqlite+aiosqlite:///./dev.db`) — auto-creates tables on startup
+- **Local development**: PostgreSQL via Docker (`docker compose up -d postgres`)
 - **Production**: PostgreSQL (`postgresql+asyncpg://...`)
-- **Column types**: `String(36)` for UUIDs, `JSON` for structured data (portable across both)
-- **Migrations**: Alembic (for production schema changes)
-- **Startup**: `Base.metadata.create_all()` ensures tables exist (idempotent)
+- **SQLite**: pytest isolation only (`tests/conftest.py`); emergency manual override — not a runtime fallback
+- **Column types**: `String(36)` for UUIDs, `JSON` for structured data (portable across dialects)
+- **Migrations**: Alembic for schema changes; `create_all()` on startup for idempotent table creation
+- **Startup**: fails loudly if PostgreSQL is configured but unreachable — no silent rewrite to SQLite
+
+## Current Local Development Runtime State
+
+### Frontend
+- URL: `http://localhost:3001`
+
+### Backend
+- URL: `http://localhost:8000`
+
+### Database
+- Canonical local DB: PostgreSQL (Docker)
+- Connection: `DATABASE_URL=postgresql+asyncpg://resumatch:resumatch_dev@localhost:5432/resumatch`
+- Start: `docker compose up -d postgres redis` (from repo root)
+- SQLite fallback: none at runtime; emergency-only if `DATABASE_URL` is manually changed
+
+### Redis
+- Local policy: expected (run with Postgres via `docker compose up -d postgres redis`)
+- Connection: `REDIS_URL=redis://localhost:6379`
+- If temporarily unavailable: in-memory cache, in-memory rate limits, in-process event bus; core API/auth/resume flows continue
+
+### Rules
+- Do not silently rewrite PostgreSQL to SQLite in local development.
+- If PostgreSQL is configured and unavailable, startup fails with a clear connection error.
+- pytest continues to use SQLite via `tests/conftest.py` (isolated test DB).
+
 
 ## Auth Flow
 

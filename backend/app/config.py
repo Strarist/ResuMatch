@@ -114,10 +114,20 @@ class Settings(BaseSettings):
         return self
 
     @model_validator(mode="after")
-    def validate_and_fallback_db(self) -> "Settings":
-        """Ensure DB engine consistency. In development, warn if PostgreSQL is unreachable.
-        Does not alter the configured DATABASE_URL to avoid silent fallbacks.
-        """
+    def validate_database_policy(self) -> "Settings":
+        """Reject SQLite outside pytest (ENV=testing). Never rewrite DATABASE_URL."""
+        if self.env != Environment.testing and self.database_url.startswith("sqlite"):
+            raise ValueError(
+                "SQLite is not allowed when ENV=development or ENV=production. "
+                "Use PostgreSQL: docker compose up -d postgres redis"
+            )
+        if self.env != Environment.testing and not self.database_url.startswith("postgresql"):
+            raise ValueError("DATABASE_URL must be a PostgreSQL connection string")
+        return self
+
+    @model_validator(mode="after")
+    def validate_postgres_reachable(self) -> "Settings":
+        """In development, warn if PostgreSQL port is unreachable (lifespan probe is authoritative)."""
         if self.env == Environment.development and self.database_url.startswith("postgresql"):
             import socket
             host = "localhost"
@@ -130,15 +140,14 @@ class Settings(BaseSettings):
                         port = int(port_str)
                     else:
                         host = authority
-                # Attempt quick connection test
                 with socket.create_connection((host, port), timeout=0.3):
                     pass
             except Exception:
                 logging.warning(
                     f"PostgreSQL at {host}:{port} is offline. "
-                    "Please configure a reachable DB or switch to SQLite."
+                    "Start it with: docker compose up -d postgres redis (from repo root). "
+                    "The backend will fail on startup until PostgreSQL is reachable."
                 )
-                # Do NOT modify self.database_url; keep user-provided value.
         return self
 
     @property

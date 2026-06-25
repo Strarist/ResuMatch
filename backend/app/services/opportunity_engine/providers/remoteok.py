@@ -5,6 +5,7 @@ from datetime import datetime, timezone
 from typing import List, Dict, Any
 
 from app.services.opportunity_engine.providers.base import BaseOpportunityProvider
+from app.services.opportunity_engine.quality.text_encoding import repair_mojibake
 
 logger = logging.getLogger(__name__)
 
@@ -35,10 +36,10 @@ class RemoteOKProvider(BaseOpportunityProvider):
         tags = [t.lower().strip() for t in raw_job.get("tags", []) if t]
 
         return {
-            "title": raw_job.get("position", ""),
-            "company": raw_job.get("company", ""),
+            "title": repair_mojibake(raw_job.get("position", "") or ""),
+            "company": repair_mojibake(raw_job.get("company", "") or ""),
             "url": raw_job.get("url", ""),
-            "location": raw_job.get("location", "Remote"),
+            "location": repair_mojibake(raw_job.get("location", "Remote") or "Remote"),
             "remote": True,
             "description": raw_job.get("description", ""),
             "tags": tags,

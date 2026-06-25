@@ -5,10 +5,8 @@ import { type ReactNode, useState, useEffect } from 'react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { useAuth } from '@/auth/AuthContext';
-import { useLivingSystem } from '@/context/LivingSystemContext';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Button } from '@/components/ui/button';
-import { LayoutDashboard, Map, Radar, Compass, Globe, Award, MessageSquare, FileText, Settings, LogOut, ChevronLeft, Menu, Sparkles, Info, Shield, Activity, GitMerge } from 'lucide-react';
+import { LayoutDashboard, Map, Radar, Globe, Award, MessageSquare, FileText, Settings, LogOut, ChevronLeft, Menu, Sparkles } from 'lucide-react';
 import { ClickableLogo } from '@/components/common/ClickableLogo';
 import { SimulationBanner } from '@/components/shell/SimulationBanner';
 import { devOnlyNavItems } from '@/lib/dev-mode';
@@ -27,53 +25,29 @@ const secondaryItems = [
   { href: '/market-intelligence', label: 'Market Insights', icon: Globe },
 ];
 
-export function AppShell({ children }: { children: ReactNode }) {
-  const [collapsed, setCollapsed] = useState(false);
-  const [mobileOpen, setMobileOpen] = useState(false);
-  const [devMode, setDevMode] = useState(false);
-  const [advancedExpanded, setAdvancedExpanded] = useState(false);
+type AppSidebarProps = {
+  collapsed: boolean;
+  devMode: boolean;
+  layoutIdPrefix: string;
+  onToggleCollapse: () => void;
+  onLogout: () => void;
+};
+
+function AppSidebar({ collapsed, devMode, layoutIdPrefix, onToggleCollapse, onLogout }: AppSidebarProps) {
   const pathname = usePathname();
-  const { logout, isOffline } = useAuth();
-  const {
-    activePersona,
-    lifecycleStage,
-    setLifecycleStage,
-    setActivePersonaId,
-    resetLifecycle
-  } = useLivingSystem();
+  const { isOffline } = useAuth();
 
-  useEffect(() => {
-    if (env.NEXT_PUBLIC_DEV_MODE) {
-      setDevMode(true);
-      return;
-    }
-    const params = new URLSearchParams(window.location.search);
-    if (params.get('dev') === 'true') {
-      localStorage.setItem('dev_mode', 'true');
-      setDevMode(true);
-    } else {
-      const stored = localStorage.getItem('dev_mode');
-      if (stored === 'true') {
-        setDevMode(true);
-      }
-    }
-  }, []);
-
-  const sidebar = (
-    <aside className={`flex flex-col h-full border-r border-white/[0.04] bg-[#080c14]/90 backdrop-blur-xl transition-all duration-300 ${collapsed ? 'w-16' : 'w-60'}`}>
-      {/* Logo */}
-      <div className="flex h-16 items-center px-4 border-b border-white/[0.04]">
+  return (
+    <aside className={`flex flex-col h-full border-r border-border bg-surface-raised/90 backdrop-blur-xl transition-all duration-300 ${collapsed ? 'w-16' : 'w-60'}`}>
+      <div className="flex h-16 items-center px-4 border-b border-border">
         <Link href="/dashboard" className="inline-flex">
-          <ClickableLogo size={28} showWordmark={!collapsed} className="text-white" />
+          <ClickableLogo size={28} showWordmark={!collapsed} className="text-text" />
         </Link>
       </div>
 
-      {/* Navigation */}
       <nav className="flex-1 overflow-y-auto py-4 px-2 space-y-6">
-
-        {/* Core Items */}
         <div>
-          {!collapsed && <p className="px-3 mb-2 text-[10px] font-bold text-slate-500 uppercase tracking-widest">Core</p>}
+          {!collapsed && <p className="px-3 mb-2 text-[10px] font-bold text-text-tertiary uppercase tracking-widest">Core</p>}
           <div className="space-y-0.5">
             {coreItems.map((item) => {
               const isActive = pathname === item.href || pathname.startsWith(item.href + '/');
@@ -83,14 +57,18 @@ export function AppShell({ children }: { children: ReactNode }) {
                   href={item.href}
                   className={`flex items-center gap-2.5 rounded-lg px-3 py-2.5 text-[13px] transition-all duration-200 relative group ${
                     isActive
-                      ? 'text-white bg-slate-800/85 font-bold border border-slate-700/50 shadow-inner'
-                      : 'text-slate-400 font-semibold hover:text-slate-200 hover:bg-slate-800/30'
+                      ? 'text-text bg-surface-overlay font-bold border border-border shadow-inner'
+                      : 'text-text-secondary font-semibold hover:text-text hover:bg-surface-inset'
                   }`}
                 >
                   {isActive && (
-                    <motion.div layoutId="nav-active" className="absolute left-0 top-1/2 -translate-y-1/2 w-[3px] h-5 rounded-r-full bg-emerald-400 shadow-[0_0_8px_rgba(52,211,153,0.4)]" transition={{ duration: 0.25 }} />
+                    <motion.div
+                      layoutId={`${layoutIdPrefix}-nav-active`}
+                      className="absolute left-0 top-1/2 -translate-y-1/2 w-[3px] h-5 rounded-r-full bg-emerald-400 shadow-[0_0_8px_rgba(52,211,153,0.4)]"
+                      transition={{ duration: 0.25 }}
+                    />
                   )}
-                  <item.icon size={16} className={isActive ? 'text-emerald-400' : 'text-slate-500 group-hover:text-slate-400'} />
+                  <item.icon size={16} className={isActive ? 'text-success' : 'text-text-tertiary group-hover:text-text-secondary'} />
                   {!collapsed && <span>{item.label}</span>}
                 </Link>
               );
@@ -98,9 +76,8 @@ export function AppShell({ children }: { children: ReactNode }) {
           </div>
         </div>
 
-        {/* Secondary Items */}
         <div>
-          {!collapsed && <p className="px-3 mb-2 text-[10px] font-bold text-slate-500 uppercase tracking-widest">Secondary</p>}
+          {!collapsed && <p className="px-3 mb-2 text-[10px] font-bold text-text-tertiary uppercase tracking-widest">Secondary</p>}
           <div className="space-y-0.5">
             {secondaryItems.map((item) => {
               const isActive = pathname === item.href || pathname.startsWith(item.href + '/');
@@ -110,14 +87,18 @@ export function AppShell({ children }: { children: ReactNode }) {
                   href={item.href}
                   className={`flex items-center gap-2.5 rounded-lg px-3 py-2.5 text-[13px] transition-all duration-200 relative group ${
                     isActive
-                      ? 'text-white bg-slate-800/85 font-bold border border-slate-700/50 shadow-inner'
-                      : 'text-slate-400 font-semibold hover:text-slate-200 hover:bg-slate-800/30'
+                      ? 'text-text bg-surface-overlay font-bold border border-border shadow-inner'
+                      : 'text-text-secondary font-semibold hover:text-text hover:bg-surface-inset'
                   }`}
                 >
                   {isActive && (
-                    <motion.div layoutId="nav-active" className="absolute left-0 top-1/2 -translate-y-1/2 w-[3px] h-5 rounded-r-full bg-emerald-400 shadow-[0_0_8px_rgba(52,211,153,0.4)]" transition={{ duration: 0.25 }} />
+                    <motion.div
+                      layoutId={`${layoutIdPrefix}-nav-active`}
+                      className="absolute left-0 top-1/2 -translate-y-1/2 w-[3px] h-5 rounded-r-full bg-emerald-400 shadow-[0_0_8px_rgba(52,211,153,0.4)]"
+                      transition={{ duration: 0.25 }}
+                    />
                   )}
-                  <item.icon size={16} className={isActive ? 'text-emerald-400' : 'text-slate-500 group-hover:text-slate-400'} />
+                  <item.icon size={16} className={isActive ? 'text-success' : 'text-text-tertiary group-hover:text-text-secondary'} />
                   {!collapsed && <span>{item.label}</span>}
                 </Link>
               );
@@ -153,10 +134,8 @@ export function AppShell({ children }: { children: ReactNode }) {
             </div>
           </div>
         )}
-
       </nav>
 
-      {/* Offline Status */}
       {isOffline && !collapsed && (
         <div className="px-3 py-2.5 mx-2 mb-3 rounded-lg bg-slate-900/80 border border-amber-500/30 shadow-[inset_0_0_20px_rgba(245,158,11,0.05)]">
           <div className="flex items-center gap-2 mb-1">
@@ -167,53 +146,99 @@ export function AppShell({ children }: { children: ReactNode }) {
         </div>
       )}
 
-      {/* Footer */}
-      <div className="border-t border-white/[0.04] p-3 space-y-1">
-        {/* Settings button */}
+      <div className="border-t border-border p-3 space-y-1">
         <Link
           href="/settings"
           className={`flex w-full items-center gap-2.5 rounded-lg px-3 py-2 text-[13px] font-bold transition-colors ${
-            pathname === '/settings' ? 'text-white bg-slate-800/80 font-bold border border-slate-700/50 shadow-inner' : 'text-slate-500 hover:text-slate-300 hover:bg-slate-800/30'
+            pathname === '/settings' ? 'text-text bg-surface-overlay font-bold border border-border shadow-inner' : 'text-text-secondary hover:text-text hover:bg-surface-inset'
           }`}
         >
-          <Settings size={16} className={pathname === '/settings' ? 'text-emerald-400' : 'text-slate-500'} />
+          <Settings size={16} className={pathname === '/settings' ? 'text-success' : 'text-text-tertiary'} />
           {!collapsed && <span>Settings</span>}
         </Link>
 
-        <button onClick={() => logout()} className="flex w-full items-center gap-2.5 rounded-lg px-3 py-2 text-[13px] font-bold text-slate-500 hover:text-red-400 hover:bg-red-500/[0.04] transition-colors">
+        <button onClick={onLogout} className="flex w-full items-center gap-2.5 rounded-lg px-3 py-2 text-[13px] font-bold text-text-secondary hover:text-error hover:bg-error/5 transition-colors">
           <LogOut size={16} />
           {!collapsed && <span>Logout</span>}
         </button>
 
-        <button onClick={() => setCollapsed(!collapsed)} className="flex w-full items-center justify-center rounded-lg py-2 text-slate-500 hover:text-slate-300 transition-colors">
+        <button onClick={onToggleCollapse} className="flex w-full items-center justify-center rounded-lg py-2 text-text-tertiary hover:text-text-secondary transition-colors">
           <ChevronLeft size={16} className={`transition-transform ${collapsed ? 'rotate-180' : ''}`} />
         </button>
       </div>
     </aside>
   );
+}
+
+export function AppShell({ children }: { children: ReactNode }) {
+  const [collapsed, setCollapsed] = useState(false);
+  const [mobileOpen, setMobileOpen] = useState(false);
+  const [devMode, setDevMode] = useState(false);
+  const { logout } = useAuth();
+
+  useEffect(() => {
+    if (env.NEXT_PUBLIC_DEV_MODE) {
+      setDevMode(true);
+      return;
+    }
+    const params = new URLSearchParams(window.location.search);
+    if (params.get('dev') === 'true') {
+      localStorage.setItem('dev_mode', 'true');
+      setDevMode(true);
+    } else {
+      const stored = localStorage.getItem('dev_mode');
+      if (stored === 'true') {
+        setDevMode(true);
+      }
+    }
+  }, []);
 
   return (
-    <div className="flex h-screen overflow-hidden bg-[#020617]">
-      {/* Desktop sidebar */}
-      <div className="hidden md:flex">{sidebar}</div>
+    <div className="flex h-screen overflow-hidden bg-surface">
+      <div className="hidden md:flex">
+        <AppSidebar
+          collapsed={collapsed}
+          devMode={devMode}
+          layoutIdPrefix="desktop"
+          onToggleCollapse={() => setCollapsed(!collapsed)}
+          onLogout={() => logout()}
+        />
+      </div>
 
-      {/* Mobile overlay */}
       <AnimatePresence>
-        {mobileOpen && (
-          <>
-            <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="fixed inset-0 bg-black/80 backdrop-blur-sm z-40 md:hidden" onClick={() => setMobileOpen(false)} />
-            <motion.div initial={{ x: -280 }} animate={{ x: 0 }} exit={{ x: -280 }} transition={{ duration: 0.25 }} className="fixed left-0 top-0 bottom-0 z-50 md:hidden w-64">
-              {sidebar}
-            </motion.div>
-          </>
-        )}
+        {mobileOpen ? (
+          <motion.div
+            key="mobile-backdrop"
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 bg-black/80 backdrop-blur-sm z-40 md:hidden"
+            onClick={() => setMobileOpen(false)}
+          />
+        ) : null}
+        {mobileOpen ? (
+          <motion.div
+            key="mobile-drawer"
+            initial={{ x: -280 }}
+            animate={{ x: 0 }}
+            exit={{ x: -280 }}
+            transition={{ duration: 0.25 }}
+            className="fixed left-0 top-0 bottom-0 z-50 md:hidden w-64"
+          >
+            <AppSidebar
+              collapsed={false}
+              devMode={devMode}
+              layoutIdPrefix="mobile"
+              onToggleCollapse={() => setMobileOpen(false)}
+              onLogout={() => logout()}
+            />
+          </motion.div>
+        ) : null}
       </AnimatePresence>
 
-      {/* Main content */}
       <div className="flex-1 flex flex-col overflow-hidden">
-        {/* Topbar */}
-        <header className="h-16 flex items-center px-4 border-b border-slate-800 bg-[#020617]/90 backdrop-blur-xl md:hidden">
-          <button onClick={() => setMobileOpen(true)} className="p-2 text-slate-400 hover:text-white" aria-label="Open menu">
+        <header className="h-16 flex items-center px-4 border-b border-border bg-surface/90 backdrop-blur-xl md:hidden">
+          <button onClick={() => setMobileOpen(true)} className="p-2 text-text-secondary hover:text-text" aria-label="Open menu">
             <Menu size={24} />
           </button>
         </header>

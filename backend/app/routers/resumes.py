@@ -14,6 +14,18 @@ from app.logger import logger
 
 router = APIRouter(prefix="/v1/resumes", tags=["Resumes"])
 
+_PARSE_FAILED_MESSAGE = (
+    "Resume parsing failed. Re-upload a standard PDF with a readable text layer."
+)
+
+
+def _serialize_resume(resume, *, size_bytes: int = 0) -> dict:
+    dumped = {**ResumeResponse.model_validate(resume).model_dump(mode="json")}
+    dumped["file_size_bytes"] = size_bytes
+    if resume.parse_status == "failed":
+        dumped["parse_error"] = _PARSE_FAILED_MESSAGE
+    return dumped
+
 
 async def _run_parse_background(resume_id: str, user_id: str) -> None:
     """Background task worker to parse resume and sync profile, roadmap, and stats.
@@ -35,7 +47,6 @@ async def _run_parse_background(resume_id: str, user_id: str) -> None:
             logger.error(f"Background parsing failed for resume {resume_id}: {e}")
             await db.rollback()
             try:
-                # Update status to failed
                 from app.models.resume import Resume
                 res = await db.get(Resume, resume_id)
                 if res:
@@ -65,8 +76,6 @@ async def upload_resume(
         raise HTTPException(status_code=400, detail=e.message)
     except ExternalServiceError as e:
         raise HTTPException(status_code=400, detail=e.message)
-
-    await db.commit()
 
     # Enqueue background parsing pipeline to avoid stalling HTTP thread
     import sys
@@ -107,20 +116,15 @@ async def list_resumes(
     out = []
     for r in resumes:
         file_path = os.path.join(settings.upload_dir, f"{r.id}_{r.filename}")
-        size_bytes = 0
-        if os.path.exists(file_path):
-            size_bytes = os.path.getsize(file_path)
-
-        dumped = {**ResumeResponse.model_validate(r).model_dump(mode="json"), "matches_count": len(r.matches)}
-        dumped["file_size_bytes"] = size_bytes
-        out.append(dumped)
+        size_bytes = os.path.getsize(file_path) if os.path.exists(file_path) else 0
+        out.append({**_serialize_resume(r, size_bytes=size_bytes), "matches_count": len(r.matches)})
 
     dt_serialization = (time.perf_counter() - t0) * 1000
     logger.info(f"[RESUMES] Serialization={dt_serialization:.2f}ms")
 
     dt_total = (time.perf_counter() - t_start) * 1000
     logger.info(f"[RESUMES] Total={dt_total:.2f}ms")
-    return JSONResponse(content={"resumes": out}, headers={"Cache-Control": "public, max-age=30"})
+    return JSONResponse(content={"resumes": out}, headers={"Cache-Control": "no-store"})
 
 
 @router.get("/{resume_id}")
@@ -138,13 +142,11 @@ async def get_resume(
     from app.config import get_settings
     settings = get_settings()
     file_path = os.path.join(settings.upload_dir, f"{resume.id}_{resume.filename}")
-    size_bytes = 0
-    if os.path.exists(file_path):
-        size_bytes = os.path.getsize(file_path)
-
-    dumped = ResumeResponse.model_validate(resume).model_dump(mode="json")
-    dumped["file_size_bytes"] = size_bytes
-    return JSONResponse(content={"resume": dumped}, headers={"Cache-Control": "public, max-age=30"})
+    size_bytes = os.path.getsize(file_path) if os.path.exists(file_path) else 0
+    return JSONResponse(
+        content={"resume": _serialize_resume(resume, size_bytes=size_bytes)},
+        headers={"Cache-Control": "no-store"},
+    )
 
 
 @router.delete("/{resume_id}")
@@ -158,7 +160,6 @@ async def delete_resume(
         await resume_service.delete(resume_id, current_user.id)
     except NotFoundError as e:
         raise HTTPException(status_code=404, detail=e.message)
-    await db.commit()
     return {"message": "Resume deleted successfully"}
 
 
@@ -218,8 +219,6 @@ async def replace_resume(
         raise HTTPException(status_code=400, detail=e.message)
     except ExternalServiceError as e:
         raise HTTPException(status_code=400, detail=e.message)
-
-    await db.commit()
 
     # Enqueue background parsing pipeline to avoid stalling HTTP thread
     import sys

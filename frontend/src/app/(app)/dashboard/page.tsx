@@ -155,8 +155,8 @@ export default function DashboardPage() {
               <Sparkles size={24} className="animate-pulse" />
             </div>
             <div className="space-y-1">
-              <h3 className="text-sm font-bold text-white">Getting Started with Skillyn</h3>
-              <p className="text-xs text-slate-400 leading-relaxed">
+              <h3 className="text-sm font-bold text-text">Getting Started with Skillyn</h3>
+              <p className="text-xs text-text-secondary leading-relaxed">
                 Skillyn matches your technical skills against job requirements. Follow the checklist below to get started.
               </p>
             </div>
@@ -189,19 +189,19 @@ export default function DashboardPage() {
                 actionText: "Find Matches",
               }
             ].map((step, idx) => (
-              <WorkspaceCard key={idx} className="p-5 border-white/[0.04] bg-white/[0.01] hover:bg-white/[0.02] flex flex-col justify-between h-44">
+              <WorkspaceCard key={idx} className="p-5 hover:bg-surface-inset flex flex-col justify-between h-44">
                 <div>
-                  <h4 className="text-xs font-bold text-white mb-1.5 flex items-center gap-2">
-                    <span className="w-1.5 h-1.5 rounded-full bg-blue-400" />
+                  <h4 className="text-xs font-bold text-text mb-1.5 flex items-center gap-2">
+                    <span className="w-1.5 h-1.5 rounded-full bg-accent" />
                     {step.title}
                   </h4>
-                  <p className="text-[11px] text-slate-400 leading-relaxed font-sans font-normal">
+                  <p className="text-[11px] text-text-secondary leading-relaxed font-sans font-normal">
                     {step.desc}
                   </p>
                 </div>
                 <Link
                   href={step.link}
-                  className="inline-flex items-center gap-1 mt-4 px-3 py-1.5 bg-blue-500 hover:bg-blue-600 text-black text-[10px] font-bold rounded transition-colors w-fit"
+                  className="inline-flex items-center gap-1 mt-4 px-3 py-1.5 bg-accent hover:bg-accent-hover text-text-inverse text-[10px] font-bold rounded transition-colors w-fit"
                 >
                   {step.actionText} <ChevronRight size={10} />
                 </Link>
@@ -279,13 +279,13 @@ function DashboardSkeleton() {
   return (
     <div className="space-y-8 animate-pulse">
       {/* Career Snapshot Skeleton */}
-      <div className="p-6 rounded-2xl border border-white/[0.06] bg-white/[0.02] space-y-4">
-        <div className="h-6 w-48 bg-white/10 rounded" />
+      <div className="p-6 rounded-2xl border border-border bg-surface-inset space-y-4">
+        <div className="h-6 w-48 bg-surface-inset rounded" />
         <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
           {[1, 2, 3, 4].map((i) => (
-            <div key={i} className="p-4 rounded-xl bg-white/[0.04] space-y-2">
-              <div className="h-4 w-16 bg-white/10 rounded" />
-              <div className="h-8 w-24 bg-white/20 rounded" />
+            <div key={i} className="p-4 rounded-xl bg-surface-inset space-y-2">
+              <div className="h-4 w-16 bg-surface-inset rounded" />
+              <div className="h-8 w-24 bg-surface-overlay rounded" />
             </div>
           ))}
         </div>
@@ -293,33 +293,33 @@ function DashboardSkeleton() {
 
       {/* Focus & Top Opp Double Column Skeleton */}
       <div className="grid md:grid-cols-2 gap-6">
-        <div className="p-6 rounded-2xl border border-white/[0.06] bg-white/[0.02] space-y-4">
-          <div className="h-6 w-32 bg-white/10 rounded" />
-          <div className="h-4 w-full bg-white/[0.04] rounded" />
-          <div className="h-4 w-2/3 bg-white/[0.04] rounded" />
-          <div className="h-10 w-full bg-white/10 rounded mt-4" />
+        <div className="p-6 rounded-2xl border border-border bg-surface-inset space-y-4">
+          <div className="h-6 w-32 bg-surface-inset rounded" />
+          <div className="h-4 w-full bg-surface-inset rounded" />
+          <div className="h-4 w-2/3 bg-surface-inset rounded" />
+          <div className="h-10 w-full bg-surface-inset rounded mt-4" />
         </div>
-        <div className="p-6 rounded-2xl border border-white/[0.06] bg-white/[0.02] space-y-4">
-          <div className="h-6 w-36 bg-white/10 rounded" />
-          <div className="h-4 w-full bg-white/[0.04] rounded" />
-          <div className="h-4 w-5/6 bg-white/[0.04] rounded" />
-          <div className="h-10 w-full bg-white/10 rounded mt-4" />
+        <div className="p-6 rounded-2xl border border-border bg-surface-inset space-y-4">
+          <div className="h-6 w-36 bg-surface-inset rounded" />
+          <div className="h-4 w-full bg-surface-inset rounded" />
+          <div className="h-4 w-5/6 bg-surface-inset rounded" />
+          <div className="h-10 w-full bg-surface-inset rounded mt-4" />
         </div>
       </div>
 
       {/* Market & AI insights Skeleton */}
       <div className="grid md:grid-cols-3 gap-6">
-        <div className="col-span-2 p-6 rounded-2xl border border-white/[0.06] bg-white/[0.02] space-y-4">
-          <div className="h-6 w-40 bg-white/10 rounded" />
-          <div className="h-4 w-full bg-white/[0.04] rounded" />
-          <div className="h-4 w-full bg-white/[0.04] rounded" />
+        <div className="col-span-2 p-6 rounded-2xl border border-border bg-surface-inset space-y-4">
+          <div className="h-6 w-40 bg-surface-inset rounded" />
+          <div className="h-4 w-full bg-surface-inset rounded" />
+          <div className="h-4 w-full bg-surface-inset rounded" />
         </div>
-        <div className="p-6 rounded-2xl border border-white/[0.06] bg-white/[0.02] space-y-4 flex flex-col justify-between">
+        <div className="p-6 rounded-2xl border border-border bg-surface-inset space-y-4 flex flex-col justify-between">
           <div className="space-y-4">
-            <div className="h-6 w-24 bg-white/10 rounded" />
-            <div className="h-4 w-full bg-white/[0.04] rounded" />
+            <div className="h-6 w-24 bg-surface-inset rounded" />
+            <div className="h-4 w-full bg-surface-inset rounded" />
           </div>
-          <div className="h-10 w-full bg-white/10 rounded mt-4" />
+          <div className="h-10 w-full bg-surface-inset rounded mt-4" />
         </div>
       </div>
     </div>

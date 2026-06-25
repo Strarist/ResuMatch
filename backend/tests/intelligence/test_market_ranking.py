@@ -25,8 +25,18 @@ def test_recruiter_demand_index():
     assert demand["kubernetes"]["scarcity_score"] is not None
 
 @pytest.mark.asyncio
-async def test_six_factor_matching_and_relevance():
+@patch("app.services.opportunity_engine.ingestion.get_crawled_jobs", new_callable=AsyncMock)
+async def test_six_factor_matching_and_relevance(mock_jobs):
     """Verify 6-factor opportunity match calculator runs successfully."""
+    mock_jobs.return_value = [{
+        "title": "Platform Engineer",
+        "company": "Acme",
+        "tags": ["Go", "Kubernetes", "Redis", "Docker"],
+        "compensation": "$180,000 - $240,000",
+        "url": "https://example.com/job/1",
+        "source": "Test",
+        "posted_at": "2026-06-01T00:00:00Z",
+    }]
     profile = StrategicProfile(
         user_id="test-candidate",
         inferred_skills=["Go", "Kubernetes", "Redis", "Docker"],
@@ -37,7 +47,8 @@ async def test_six_factor_matching_and_relevance():
         }
     )
 
-    matches = await match_jobs_for_candidate(profile)
+    result = await match_jobs_for_candidate(profile)
+    matches = result["matches"]
     assert len(matches) > 0
 
     # Check that new 6-factor ranking variables are in each match item
@@ -68,7 +79,8 @@ async def test_proof_gaps_case_insensitive_for_capitalized_skills(mock_jobs):
         trajectory_state={"competitiveness_score": 0.8},
     )
 
-    matches = await match_jobs_for_candidate(profile)
+    result = await match_jobs_for_candidate(profile)
+    matches = result["matches"]
     assert matches
     proof_gaps = matches[0]["proof_gaps"]
     assert "Ingress traffic controllers proof" in proof_gaps
@@ -95,7 +107,8 @@ async def test_missing_skill_penalty_normalizes_whitespace(mock_jobs):
         trajectory_state={"competitiveness_score": 0.8},
     )
 
-    matches = await match_jobs_for_candidate(profile)
+    result = await match_jobs_for_candidate(profile)
+    matches = result["matches"]
     assert matches
     match = matches[0]
     assert "Distributed caching benchmark proof" in match["proof_gaps"]
@@ -119,7 +132,8 @@ async def test_match_jobs_handles_null_competitiveness_score(mock_jobs):
         trajectory_state={"competitiveness_score": None},
     )
 
-    matches = await match_jobs_for_candidate(profile)
+    result = await match_jobs_for_candidate(profile)
+    matches = result["matches"]
     assert matches
 
 def test_dynamic_market_intelligence_computations():

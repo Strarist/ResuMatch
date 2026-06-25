@@ -1,0 +1,20 @@
+---
+alwaysApply: true
+---
+
+Skillyn implementation workflow:
+
+For any non-trivial bug, feature, refactor, architecture question, or production-hardening task, do not immediately write code.
+
+First produce a short implementation/debug plan containing:
+1. current behavior or likely current flow,
+2. target behavior,
+3. likely root cause or change surface,
+4. exact files to change,
+5. invariants/contracts to preserve,
+6. smallest safe patch strategy,
+7. tests or verification steps needed.
+
+Only implement after the plan is clear.
+Prefer the smallest safe diff over broad rewrites.
+Do not introduce unrelated refactors during implementation.

@@ -1,0 +1,16 @@
+---
+alwaysApply: true
+---
+
+Never claim a bug is fixed, a task is complete, or a flow is production-ready without explaining why.
+
+For bugs and regressions, use this order:
+1. localize the failure,
+2. identify the likely root cause with evidence from code, state flow, logs, data flow, or contracts,
+3. propose the minimal fix,
+4. state regression risks and side effects,
+5. explain how to verify the fix.
+
+Do not say “fixed” if the root cause is still uncertain.
+Do not say “production-ready” if important failure cases, test gaps, or architectural risks remain.
+If confidence is partial, state that directly instead of overstating certainty.

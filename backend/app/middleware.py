@@ -2,9 +2,6 @@
 
 import time
 
-from fastapi import Request, Response
-from starlette.middleware.base import BaseHTTPMiddleware, RequestResponseEndpoint
-
 try:
     from prometheus_client import Counter, Histogram
     REQUEST_COUNT = Counter("http_requests_total", "Total HTTP requests", ["method", "path", "status"])
@@ -23,7 +20,8 @@ class ObservabilityMiddleware:
 
     async def __call__(self, scope, receive, send):
         if scope["type"] != "http":
-            return await self.app(scope, receive, send)
+            await self.app(scope, receive, send)
+            return
 
         headers = dict(scope.get("headers", []))
         request_id = headers.get(b"x-request-id", b"").decode("utf-8")

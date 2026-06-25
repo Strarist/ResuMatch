@@ -88,7 +88,7 @@ async def analyze_stream(
             else:
                 from app.services.resume_pipeline.profile_builder import build_and_persist_strategic_profile
                 # Trigger the real OpenRouter LLM extraction and strategic profile DB builder pipeline
-                profile, raw_entities = await build_and_persist_strategic_profile(resume_repo.db, current_user.id, file_path)
+                profile, raw_entities, _ = await build_and_persist_strategic_profile(resume_repo.db, current_user.id, file_path)
 
                 parsed = ParsedResume(
                     skills=profile.inferred_skills,

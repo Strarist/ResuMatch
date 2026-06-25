@@ -45,10 +45,12 @@ class ApiClient {
     const controller = new AbortController();
     const timeoutId = setTimeout(() => controller.abort(), 4000);
 
+    const method = options.method || 'GET';
     const token = typeof window !== 'undefined' ? localStorage.getItem('access_token') : null;
-    const headers: Record<string, string> = {
-      'Content-Type': 'application/json',
-    };
+    const headers: Record<string, string> = {};
+    if (options.body || (method !== 'GET' && method !== 'HEAD')) {
+      headers['Content-Type'] = 'application/json';
+    }
     if (token) {
       headers['Authorization'] = `Bearer ${token}`;
     }

@@ -62,7 +62,7 @@ async def stream_roadmap(
             resume.parsed_data = parsed.model_dump()
             resume.skills = parsed.skills
             resume.parse_status = "completed"
-            await resume_repo.db.commit()
+            await resume_repo.db.flush()
 
         yield sse_event("analysis.progress", {
             "resume_id": resume_id, "stage": "matching",

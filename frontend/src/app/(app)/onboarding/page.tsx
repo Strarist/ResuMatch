@@ -145,21 +145,21 @@ export default function OnboardingPage() {
 
   if (initializing) {
     return (
-      <div className="min-h-screen bg-[#070708] text-white flex flex-col items-center justify-center p-6 relative overflow-hidden">
+      <div className="min-h-screen bg-[#070708] text-text flex flex-col items-center justify-center p-6 relative overflow-hidden">
         <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_center,_var(--tw-gradient-stops))] from-accent/10 via-[#070708] to-[#070708] pointer-events-none" />
 
         <div className="max-w-md w-full relative z-10 flex flex-col items-center">
           <div className="mb-8 relative">
             <div className="absolute inset-0 bg-accent/25 blur-xl rounded-full" />
-            <LogoMark size={96} className="text-white relative z-10 animate-pulse" />
+            <LogoMark size={96} className="text-text relative z-10 animate-pulse" />
           </div>
 
-          <h2 className="text-2xl font-bold mb-8 text-center tracking-tight text-white flex items-center gap-2">
+          <h2 className="text-2xl font-bold mb-8 text-center tracking-tight text-text flex items-center gap-2">
             <Sparkles className="w-5 h-5 text-accent animate-spin" />
             Initializing Identity Matrix
           </h2>
 
-          <div className="w-full space-y-4 text-sm text-white/60 font-mono bg-surface-inset border border-border p-6 rounded-2xl">
+          <div className="w-full space-y-4 text-sm text-text-secondary font-mono bg-surface-inset border border-border p-6 rounded-2xl">
             <div className="flex justify-between items-center animate-fade-in" style={{ animationDelay: '0.4s' }}>
               <span>Calibrating specialization graph...</span>
               <span className="text-accent flex items-center gap-1 font-bold text-xs"><Check className="w-3 h-3" /> OK</span>
@@ -190,7 +190,7 @@ export default function OnboardingPage() {
   }
 
   return (
-    <div className="min-h-screen bg-[#070708] text-white flex flex-col items-center justify-center p-6 relative overflow-hidden">
+    <div className="min-h-screen bg-[#070708] text-text flex flex-col items-center justify-center p-6 relative overflow-hidden">
       {/* Background ambient lighting */}
       <div className="absolute top-1/4 left-1/4 w-96 h-96 bg-accent/5 rounded-full blur-3xl pointer-events-none" />
       <div className="absolute bottom-1/4 right-1/4 w-96 h-96 bg-accent/5 rounded-full blur-3xl pointer-events-none" />
@@ -201,7 +201,7 @@ export default function OnboardingPage() {
         <div className="flex items-center justify-between mb-8">
           <div className="flex items-center gap-2">
             <LogoMark size={32} className="text-accent" />
-            <span className="font-bold tracking-tight text-white text-lg">Skillyn OS</span>
+            <span className="font-bold tracking-tight text-text text-lg">Skillyn OS</span>
           </div>
           <div className="text-xs text-text-tertiary">
             Step {step} of 5
@@ -214,7 +214,7 @@ export default function OnboardingPage() {
             <div
               key={idx}
               className={`h-1 rounded-full flex-1 transition-all duration-300 ${
-                step >= idx ? 'bg-accent shadow-md shadow-accent/25' : 'bg-white/10'
+                step >= idx ? 'bg-accent shadow-md shadow-accent/25' : 'bg-surface-inset'
               }`}
             />
           ))}
@@ -224,7 +224,7 @@ export default function OnboardingPage() {
         {step === 1 && (
           <div className="space-y-6 animate-fade-in">
             <div className="text-center max-w-md mx-auto">
-              <h1 className="text-2xl md:text-3xl font-bold tracking-tight mb-2 text-white">
+              <h1 className="text-2xl md:text-3xl font-bold tracking-tight mb-2 text-text">
                 Ingest Your Career Record
               </h1>
               <p className="text-text-secondary text-sm">
@@ -246,14 +246,14 @@ export default function OnboardingPage() {
                 <div className="space-y-4 py-6">
                   <RefreshCw className="w-12 h-12 text-accent mx-auto animate-spin" />
                   <div>
-                    <h4 className="font-semibold text-white">Parsing PDF...</h4>
+                    <h4 className="font-semibold text-text">Parsing PDF...</h4>
                     <p className="text-xs text-text-secondary mt-1">Extracting verified competencies from your resume.</p>
                   </div>
                 </div>
               ) : (
                 <div className="py-6 cursor-pointer" onClick={() => document.getElementById('resume-file')?.click()}>
                   <Upload className="w-12 h-12 text-text-tertiary mx-auto mb-4 group-hover:text-accent transition-colors group-hover:scale-105" />
-                  <h3 className="text-lg font-semibold text-white mb-1">
+                  <h3 className="text-lg font-semibold text-text mb-1">
                     Select PDF Resume
                   </h3>
                   <p className="text-xs text-text-secondary max-w-xs mx-auto">
@@ -267,7 +267,7 @@ export default function OnboardingPage() {
               <Button
                 onClick={() => setStep(2)}
                 variant="ghost"
-                className="text-text-secondary hover:text-white"
+                className="text-text-secondary hover:text-text"
               >
                 Enter skills manually
               </Button>
@@ -279,7 +279,7 @@ export default function OnboardingPage() {
         {step === 2 && (
           <div className="space-y-6 animate-fade-in">
             <div>
-              <h1 className="text-2xl font-bold tracking-tight text-white mb-1">
+              <h1 className="text-2xl font-bold tracking-tight text-text mb-1">
                 Calibrate Extracted Scorecard
               </h1>
               <p className="text-text-secondary text-sm">
@@ -296,7 +296,7 @@ export default function OnboardingPage() {
                   <Input
                     value={targetRole}
                     onChange={(e) => setTargetRole(e.target.value)}
-                    className="bg-surface border-border text-white mt-1.5"
+                    className="bg-surface border-border text-text mt-1.5"
                   />
                 </div>
                 <div>
@@ -306,7 +306,7 @@ export default function OnboardingPage() {
                     step="0.5"
                     value={yearsOfExperience}
                     onChange={(e) => setYearsOfExperience(parseFloat(e.target.value) || 0)}
-                    className="bg-surface border-border text-white mt-1.5"
+                    className="bg-surface border-border text-text mt-1.5"
                   />
                 </div>
               </div>
@@ -325,9 +325,9 @@ export default function OnboardingPage() {
                       }
                     }}
                     placeholder="Add skill tag (e.g. Redis)"
-                    className="bg-surface border-border text-white text-sm"
+                    className="bg-surface border-border text-text text-sm"
                   />
-                  <Button onClick={handleAddSkill} className="bg-surface-raised border border-border text-white hover:bg-surface">
+                  <Button onClick={handleAddSkill} className="bg-surface-raised border border-border text-text hover:bg-surface">
                     <Plus className="w-4 h-4" />
                   </Button>
                 </div>
@@ -339,7 +339,7 @@ export default function OnboardingPage() {
                     skills.map((skill) => (
                       <Badge
                         key={skill}
-                        className="bg-surface-raised border border-border text-white text-xs px-2 py-0.5 rounded flex items-center gap-1"
+                        className="bg-surface-raised border border-border text-text text-xs px-2 py-0.5 rounded flex items-center gap-1"
                       >
                         <span>{skill}</span>
                         <button onClick={() => handleRemoveSkill(skill)} className="text-text-tertiary hover:text-rose-400">
@@ -353,7 +353,7 @@ export default function OnboardingPage() {
             </div>
 
             <div className="flex justify-between items-center pt-6 border-t border-border/50">
-              <Button onClick={() => setStep(1)} variant="ghost" className="text-text-secondary hover:text-white">
+              <Button onClick={() => setStep(1)} variant="ghost" className="text-text-secondary hover:text-text">
                 Back
               </Button>
               <Button
@@ -370,7 +370,7 @@ export default function OnboardingPage() {
         {step === 3 && (
           <div className="space-y-6 animate-fade-in">
             <div>
-              <h1 className="text-2xl font-bold tracking-tight text-white mb-1">
+              <h1 className="text-2xl font-bold tracking-tight text-text mb-1">
                 Refine Search Parameters
               </h1>
               <p className="text-text-secondary text-sm">
@@ -385,12 +385,12 @@ export default function OnboardingPage() {
                     Specialization
                   </Label>
                   <Select value={specialization} onValueChange={setSpecialization}>
-                    <SelectTrigger id="specSelect" className="bg-surface border-border text-white">
+                    <SelectTrigger id="specSelect" className="bg-surface border-border text-text">
                       <SelectValue placeholder="Select path..." />
                     </SelectTrigger>
                     <SelectContent className="bg-surface-overlay border-border">
                       {specializationsList.map((spec) => (
-                        <SelectItem key={spec.id} value={spec.id} className="text-white hover:bg-surface-raised">
+                        <SelectItem key={spec.id} value={spec.id} className="text-text hover:bg-surface-raised">
                           {spec.name}
                         </SelectItem>
                       ))}
@@ -406,14 +406,14 @@ export default function OnboardingPage() {
                     value={targetRole}
                     onChange={(e) => setTargetRole(e.target.value)}
                     placeholder="e.g. Lead Devops Architect"
-                    className="bg-surface border-border text-white"
+                    className="bg-surface border-border text-text"
                   />
                 </div>
               </div>
             </div>
 
             <div className="flex justify-between items-center pt-6 border-t border-border/50">
-              <Button onClick={() => setStep(2)} variant="ghost" className="text-text-secondary hover:text-white">
+              <Button onClick={() => setStep(2)} variant="ghost" className="text-text-secondary hover:text-text">
                 Back
               </Button>
               <Button
@@ -430,7 +430,7 @@ export default function OnboardingPage() {
         {step === 4 && (
           <div className="space-y-6 animate-fade-in">
             <div>
-              <h1 className="text-2xl font-bold tracking-tight text-white mb-1">
+              <h1 className="text-2xl font-bold tracking-tight text-text mb-1">
                 Select Domain Focus Track
               </h1>
               <p className="text-text-secondary text-sm">
@@ -457,7 +457,7 @@ export default function OnboardingPage() {
                         <IconComponent className="w-5 h-5" />
                       </div>
                       <div>
-                        <h3 className="font-semibold text-sm text-white">{item.name}</h3>
+                        <h3 className="font-semibold text-sm text-text">{item.name}</h3>
                         <p className="text-[11px] text-text-secondary mt-0.5 leading-relaxed">{item.desc}</p>
                       </div>
                     </div>
@@ -472,7 +472,7 @@ export default function OnboardingPage() {
             </div>
 
             <div className="flex justify-between items-center pt-6 border-t border-border/50">
-              <Button onClick={() => setStep(3)} variant="ghost" className="text-text-secondary hover:text-white">
+              <Button onClick={() => setStep(3)} variant="ghost" className="text-text-secondary hover:text-text">
                 Back
               </Button>
               <Button
@@ -489,7 +489,7 @@ export default function OnboardingPage() {
         {step === 5 && (
           <div className="space-y-6 animate-fade-in">
             <div className="text-center max-w-md mx-auto">
-              <h1 className="text-2xl md:text-3xl font-bold tracking-tight text-white mb-2">
+              <h1 className="text-2xl md:text-3xl font-bold tracking-tight text-text mb-2">
                 Generate Strategic Roadmap
               </h1>
               <p className="text-text-secondary text-sm">
@@ -500,7 +500,7 @@ export default function OnboardingPage() {
             <div className="bg-surface-inset border border-border p-6 rounded-2xl space-y-4 max-w-md mx-auto">
               <div className="flex justify-between items-center border-b border-border/50 pb-2">
                 <span className="text-xs uppercase text-text-tertiary font-bold tracking-wider">Target Position</span>
-                <span className="text-sm font-semibold text-white">{targetRole}</span>
+                <span className="text-sm font-semibold text-text">{targetRole}</span>
               </div>
               <div className="flex justify-between items-center border-b border-border/50 pb-2">
                 <span className="text-xs uppercase text-text-tertiary font-bold tracking-wider">Domain Track</span>
@@ -508,11 +508,11 @@ export default function OnboardingPage() {
               </div>
               <div className="flex justify-between items-center border-b border-border/50 pb-2">
                 <span className="text-xs uppercase text-text-tertiary font-bold tracking-wider">Years Exp</span>
-                <span className="text-sm font-semibold text-white">{yearsOfExperience} years</span>
+                <span className="text-sm font-semibold text-text">{yearsOfExperience} years</span>
               </div>
               <div className="flex justify-between items-center">
                 <span className="text-xs uppercase text-text-tertiary font-bold tracking-wider">Verified Badges</span>
-                <span className="text-sm font-semibold text-white">{skills.length} skills listed</span>
+                <span className="text-sm font-semibold text-text">{skills.length} skills listed</span>
               </div>
             </div>
 
@@ -529,7 +529,7 @@ export default function OnboardingPage() {
                 )}
                 Confirm & Generate Strategy
               </Button>
-              <Button onClick={() => setStep(4)} variant="ghost" className="text-text-secondary hover:text-white text-xs">
+              <Button onClick={() => setStep(4)} variant="ghost" className="text-text-secondary hover:text-text text-xs">
                 Go back and modify calibration
               </Button>
             </div>

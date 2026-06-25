@@ -39,11 +39,27 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         const token = auth.getToken();
         if (!token || auth.isTokenExpired()) {
           if (token && auth.isTokenExpired()) {
-            auth.logout();
+            try {
+              const { access_token } = await apiClient.refreshToken();
+              if (access_token) {
+                auth.login(access_token);
+              } else {
+                auth.logout();
+                setUser(null);
+                setRuntimeState(AuthRuntimeState.ANONYMOUS);
+                return;
+              }
+            } catch {
+              auth.logout();
+              setUser(null);
+              setRuntimeState(AuthRuntimeState.ANONYMOUS);
+              return;
+            }
+          } else {
+            setUser(null);
+            setRuntimeState(AuthRuntimeState.ANONYMOUS);
+            return;
           }
-          setUser(null);
-          setRuntimeState(AuthRuntimeState.ANONYMOUS);
-          return;
         }
 
         const response = await apiClient.getProfile();
@@ -124,7 +140,14 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       if (!token || auth.isTokenExpired()) return;
       const response = await apiClient.getProfile();
       if (response.user) {
-        setUser((prev) => prev ? { ...prev, name: response.user!.name, profile_img: response.user!.profile_img } : null);
+        setUser({
+          sub: response.user.id,
+          email: response.user.email,
+          provider: response.user.provider,
+          name: response.user.name,
+          profile_img: response.user.profile_img,
+          exp: Date.now() + 86400000,
+        });
       }
     } catch { /* non-critical */ }
   }, []);

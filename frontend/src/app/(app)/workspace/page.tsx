@@ -4,11 +4,12 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { workspace, roadmap as roadmapApi } from '@/lib/intelligence-client';
 import { useLivingSystem } from '@/context/LivingSystemContext';
 import { GlassPanel, SectionLabel, WorkspaceCard } from '@/components/workspace';
-import { Plus, Send, Brain, HelpCircle, ShieldCheck } from 'lucide-react';
+import { CoachMessageContent } from '@/components/workspace/CoachMessageContent';
+import { Plus, Send, Brain, HelpCircle, ShieldCheck, Pin, MoreVertical, Pencil, Trash2 } from 'lucide-react';
 import { toast } from 'sonner';
 
 interface Message { id: string; role: string; content: string; created_at: string; }
-interface Session { id: string; title: string; type: string; }
+interface Session { id: string; title: string; type: string; pinned?: boolean; }
 interface RealMilestone {
   skill: string;
   priority: string;
@@ -16,6 +17,19 @@ interface RealMilestone {
   impactEstimate: number;
   reason: string;
   status: string;
+}
+
+const SESSION_STORAGE_KEY = 'skillyn:active-workspace-session';
+
+function isPendingReply(msgs: Message[]): boolean {
+  if (!msgs.length) return false;
+  return msgs[msgs.length - 1]?.role === 'user';
+}
+
+function autoTitleFromMessage(content: string): string {
+  const trimmed = content.trim().replace(/\s+/g, ' ');
+  if (trimmed.length <= 40) return trimmed;
+  return `${trimmed.slice(0, 40).trim()}…`;
 }
 
 export default function WorkspacePage() {
@@ -29,6 +43,7 @@ export default function WorkspacePage() {
   } = useLivingSystem();
 
   const [sessions, setSessions] = useState<Session[]>([]);
+  const [sessionsFetchError, setSessionsFetchError] = useState(false);
   const [realRoadmap, setRealRoadmap] = useState<RealMilestone[]>([]);
   const [activeSession, setActiveSession] = useState<string | null>(null);
 
@@ -57,23 +72,60 @@ export default function WorkspacePage() {
   const [messages, setMessages] = useState<Message[]>([]);
   const [input, setInput] = useState('');
   const [sending, setSending] = useState(false);
+  const [awaitingReply, setAwaitingReply] = useState(false);
+  const [menuSessionId, setMenuSessionId] = useState<string | null>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
+  const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
+
+  const isSimSession = Boolean(simulationActive && activeSession?.startsWith('sim-'));
+
+  const loadSessions = useCallback(async () => {
+    if (simulationActive) {
+      setSessions([{ id: 'sim-session', title: 'Strategic Career Plan', type: 'general' }]);
+      setActiveSession('sim-session');
+      setSessionsFetchError(false);
+      return;
+    }
+
+    setSessionsFetchError(false);
+    try {
+      const d = await workspace.getSessions();
+      const s = d.sessions || [];
+      setSessions(s);
+      const stored = typeof window !== 'undefined' ? sessionStorage.getItem(SESSION_STORAGE_KEY) : null;
+      const storedSession = stored ? s.find((item) => item.id === stored) : null;
+      if (storedSession) {
+        setActiveSession(storedSession.id);
+      } else if (s.length > 0 && s[0]) {
+        setActiveSession(s[0].id);
+      } else {
+        setActiveSession(null);
+      }
+    } catch (err) {
+      console.error('Failed to load workspace sessions:', err);
+      setSessionsFetchError(true);
+      setActiveSession(null);
+    }
+  }, [simulationActive]);
+
+  const coachModeLabel = isSimSession
+    ? 'Simulation'
+    : activeSession
+      ? 'Live AI'
+      : 'Offline';
 
   // Fetch sessions on mount
   useEffect(() => {
-    if (!simulationActive) {
-      workspace.getSessions()
-        .then((d) => {
-          const s = d.sessions || [];
-          setSessions(s);
-          if (s.length > 0 && s[0]) setActiveSession(s[0].id);
-        })
-        .catch(() => null);
-    } else {
-      setSessions([{ id: 'sim-session', title: 'Strategic Career Plan', type: 'general' }]);
-      setActiveSession('sim-session');
-    }
-  }, [simulationActive]);
+    void loadSessions();
+  }, [loadSessions]);
+
+  useEffect(() => {
+    const onSandboxExit = () => {
+      void loadSessions();
+    };
+    window.addEventListener('skillyn:sandbox-exit', onSandboxExit);
+    return () => window.removeEventListener('skillyn:sandbox-exit', onSandboxExit);
+  }, [loadSessions]);
 
   // Preloaded static message in fallback state
   const getContextualWelcomeMessage = useCallback(() => {
@@ -106,6 +158,38 @@ ${oppsStr || 'No matched opportunities.'}
 I can help you draft a custom learning plan, design portfolio projects to prove your skills, or prepare for technical interviews. What shall we focus on first to advance your career?`;
   }, [activePersona, displayRoadmap, opportunities, hasStrategicProfile]);
 
+  const loadSessionMessages = useCallback(async (sessionId: string) => {
+    const d = await workspace.getSession(sessionId);
+    const loaded = d.messages || [];
+    setMessages(loaded);
+    return loaded;
+  }, []);
+
+  const startPendingPoll = useCallback((sessionId: string) => {
+    if (pollRef.current) clearInterval(pollRef.current);
+    setAwaitingReply(true);
+    let attempts = 0;
+    pollRef.current = setInterval(async () => {
+      attempts += 1;
+      try {
+        const loaded = await loadSessionMessages(sessionId);
+        if (!isPendingReply(loaded) || attempts >= 40) {
+          if (pollRef.current) clearInterval(pollRef.current);
+          pollRef.current = null;
+          setAwaitingReply(false);
+          setSending(false);
+        }
+      } catch {
+        if (attempts >= 40) {
+          if (pollRef.current) clearInterval(pollRef.current);
+          pollRef.current = null;
+          setAwaitingReply(false);
+          setSending(false);
+        }
+      }
+    }, 3000);
+  }, [loadSessionMessages]);
+
   // Fetch messages for active session
   useEffect(() => {
     if (!activeSession) return;
@@ -123,12 +207,25 @@ I can help you draft a custom learning plan, design portfolio projects to prove 
       return;
     }
 
-    if (!activeSession) return;
+    if (typeof window !== 'undefined') {
+      sessionStorage.setItem(SESSION_STORAGE_KEY, activeSession);
+    }
 
-    workspace.getSession(activeSession)
-      .then((d) => setMessages(d.messages || []))
+    loadSessionMessages(activeSession)
+      .then((loaded) => {
+        if (isPendingReply(loaded)) {
+          startPendingPoll(activeSession);
+        }
+      })
       .catch(() => null);
-  }, [activeSession, simulationActive, getContextualWelcomeMessage]);
+
+    return () => {
+      if (pollRef.current) {
+        clearInterval(pollRef.current);
+        pollRef.current = null;
+      }
+    };
+  }, [activeSession, simulationActive, getContextualWelcomeMessage, loadSessionMessages, startPendingPoll]);
 
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
@@ -151,8 +248,8 @@ I can help you draft a custom learning plan, design portfolio projects to prove 
     }
 
     try {
-      const d = await workspace.createSession('Career Strategy');
-      setSessions(prev => [{ id: d.id, title: d.title, type: d.type }, ...prev]);
+      const d = await workspace.createSession('New chat');
+      setSessions(prev => [{ id: d.id, title: d.title, type: d.type, pinned: false }, ...prev]);
       setActiveSession(d.id);
       setMessages([]);
     } catch {
@@ -178,7 +275,7 @@ I can help you draft a custom learning plan, design portfolio projects to prove 
     };
     setMessages(prev => [...prev, userMsg]);
 
-    if (simulationActive || activeSession === 'sim-session') {
+    if (isSimSession) {
       // Simulate highly customized response
       await new Promise(resolve => setTimeout(resolve, 1000));
 
@@ -234,29 +331,88 @@ Would you like me to draft a custom learning sprint or design a mock interview q
     }
 
     let targetSessionId = activeSession;
+    let isNewSession = false;
     if (!targetSessionId) {
       try {
-        const d = await workspace.createSession('Career Strategy');
-        setSessions(prev => [{ id: d.id, title: d.title, type: d.type }, ...prev]);
+        const d = await workspace.createSession('New chat');
+        setSessions(prev => [{ id: d.id, title: d.title, type: d.type, pinned: false }, ...prev]);
         targetSessionId = d.id;
         setActiveSession(d.id);
+        isNewSession = true;
       } catch {
         setSending(false);
         return;
       }
     }
 
+    const sessionMeta = sessions.find((s) => s.id === targetSessionId);
+    const shouldAutoTitle = isNewSession || sessionMeta?.title === 'New chat' || sessionMeta?.title === 'Career Strategy';
+
     try {
-      const d = await workspace.sendMessage(targetSessionId!, content);
-      setMessages(prev => {
-        const filtered = prev.filter(m => !m.id.startsWith('temp-'));
-        return [...filtered, { id: `user-${Date.now()}`, role: 'user', content, created_at: new Date().toISOString() }, d.message];
-      });
+      await workspace.sendMessage(targetSessionId!, content);
+      const loaded = await loadSessionMessages(targetSessionId!);
+      if (isPendingReply(loaded)) {
+        startPendingPoll(targetSessionId!);
+      } else {
+        setAwaitingReply(false);
+      }
+      if (shouldAutoTitle) {
+        const newTitle = autoTitleFromMessage(content);
+        workspace.updateSession(targetSessionId!, { title: newTitle })
+          .then((updated) => {
+            setSessions((prev) => prev.map((s) => (s.id === updated.id ? { ...s, title: updated.title } : s)));
+          })
+          .catch(() => null);
+      }
     } catch {
-      toast.error('Failed to get response from server.');
-      setMessages(prev => prev.filter(m => !m.id.startsWith('temp-')));
+      startPendingPoll(targetSessionId!);
+      toast.error('Response is still generating — check back shortly.');
     }
     setSending(false);
+  };
+
+  const handleRenameSession = async (sessionId: string) => {
+    const current = sessions.find((s) => s.id === sessionId);
+    const next = window.prompt('Rename session', current?.title || 'New chat');
+    if (!next?.trim()) return;
+    try {
+      const updated = await workspace.updateSession(sessionId, { title: next.trim() });
+      setSessions((prev) => prev.map((s) => (s.id === sessionId ? { ...s, title: updated.title } : s)));
+    } catch {
+      toast.error('Failed to rename session.');
+    }
+    setMenuSessionId(null);
+  };
+
+  const handlePinSession = async (sessionId: string, pinned: boolean) => {
+    try {
+      const updated = await workspace.updateSession(sessionId, { pinned });
+      setSessions((prev) => {
+        const next = prev.map((s) => (s.id === sessionId ? { ...s, pinned: updated.pinned } : s));
+        return [...next].sort((a, b) => Number(b.pinned) - Number(a.pinned));
+      });
+    } catch {
+      toast.error('Failed to update pin.');
+    }
+    setMenuSessionId(null);
+  };
+
+  const handleDeleteSession = async (sessionId: string) => {
+    if (!window.confirm('Delete this session and all its messages?')) return;
+    try {
+      await workspace.deleteSession(sessionId);
+      setSessions((prev) => {
+        const next = prev.filter((s) => s.id !== sessionId);
+        if (activeSession === sessionId) {
+          setActiveSession(next[0]?.id ?? null);
+        }
+        return next;
+      });
+      if (activeSession === sessionId) setMessages([]);
+    } catch {
+      toast.error('Failed to delete session.');
+    }
+    setMenuSessionId(null);
   };
 
   // Generate suggested prompt chips dynamically from active gaps
@@ -311,57 +467,116 @@ Would you like me to draft a custom learning sprint or design a mock interview q
       <div className="flex-1 flex flex-col min-w-0 font-sans">
         <div className="flex items-center justify-between mb-3.5">
           <div>
-            <h1 className="text-lg font-semibold text-white">AI Workspace</h1>
-            <p className="text-xs text-white/40">Strategic career copilot & portfolio advisor</p>
+            <div className="flex items-center gap-2">
+              <h1 className="text-lg font-semibold text-text">AI Workspace</h1>
+              <span className={`text-[9px] font-bold uppercase tracking-wider px-2 py-0.5 rounded border ${
+                isSimSession
+                  ? 'text-amber-300 border-amber-500/30 bg-amber-500/10'
+                  : coachModeLabel === 'Live AI'
+                    ? 'text-success border-success/30 bg-success/10'
+                    : 'text-text-tertiary border-border bg-surface-inset'
+              }`}>
+                {coachModeLabel}
+              </span>
+            </div>
+            <p className="text-xs text-text-secondary">Strategic career copilot & portfolio advisor</p>
           </div>
           <button
             onClick={createSession}
-            className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold text-emerald-400 border border-emerald-400/20 bg-emerald-500/[0.06] rounded-lg hover:bg-emerald-500/[0.1] transition-colors"
+            className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold text-success border border-success/25 bg-success/10 rounded-lg hover:bg-success/15 transition-colors"
           >
             <Plus size={12} /> New Session
           </button>
         </div>
 
+        {sessionsFetchError && (
+          <div className="mb-3 flex items-center justify-between gap-3 rounded-lg border border-rose-500/30 bg-rose-500/10 px-3 py-2 text-xs text-rose-200">
+            <span>Could not load AI Coach sessions. Check that the backend is running.</span>
+            <button
+              type="button"
+              onClick={() => void loadSessions()}
+              className="shrink-0 rounded-md border border-rose-400/40 px-2 py-1 font-semibold text-rose-100 hover:bg-rose-500/20"
+            >
+              Retry
+            </button>
+          </div>
+        )}
+
         {/* Session tabs */}
         {sessions.length > 1 && (
           <div className="flex gap-1.5 mb-3 overflow-x-auto pb-1 shrink-0">
             {sessions.slice(0, 5).map(s => (
-              <button
-                key={s.id}
-                onClick={() => setActiveSession(s.id)}
-                className={`px-3 py-1.5 text-[11px] rounded-lg whitespace-nowrap transition-colors ${
-                  activeSession === s.id
-                    ? 'bg-white/[0.08] text-white font-medium border border-white/[0.06]'
-                    : 'text-white/40 hover:text-white/60 hover:bg-white/[0.03]'
-                }`}
-              >
-                {s.title}
-              </button>
+              <div key={s.id} className="relative flex items-center">
+                <button
+                  onClick={() => setActiveSession(s.id)}
+                  className={`px-3 py-1.5 text-[11px] rounded-lg whitespace-nowrap transition-colors flex items-center gap-1 ${
+                    activeSession === s.id
+                      ? 'bg-surface-overlay text-text font-medium border border-border'
+                      : 'text-text-secondary hover:text-text hover:bg-surface-inset'
+                  }`}
+                >
+                  {s.pinned && <Pin size={10} className="text-success" />}
+                  {s.title}
+                </button>
+                <button
+                  onClick={() => setMenuSessionId(menuSessionId === s.id ? null : s.id)}
+                  className="ml-0.5 p-1 rounded hover:bg-surface-inset text-text-tertiary"
+                  aria-label="Session options"
+                >
+                  <MoreVertical size={12} />
+                </button>
+                {menuSessionId === s.id && (
+                  <div className="absolute top-full left-0 mt-1 z-20 min-w-[140px] rounded-lg border border-border bg-surface-raised shadow-lg py-1">
+                    <button onClick={() => handleRenameSession(s.id)} className="w-full px-3 py-1.5 text-left text-[11px] hover:bg-surface-inset flex items-center gap-2">
+                      <Pencil size={11} /> Rename
+                    </button>
+                    <button onClick={() => handlePinSession(s.id, !s.pinned)} className="w-full px-3 py-1.5 text-left text-[11px] hover:bg-surface-inset flex items-center gap-2">
+                      <Pin size={11} /> {s.pinned ? 'Unpin' : 'Pin'}
+                    </button>
+                    <button onClick={() => handleDeleteSession(s.id)} className="w-full px-3 py-1.5 text-left text-[11px] hover:bg-surface-inset text-red-400 flex items-center gap-2">
+                      <Trash2 size={11} /> Delete
+                    </button>
+                  </div>
+                )}
+              </div>
             ))}
           </div>
         )}
 
         {/* Messages area */}
-        <div className="flex-1 overflow-y-auto rounded-xl border border-white/[0.06] bg-[#080c14]/60 p-4 space-y-3.5 min-h-0">
+        <div className="flex-1 overflow-y-auto rounded-xl border border-border bg-surface-raised/60 p-4 space-y-3.5 min-h-0">
+          {messages.length === 0 && !sending && (
+            <div className="flex justify-start">
+              <div className="max-w-[85%] rounded-xl px-4 py-3 text-xs leading-relaxed border bg-surface-inset text-text-secondary border-border">
+                <div className="flex items-center gap-1 text-[9px] text-success font-bold uppercase tracking-wider mb-2 font-mono border-b border-border-subtle pb-1.5">
+                  <Brain size={11} className="text-success" /> Strategic Career Copilot
+                </div>
+                <CoachMessageContent content={getContextualWelcomeMessage()} role="assistant" />
+              </div>
+            </div>
+          )}
           {messages.map(m => (
             <div key={m.id} className={`flex ${m.role === 'user' ? 'justify-end' : 'justify-start'}`}>
               <div className={`max-w-[85%] rounded-xl px-4 py-3 text-xs leading-relaxed border ${
                 m.role === 'user'
-                  ? 'bg-emerald-500/10 text-white/90 border-emerald-500/20'
-                  : 'bg-white/[0.02] text-slate-300 border-white/[0.05]'
+                  ? 'bg-success/10 text-text border-success/20'
+                  : 'bg-surface-inset text-text-secondary border-border'
               }`}>
                 {m.role === 'assistant' && (
-                  <div className="flex items-center gap-1 text-[9px] text-emerald-400 font-bold uppercase tracking-wider mb-2 font-mono border-b border-white/[0.03] pb-1.5">
-                    <Brain size={11} className="text-emerald-400" /> Strategic Career Copilot
+                  <div className={`flex items-center gap-1 text-[9px] font-bold uppercase tracking-wider mb-2 font-mono border-b border-border-subtle pb-1.5 ${
+                    m.content.startsWith('[Fallback]') ? 'text-amber-400' : 'text-success'
+                  }`}>
+                    <Brain size={11} className={m.content.startsWith('[Fallback]') ? 'text-amber-400' : 'text-success'} />
+                    {m.content.startsWith('[Fallback]') ? 'Cached Fallback' : 'Strategic Career Copilot'}
                   </div>
                 )}
-                <div className="whitespace-pre-wrap font-sans font-medium">{m.content}</div>
+                <CoachMessageContent content={m.content} role={m.role as 'user' | 'assistant'} />
               </div>
             </div>
           ))}
-          {sending && (
+          {(sending || awaitingReply) && (
             <div className="flex justify-start">
-              <div className="px-4 py-2.5 rounded-xl bg-white/[0.02] border border-white/[0.05]">
+              <div className="px-4 py-2.5 rounded-xl bg-surface-inset border border-border">
                 <div className="flex gap-1 items-center">
                   <span className="w-1.5 h-1.5 rounded-full bg-emerald-400/50 animate-pulse" />
                   <span className="w-1.5 h-1.5 rounded-full bg-emerald-400/50 animate-pulse" style={{ animationDelay: '0.2s' }} />
@@ -376,14 +591,14 @@ Would you like me to draft a custom learning sprint or design a mock interview q
         {/* Dynamic Prompt Chips */}
         {hasStrategicProfile && (
           <div className="mt-3 space-y-1 shrink-0">
-            <span className="text-[9px] font-mono text-slate-500 uppercase tracking-wider block">Suggested Prompts</span>
+            <span className="text-[9px] font-mono text-text-tertiary uppercase tracking-wider block">Suggested Prompts</span>
             <div className="flex flex-wrap gap-1.5">
               {promptChips.map((chip, idx) => (
                 <button
                   key={idx}
                   onClick={() => sendMessage(chip.text)}
                   disabled={sending}
-                  className="text-[10px] px-2.5 py-1.5 rounded-lg bg-emerald-500/5 border border-emerald-500/10 text-emerald-400 hover:bg-emerald-500/10 hover:border-emerald-500/20 transition-all font-medium flex items-center gap-1.5 disabled:opacity-55"
+                  className="text-[10px] px-2.5 py-1.5 rounded-lg bg-success/5 border border-success/15 text-success hover:bg-success/10 hover:border-success/25 transition-all font-medium flex items-center gap-1.5 disabled:opacity-55"
                 >
                   <HelpCircle size={10} /> {chip.label}
                 </button>
@@ -399,13 +614,13 @@ Would you like me to draft a custom learning sprint or design a mock interview q
             onChange={e => setInput(e.target.value)}
             onKeyDown={e => e.key === 'Enter' && !e.shiftKey && sendMessage()}
             placeholder={`Ask about bridging gaps for your ${activePersona.name} roadmap...`}
-            className="flex-1 px-4 py-3 rounded-xl border border-white/[0.08] bg-white/[0.02] text-xs text-white placeholder-white/20 focus:outline-none focus:border-emerald-500/30 transition-colors font-sans"
+            className="flex-1 px-4 py-3 rounded-xl border border-border bg-surface-inset text-xs text-text placeholder:text-text-tertiary focus:outline-none focus:border-success/40 transition-colors font-sans"
             disabled={sending}
           />
           <button
             onClick={() => sendMessage()}
             disabled={sending || !input.trim()}
-            className="px-4 py-3 bg-emerald-500/20 border border-emerald-500/30 text-emerald-400 rounded-xl text-xs disabled:opacity-30 hover:bg-emerald-500/30 transition-colors flex items-center justify-center"
+            className="px-4 py-3 bg-success/15 border border-success/30 text-success rounded-xl text-xs disabled:opacity-30 hover:bg-success/25 transition-colors flex items-center justify-center"
             aria-label="Send message"
           >
             <Send size={14} />
@@ -417,13 +632,13 @@ Would you like me to draft a custom learning sprint or design a mock interview q
       <div className="w-72 shrink-0 hidden lg:block overflow-y-auto font-sans h-full">
         <GlassPanel className="h-full flex flex-col">
           <SectionLabel>Roadmap Quick Actions</SectionLabel>
-          <p className="text-[10px] text-slate-400 leading-relaxed mt-1 mb-3">
+          <p className="text-[10px] text-text-secondary leading-relaxed mt-1 mb-3">
             Quickly resolve roadmap gaps directly from the workspace. Completing milestones updates matching metrics.
           </p>
 
           <div className="space-y-3 overflow-y-auto flex-1 pr-1">
             {displayRoadmap.filter(node => node.status === 'active').map((rec, i) => (
-              <WorkspaceCard key={i} className="p-3.5 space-y-2 border-white/[0.03] bg-white/[0.005]">
+              <WorkspaceCard key={i} className="p-3.5 space-y-2 border-border-subtle bg-surface-inset">
                 <div className="flex items-center justify-between">
                   <span className={`text-[8px] px-1.5 py-0.2 rounded border uppercase font-mono font-bold ${
                     rec.priority === 'high'
@@ -432,21 +647,21 @@ Would you like me to draft a custom learning sprint or design a mock interview q
                   }`}>
                     {rec.priority} Priority
                   </span>
-                  <span className="text-[8px] text-slate-500 font-mono">Value: +{rec.impactEstimate} ROI</span>
+                  <span className="text-[8px] text-text-tertiary font-mono">Value: +{rec.impactEstimate} ROI</span>
                 </div>
-                <h5 className="text-[11px] font-bold text-white/90 leading-tight">{rec.skill}</h5>
-                <p className="text-[10px] text-slate-400 leading-normal line-clamp-3">{rec.reason}</p>
+                <h5 className="text-[11px] font-bold text-text leading-tight">{rec.skill}</h5>
+                <p className="text-[10px] text-text-secondary leading-normal line-clamp-3">{rec.reason}</p>
 
-                <div className="flex gap-2 pt-1 border-t border-white/[0.02]">
+                <div className="flex gap-2 pt-1 border-t border-border-subtle">
                   <button
                     onClick={() => handleRecAction(rec.skill, 'accept')}
-                    className="flex-1 px-2.5 py-1 text-[9px] text-center text-emerald-400 border border-emerald-500/20 bg-emerald-500/[0.04] rounded hover:bg-emerald-500/[0.1] font-bold"
+                    className="flex-1 px-2.5 py-1 text-[9px] text-center text-success border border-success/25 bg-success/10 rounded hover:bg-success/15 font-bold"
                   >
                     Mark Achieved
                   </button>
                   <button
                     onClick={() => handleRecAction(rec.skill, 'defer')}
-                    className="px-2 py-1 text-[9px] text-center text-slate-400 border border-white/[0.05] rounded hover:bg-white/[0.03]"
+                    className="px-2 py-1 text-[9px] text-center text-text-secondary border border-border rounded hover:bg-surface-overlay"
                   >
                     Skip
                   </button>
@@ -455,9 +670,9 @@ Would you like me to draft a custom learning sprint or design a mock interview q
             ))}
 
             {displayRoadmap.filter(node => node.status === 'active').length === 0 && (
-              <div className="p-4 border border-dashed border-white/[0.06] rounded-xl text-center py-8">
-                <ShieldCheck size={20} className="text-emerald-400/60 mx-auto mb-2" />
-                <p className="text-[10px] text-slate-500">No active gaps to resolve.</p>
+              <div className="p-4 border border-dashed border-border rounded-xl text-center py-8">
+                <ShieldCheck size={20} className="text-success/60 mx-auto mb-2" />
+                <p className="text-[10px] text-text-tertiary">No active gaps to resolve.</p>
               </div>
             )}
           </div>

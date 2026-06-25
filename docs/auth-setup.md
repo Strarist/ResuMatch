@@ -1,4 +1,4 @@
-# ResuMatch Auth Setup Guide
+# Skillyn Auth Setup Guide
 
 ## Google OAuth Setup
 
@@ -10,32 +10,44 @@
 4. Click **Create Credentials → OAuth 2.0 Client ID**
 5. Application type: **Web application**
 6. Configure:
-   - **Authorized JavaScript origins**: `http://localhost:3000`
+   - **Authorized JavaScript origins**: `http://localhost:3001` (and `http://localhost:3000` if needed)
    - **Authorized redirect URIs**: `http://localhost:8000/v1/auth/google/callback`
 7. Copy the Client ID and Client Secret
 
 ### 2. Backend Environment Variables
 
-Create `backend/.env`:
+Create `backend/.env` from the template:
+
+```bash
+cp backend/.env.example backend/.env
+```
+
+Required values:
 
 ```env
-DATABASE_URL=sqlite+aiosqlite:///./dev.db
+DATABASE_URL=postgresql+asyncpg://resumatch:resumatch_dev@localhost:5432/resumatch  # pragma: allowlist secret
+REDIS_URL=redis://localhost:6379
 JWT_SECRET=<generate-a-strong-random-secret-at-least-16-chars>
 
 GOOGLE_CLIENT_ID=<your-google-client-id>.apps.googleusercontent.com
 GOOGLE_CLIENT_SECRET=GOCSPX-<your-google-client-secret>
 GOOGLE_REDIRECT_URI=http://localhost:8000/v1/auth/google/callback
 
-FRONTEND_URL=http://localhost:3000
+FRONTEND_URL=http://localhost:3001
+```
+
+Start infrastructure before the backend:
+
+```bash
+docker compose up -d postgres redis
 ```
 
 ### 3. Frontend Environment Variables
 
-Create `frontend/.env.local`:
+Create `frontend/.env.local` (optional — defaults to `http://localhost:8000`):
 
 ```env
 NEXT_PUBLIC_API_URL=http://localhost:8000
-NEXT_PUBLIC_GOOGLE_CLIENT_ID=<your-google-client-id>.apps.googleusercontent.com
 ```
 
 ## Localhost Development Setup
@@ -47,7 +59,7 @@ cd backend
 python -m venv venv
 venv\Scripts\activate  # Windows
 pip install -r requirements.txt
-uvicorn app.main:app --reload --port 8000
+python -m uvicorn app.main:app --reload --port 8000
 ```
 
 ### Frontend
@@ -55,15 +67,15 @@ uvicorn app.main:app --reload --port 8000
 ```bash
 cd frontend
 npm install
-npm run dev
+npm run dev -- -p 3001
 ```
 
 ## Auth Flow Architecture
 
 ```
 Unauthenticated User:
-  localhost:3000 → Landing Page (public)
-  localhost:3000/login → Login Page
+  localhost:3001 → Landing Page (public)
+  localhost:3001/login → Login Page
   Click "Sign in with Google" → redirects to backend /v1/auth/google/login
   Backend redirects to Google consent screen
   Google redirects to backend /v1/auth/google/callback
@@ -72,16 +84,16 @@ Unauthenticated User:
   Frontend stores token in localStorage, redirects to /dashboard
 
 Authenticated User:
-  localhost:3000 → Landing Page (public)
-  localhost:3000/dashboard → Dashboard (protected)
-  localhost:3000/login → Redirects to /dashboard
+  localhost:3001 → Landing Page (public)
+  localhost:3001/dashboard → Dashboard (protected)
+  localhost:3001/login → Redirects to /dashboard
 ```
 
 ## Redirect URIs
 
 | Environment | Backend Callback URI | Frontend Origin |
 |---|---|---|
-| Local | `http://localhost:8000/v1/auth/google/callback` | `http://localhost:3000` |
+| Local | `http://localhost:8000/v1/auth/google/callback` | `http://localhost:3001` |
 | Production | `https://api.yourdomain.com/v1/auth/google/callback` | `https://yourdomain.com` |
 
 ## Troubleshooting

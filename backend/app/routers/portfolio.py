@@ -44,7 +44,6 @@ async def add_project(body: AddProjectRequest, current_user: User = Depends(get_
         recruiter_signal_strength=scores["recruiter_signal_strength"],
     )
     db.add(project)
-    await db.commit()
     from app.services.cache import cache_invalidate
     await cache_invalidate(f"portfolio:recruiter:{current_user.id}")
     return {"id": project.id, "production_readiness": scores["production_readiness_score"], "signal_strength": scores["recruiter_signal_strength"]}
@@ -54,7 +53,44 @@ async def add_project(body: AddProjectRequest, current_user: User = Depends(get_
 async def list_projects(current_user: User = Depends(get_current_user), db: AsyncSession = Depends(get_db)):
     result = await db.execute(select(ProjectEvidence).where(ProjectEvidence.user_id == current_user.id).order_by(ProjectEvidence.created_at.desc()))
     projects = list(result.scalars().all())
+    if not projects:
+        from app.models.resume import Resume
+        from app.services.portfolio.resume_sync import sync_resume_projects_to_portfolio
+        resume_result = await db.execute(
+            select(Resume)
+            .where(Resume.user_id == current_user.id, Resume.parse_status == "completed")
+            .order_by(Resume.uploaded_at.desc())
+            .limit(1)
+        )
+        latest_resume = resume_result.scalar_one_or_none()
+        if latest_resume and latest_resume.parsed_data:
+            await sync_resume_projects_to_portfolio(db, current_user.id, latest_resume.parsed_data)
+            result = await db.execute(
+                select(ProjectEvidence)
+                .where(ProjectEvidence.user_id == current_user.id)
+                .order_by(ProjectEvidence.created_at.desc())
+            )
+            projects = list(result.scalars().all())
     return {"projects": [{"id": p.id, "name": p.project_name, "stack": p.stack, "live_url": p.live_url, "production_readiness": p.production_readiness_score, "signal_strength": p.recruiter_signal_strength, "complexity": p.architecture_complexity} for p in projects]}
+
+
+@router.post("/sync-from-resume")
+async def sync_from_resume(current_user: User = Depends(get_current_user), db: AsyncSession = Depends(get_db)):
+    from app.models.resume import Resume
+    from app.services.portfolio.resume_sync import sync_resume_projects_to_portfolio
+
+    resume_result = await db.execute(
+        select(Resume)
+        .where(Resume.user_id == current_user.id, Resume.parse_status == "completed")
+        .order_by(Resume.uploaded_at.desc())
+        .limit(1)
+    )
+    latest_resume = resume_result.scalar_one_or_none()
+    if not latest_resume or not latest_resume.parsed_data:
+        return {"synced": 0, "message": "No completed resume with parsed data found."}
+
+    synced = await sync_resume_projects_to_portfolio(db, current_user.id, latest_resume.parsed_data)
+    return {"synced": synced, "message": f"Synced {synced} project(s) from resume."}
 
 
 @router.get("/maturity")

@@ -27,8 +27,19 @@ if config.config_file_name is not None:
 
 # add your model's MetaData object here
 # for 'autogenerate' support
-# from myapp import mymodel
-# target_metadata = mymodel.Base.metadata
+import app.models.strategic_profile  # noqa: F401
+import app.models.strategic_memory  # noqa: F401
+import app.models.user_progress  # noqa: F401
+import app.services.intelligence.intelligence_models  # noqa: F401
+import app.services.intelligence.operational_events  # noqa: F401
+import app.services.roadmap_intel.roadmap_models  # noqa: F401
+import app.services.trajectory.models  # noqa: F401
+import app.services.workspace.models  # noqa: F401
+import app.services.portfolio.proof_engine  # noqa: F401
+import app.services.storage  # noqa: F401
+import app.services.scheduler  # noqa: F401
+import app.services.jobs  # noqa: F401
+
 target_metadata = Base.metadata
 
 # other values from the config, defined by the needs of env.py,

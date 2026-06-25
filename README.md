@@ -36,7 +36,7 @@ A full-stack career growth and upskilling platform that transforms resumes into 
 
 ### Backend (FastAPI)
 - **Framework**: FastAPI with async/await
-- **Database**: SQLite (local dev default) or PostgreSQL (production)
+- **Database**: PostgreSQL (local dev via Docker; production PostgreSQL)
 - **AI/ML**: OpenRouter LLM + spaCy, heuristic fallbacks
 - **Authentication**: JWT with Google OAuth
 - **API prefix**: `/v1/*` (not `/api/v1`)
@@ -53,11 +53,13 @@ A full-stack career growth and upskilling platform that transforms resumes into 
 ### Prerequisites
 - Python 3.11+
 - Node.js 18+
-- PostgreSQL (production) or SQLite (local dev — default in `.env.example`)
-- Redis (optional, for caching and rate limiting)
+- Docker (for local PostgreSQL and Redis via `docker compose`)
 
 ### Backend Setup
 ```bash
+# Start PostgreSQL + Redis (required for local dev)
+docker compose up -d postgres redis
+
 cd backend
 python -m venv venv
 source venv/bin/activate  # On Windows: venv\Scripts\activate
@@ -66,20 +68,21 @@ python -m spacy download en_core_web_sm
 
 # Set up environment variables
 cp .env.example .env
-# Edit .env with your database and OAuth credentials
+# Edit .env with OAuth credentials if needed (.env.example already points at Docker Postgres)
 
 # Run database migrations
 alembic upgrade head
 
-# Start the server
-uvicorn app.main:app --reload
+# Start the server (from backend/ with venv activated)
+python -m uvicorn app.main:app --reload
 ```
 
 ### Frontend Setup
 ```bash
 cd frontend
 npm install
-npm run dev
+# NEXT_PUBLIC_API_URL defaults to http://localhost:8000 in env.ts
+npm run dev -- -p 3001
 ```
 
 ## 📖 Usage
@@ -89,8 +92,8 @@ npm run dev
 - Complete authentication flow
 
 ### 2. Upload Resume
-- Navigate to Upload page
-- Drag and drop a PDF resume (max 5MB)
+- Navigate to the Resume page (`/resumes`)
+- Drag and drop a PDF resume (max 10MB)
 - AI automatically extracts skills, education, and experience
 - Resume is securely stored and processed
 
@@ -180,7 +183,7 @@ LINKEDIN_CLIENT_SECRET=your-linkedin-client-secret
 # File Storage
 UPLOAD_DIR=./uploads
 
-# Redis (optional)
+# Redis (expected locally; graceful degradation if unavailable)
 REDIS_URL=redis://localhost:6379
 ```
 

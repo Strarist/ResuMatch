@@ -1,7 +1,7 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 'use client';
 
-import React, { useState, useEffect, useCallback, useRef } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { useAuth } from '@/auth/AuthContext';
 import { useLivingSystem } from '@/context/LivingSystemContext';
 import { Button } from '@/components/ui/button';
@@ -14,10 +14,12 @@ import { Mail, LogOut, Briefcase, Settings, ShieldCheck, Plus, X, Terminal, Laye
 import { useRouter } from 'next/navigation';
 import { toast } from 'sonner';
 import { strategic, resumes as resumesApi, portfolio as portfolioApi, type PortfolioProject } from '@/lib/intelligence-client';
+import { normalizeSpecialization, resolveProfileField } from '@/lib/profile-normalize';
 
 export default function ProfilePage() {
-  const { user, logout } = useAuth();
-  const { syncLifecycleFromBackend } = useLivingSystem();
+  const { user, logout, refreshUser } = useAuth();
+  const { syncLifecycleFromBackend, resumeParseStatus, hasStrategicProfile } = useLivingSystem();
+  const [parseStage, setParseStage] = useState<string | null>(null);
   const router = useRouter();
 
   // Profile data state loaded from DB
@@ -29,14 +31,12 @@ export default function ProfilePage() {
   const [yearsOfExperience, setYearsOfExperience] = useState(5.0);
   const [completenessScore, setCompletenessScore] = useState(45);
 
-  const [parsingStatus, setParsingStatus] = useState<string | null>(null);
-  const pollCountRef = useRef(0);
-
   // Local input states
   const [newSkillInput, setNewSkillInput] = useState('');
   const [originalData, setOriginalData] = useState<any>(null);
 
   const [portfolioProjects, setPortfolioProjects] = useState<PortfolioProject[]>([]);
+  const [resumeProjects, setResumeProjects] = useState<Array<{ name: string; stack?: string[]; description?: string }>>([]);
 
   const specializationsList = [
     'Full Stack',
@@ -48,35 +48,98 @@ export default function ProfilePage() {
     'General'
   ];
 
+  const formatYears = (value: number) => {
+    const rounded = Math.round(value * 10) / 10;
+    return Number.isInteger(rounded) ? String(rounded) : rounded.toFixed(1);
+  };
+
+  const roundYears = (value: number) => Math.round(value * 10) / 10;
+
   const fetchProfileData = useCallback(async (isSilent = false) => {
     if (!isSilent) setLoading(true);
     try {
       const data = await strategic.getProfile();
       setSkills(data.skills || []);
-      setTargetRole(data.target_role || 'Senior Full Stack Engineer');
-      setSpecialization(data.specialization || 'Full Stack');
-      setYearsOfExperience(data.years_of_experience || 5.0);
-      setCompletenessScore(data.completeness_score || 45);
+      setTargetRole(resolveProfileField(data.target_role, 'Senior Full Stack Engineer'));
+      setSpecialization(normalizeSpecialization(data.specialization));
+      setYearsOfExperience(roundYears(resolveProfileField(data.years_of_experience, 5.0)));
+      setCompletenessScore(resolveProfileField(data.completeness_score, 45));
 
       setOriginalData({
         skills: [...(data.skills || [])],
-        target_role: data.target_role || 'Senior Full Stack Engineer',
-        specialization: data.specialization || 'Full Stack',
-        years_of_experience: data.years_of_experience || 5.0,
+        target_role: resolveProfileField(data.target_role, 'Senior Full Stack Engineer'),
+        specialization: normalizeSpecialization(data.specialization),
+        years_of_experience: roundYears(resolveProfileField(data.years_of_experience, 5.0)),
       });
 
       const resData = await resumesApi.list();
       const resumes = resData.resumes || [];
-      const activeResume = resumes.find((r) =>
-        r.parse_status && !['completed', 'failed'].includes(r.parse_status)
-      );
-      setParsingStatus(activeResume?.parse_status ?? null);
 
       try {
-        const projectsRes = await portfolioApi.listProjects();
-        setPortfolioProjects(projectsRes.projects || []);
+        let projectsRes = await portfolioApi.listProjects();
+        let projects = projectsRes.projects || [];
+        if (!projects.length) {
+          try {
+            await portfolioApi.syncFromResume();
+            projectsRes = await portfolioApi.listProjects();
+            projects = projectsRes.projects || [];
+          } catch {
+            /* backfill optional */
+          }
+        }
+        setPortfolioProjects(projects);
       } catch {
         setPortfolioProjects([]);
+      }
+
+      const latestCompleted = resumes
+        .filter((r) => r.parse_status === 'completed')
+        .sort((a, b) => new Date(b.uploaded_at || 0).getTime() - new Date(a.uploaded_at || 0).getTime())[0];
+
+      const latestParsed = latestCompleted &&
+        Array.isArray(latestCompleted.parsed_data?.projects) &&
+        latestCompleted.parsed_data.projects.length > 0
+        ? latestCompleted
+        : null;
+
+      let parsedProjects = (latestParsed?.parsed_data?.projects || []) as Array<{
+        name?: string;
+        description?: string;
+        technology_stack?: string[];
+      }>;
+
+      if (!parsedProjects.length && latestCompleted?.parsed_data?.experience) {
+        const experience = latestCompleted.parsed_data.experience as Array<{
+          title?: string;
+          company?: string;
+          description?: string;
+          skills_used?: string[];
+        }>;
+        parsedProjects = experience
+          .filter((e) => {
+            const text = `${e.title || ''} ${e.description || ''}`.toLowerCase();
+            return /\b(built|developed|designed|created|implemented|project)\b/.test(text) || (e.skills_used?.length ?? 0) > 0;
+          })
+          .map((e) => ({
+            name: e.title || e.company || 'Professional project',
+            description: e.description,
+            technology_stack: e.skills_used || [],
+          }));
+      }
+
+      setResumeProjects(
+        parsedProjects.map((p) => ({
+          name: p.name || 'Untitled project',
+          stack: p.technology_stack || [],
+          description: p.description,
+        }))
+      );
+
+      try {
+        const lifecycle = await strategic.getLifecycle();
+        setParseStage(lifecycle.parse_stage || null);
+      } catch {
+        setParseStage(null);
       }
     } catch (e) {
       console.error('Profile fetching error', e);
@@ -86,49 +149,23 @@ export default function ProfilePage() {
     }
   }, []);
 
-  const pollResumeParseStatus = useCallback(async () => {
-    try {
-      const resData = await resumesApi.list();
-      const resumes = resData.resumes || [];
-      const activeResume = resumes.find((r) =>
-        r.parse_status && !['completed', 'failed'].includes(r.parse_status)
-      );
-      const nextStatus = activeResume?.parse_status ?? null;
-      const wasParsing = parsingStatus !== null;
-      setParsingStatus(nextStatus);
-
-      if (wasParsing && nextStatus === null) {
-        await fetchProfileData(true);
-        await syncLifecycleFromBackend();
-      }
-    } catch {
-      /* silent poll failure */
-    }
-  }, [fetchProfileData, parsingStatus, syncLifecycleFromBackend]);
-
   useEffect(() => {
     fetchProfileData();
-  }, [fetchProfileData]);
+    refreshUser().catch(() => null);
+  }, [fetchProfileData, refreshUser]);
 
-  // Live polling while background resume parsing is active — hard cap at 20 polls (60s)
   useEffect(() => {
-    if (!parsingStatus) {
-      pollCountRef.current = 0;
-      return;
-    }
-    const MAX_POLLS = 20;
-    const interval = setInterval(() => {
-      pollCountRef.current += 1;
-      if (pollCountRef.current >= MAX_POLLS) {
-        clearInterval(interval);
-        setParsingStatus(null);
-        pollCountRef.current = 0;
-        return;
-      }
-      pollResumeParseStatus();
-    }, 5000);
-    return () => clearInterval(interval);
-  }, [parsingStatus, pollResumeParseStatus]);
+    const onParseComplete = () => {
+      void fetchProfileData(true);
+      void syncLifecycleFromBackend();
+    };
+    window.addEventListener('skillyn:resume-parse-complete', onParseComplete);
+    return () => window.removeEventListener('skillyn:resume-parse-complete', onParseComplete);
+  }, [fetchProfileData, syncLifecycleFromBackend]);
+
+  const isParsingResume =
+    (resumeParseStatus === 'processing' || resumeParseStatus === 'pending') && !hasStrategicProfile;
+  const isEnrichingProfile = parseStage === 'enriching_profile';
 
   const handleAddSkill = () => {
     const trimmed = newSkillInput.trim();
@@ -161,7 +198,7 @@ export default function ProfilePage() {
         skills: flattenedSkills,
         target_role: targetRole,
         specialization,
-        years_of_experience: Number(yearsOfExperience),
+        years_of_experience: roundYears(Number(yearsOfExperience)),
       });
 
       toast.success('Career Identity Hub updated and synced successfully!');
@@ -169,11 +206,12 @@ export default function ProfilePage() {
         skills: [...skills],
         target_role: targetRole,
         specialization,
-        years_of_experience: Number(yearsOfExperience),
+        years_of_experience: roundYears(Number(yearsOfExperience)),
       });
 
       await fetchProfileData(true);
       await syncLifecycleFromBackend();
+      await refreshUser();
     } catch (e) {
       console.error('Profile saving error', e);
       toast.error('Network error during profile sync.');
@@ -234,7 +272,7 @@ export default function ProfilePage() {
       {/* Top Banner Actions */}
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 border-b border-border pb-6">
         <div>
-          <h1 className="text-3xl font-bold tracking-tight text-white flex items-center gap-2">
+          <h1 className="text-3xl font-bold tracking-tight text-text flex items-center gap-2">
             <Layers className="w-8 h-8 text-accent" />
             Career Identity Hub
           </h1>
@@ -248,7 +286,7 @@ export default function ProfilePage() {
             Sign Out
           </Button>
           {isDirty && (
-            <Button onClick={handleReset} variant="ghost" className="text-text-secondary hover:text-white">
+            <Button onClick={handleReset} variant="ghost" className="text-text-secondary hover:text-text">
               Reset Changes
             </Button>
           )}
@@ -277,7 +315,7 @@ export default function ProfilePage() {
               <Terminal className="w-32 h-32 text-accent" />
             </div>
 
-            <h3 className="text-lg font-semibold text-white mb-4 flex items-center gap-2 border-b border-border/50 pb-2">
+            <h3 className="text-lg font-semibold text-text mb-4 flex items-center gap-2 border-b border-border/50 pb-2">
               <Briefcase className="w-5 h-5 text-accent" />
               Career Profile Settings
             </h3>
@@ -292,7 +330,7 @@ export default function ProfilePage() {
                   id="targetRole"
                   value={targetRole}
                   onChange={(e) => setTargetRole(e.target.value)}
-                  className="bg-surface-inset border-border text-white focus:border-accent"
+                  className="bg-surface-inset border-border text-text focus:border-accent"
                   placeholder="e.g. Senior Software Engineer"
                 />
                 <p className="text-[11px] text-text-tertiary">Used to generate relevant learning goals on your career roadmap.</p>
@@ -304,12 +342,12 @@ export default function ProfilePage() {
                   Specialization Track
                 </Label>
                 <Select value={specialization} onValueChange={setSpecialization}>
-                  <SelectTrigger id="specialization" className="bg-surface-inset border-border text-white focus:border-accent">
+                  <SelectTrigger id="specialization" className="bg-surface-inset border-border text-text focus:border-accent">
                     <SelectValue placeholder="Select path..." />
                   </SelectTrigger>
                   <SelectContent className="bg-surface-overlay border-border">
                     {specializationsList.map((spec) => (
-                      <SelectItem key={spec} value={spec} className="hover:bg-surface-raised text-white">
+                      <SelectItem key={spec} value={spec} className="hover:bg-surface-raised text-text">
                         {spec} Engineering
                       </SelectItem>
                     ))}
@@ -324,7 +362,7 @@ export default function ProfilePage() {
                   <Label htmlFor="yearsExp" className="text-text-secondary text-xs uppercase tracking-wider font-semibold">
                     Years of Relevant Experience
                   </Label>
-                  <span className="text-accent text-sm font-semibold">{yearsOfExperience} years</span>
+                  <span className="text-accent text-sm font-semibold">{formatYears(yearsOfExperience)} years</span>
                 </div>
                 <Input
                   id="yearsExp"
@@ -334,7 +372,8 @@ export default function ProfilePage() {
                   max="30"
                   value={yearsOfExperience}
                   onChange={(e) => setYearsOfExperience(parseFloat(e.target.value) || 0)}
-                  className="bg-surface-inset border-border text-white focus:border-accent w-full"
+                  onBlur={() => setYearsOfExperience(roundYears(yearsOfExperience))}
+                  className="bg-surface-inset border-border text-text focus:border-accent w-full"
                 />
                 <p className="text-[11px] text-text-tertiary">Determines experience level filters when matching opportunities.</p>
               </div>
@@ -342,43 +381,65 @@ export default function ProfilePage() {
           </Panel>
 
           <Panel className="bg-surface/50 border border-border rounded-2xl relative">
-            <h3 className="text-lg font-semibold text-white mb-4 flex items-center gap-2 border-b border-border/50 pb-2">
+            <h3 className="text-lg font-semibold text-text mb-4 flex items-center gap-2 border-b border-border/50 pb-2">
               <Cpu className="w-5 h-5 text-accent" />
               Portfolio Projects
             </h3>
             <p className="text-text-secondary text-xs mb-4">
-              Projects linked to your account from the portfolio engine. Add projects via the portfolio API to strengthen recruiter signals.
+              Projects linked to your account from resume parsing and the portfolio engine.
             </p>
 
-            {portfolioProjects.length === 0 ? (
+            {portfolioProjects.length === 0 && resumeProjects.length === 0 ? (
               <div className="rounded-xl border border-dashed border-border/60 bg-surface-inset/40 p-6 text-center">
                 <p className="text-sm text-text-secondary">No portfolio projects yet.</p>
                 <p className="text-xs text-text-tertiary mt-2">
-                  Upload a resume first — parsed experience can be expanded into portfolio proofs over time.
+                  Upload a resume first — parsed projects will appear here automatically.
                 </p>
               </div>
             ) : (
               <div className="space-y-3">
-                {portfolioProjects.map((proj) => (
+                {(portfolioProjects.length > 0
+                  ? portfolioProjects.map((proj) => ({
+                      id: proj.id,
+                      name: proj.name,
+                      stack: proj.stack,
+                      live_url: proj.live_url,
+                      readiness: proj.production_readiness,
+                      source: 'portfolio' as const,
+                    }))
+                  : resumeProjects.map((proj, idx) => ({
+                      id: `resume-${idx}`,
+                      name: proj.name,
+                      stack: proj.stack,
+                      live_url: undefined,
+                      readiness: undefined,
+                      source: 'resume' as const,
+                    }))
+                ).map((proj) => (
                   <div
                     key={proj.id}
                     className="bg-surface-inset border border-border/50 rounded-xl p-4 hover:border-accent/40 transition-all duration-200"
                   >
                     <div className="flex items-start justify-between gap-3">
                       <div>
-                        <h4 className="text-sm font-semibold text-white">{proj.name}</h4>
+                        <h4 className="text-sm font-semibold text-text">{proj.name}</h4>
                         <p className="text-xs text-text-secondary mt-1">
                           {proj.stack?.length ? proj.stack.join(' · ') : 'Stack not listed'}
                         </p>
+                        {proj.source === 'resume' && (
+                          <p className="text-[10px] text-text-tertiary mt-1">From resume</p>
+                        )}
                         {proj.live_url && (
                           <a href={proj.live_url} target="_blank" rel="noreferrer" className="text-xs text-accent mt-1 inline-block">
                             View live project
                           </a>
                         )}
                       </div>
-                      <Badge variant="secondary" className="bg-accent/10 text-accent text-[10px] shrink-0">
-                        {Math.round(proj.production_readiness * 100)}% ready
-                      </Badge>
+                      {typeof proj.readiness === 'number' && (
+                        <Badge variant="secondary" className="bg-accent/10 text-accent text-[10px] shrink-0">
+                          {Math.round(proj.readiness * 100)}% ready
+                        </Badge>
+                      )}
                     </div>
                   </div>
                 ))}
@@ -394,17 +455,29 @@ export default function ProfilePage() {
             </h3>
             <div className="space-y-4 text-sm text-text-secondary">
               <div className="flex items-center gap-3 border-b border-border/30 pb-3 justify-between">
-                <div className="flex items-center gap-2">
-                  <Mail className="w-4 h-4 text-text-tertiary" />
-                  <span>Email:</span>
-                  <span className="font-medium text-white">{user.email}</span>
+                <div className="flex items-center gap-2 min-w-0">
+                  <Mail className="w-4 h-4 text-text-tertiary shrink-0" />
+                  <span className="shrink-0">Email:</span>
+                  <span className="font-medium text-text truncate">{user.email}</span>
                 </div>
                 <StatusBadge status="success">Verified</StatusBadge>
               </div>
+              {user.name && (
+                <div className="flex items-center gap-2 border-b border-border/30 pb-3">
+                  <Briefcase className="w-4 h-4 text-text-tertiary" />
+                  <span>Name:</span>
+                  <span className="font-medium text-text">{user.name}</span>
+                </div>
+              )}
+              <div className="flex items-center gap-2 border-b border-border/30 pb-3">
+                <Terminal className="w-4 h-4 text-text-tertiary" />
+                <span>Account ID:</span>
+                <span className="font-mono text-xs text-text-tertiary">{user.sub?.slice(0, 8)}…</span>
+              </div>
               <div className="flex items-center gap-2 justify-between">
                 <span className="text-xs">Account Status:</span>
-                <span className="text-xs font-semibold text-white bg-green-500/10 border border-green-500/20 px-2 py-0.5 rounded">
-                  Production SaaS Live
+                <span className="text-xs font-semibold text-text bg-success/10 border border-success/20 px-2 py-0.5 rounded">
+                  Active
                 </span>
               </div>
             </div>
@@ -414,7 +487,7 @@ export default function ProfilePage() {
         {/* Verified Skills Vector (Right Column) */}
         <div className="space-y-6">
           <Panel className="bg-surface/50 border border-border rounded-2xl flex flex-col h-full">
-            <h3 className="text-lg font-semibold text-white mb-2 flex items-center gap-2 border-b border-border/50 pb-2">
+            <h3 className="text-lg font-semibold text-text mb-2 flex items-center gap-2 border-b border-border/50 pb-2">
               <ShieldCheck className="w-5 h-5 text-accent" />
               Verified Core Skills
             </h3>
@@ -422,12 +495,22 @@ export default function ProfilePage() {
               These are the skills extracted from your resume and manually verified. Remove outdated skills or add new technologies below to update your matching jobs.
             </p>
 
-            {parsingStatus && (
+            {isParsingResume && (
               <div className="mb-4 p-3.5 bg-amber-500/10 border border-amber-500/25 text-amber-200 rounded-xl flex items-center gap-3 animate-pulse shadow-md shadow-amber-950/10">
                 <RefreshCw className="w-4 h-4 animate-spin text-amber-400 flex-shrink-0" />
                 <div className="text-[11px] leading-relaxed">
-                  <span className="font-bold block text-white text-xs">Resume Parsing Active</span>
-                  Extracting technological signals... Currently: <span className="font-semibold text-accent capitalize">{parsingStatus.replace('_', ' ')}</span>
+                  <span className="font-bold block text-text text-xs">Resume Parsing Active</span>
+                  Extracting technological signals... Status: <span className="font-semibold text-accent capitalize">{resumeParseStatus}</span>
+                </div>
+              </div>
+            )}
+
+            {!isParsingResume && isEnrichingProfile && (
+              <div className="mb-4 p-3.5 bg-surface-inset border border-border text-text-secondary rounded-xl flex items-center gap-3">
+                <RefreshCw className="w-4 h-4 animate-spin text-success flex-shrink-0" />
+                <div className="text-[11px] leading-relaxed">
+                  <span className="font-bold block text-text text-xs">Enhancing roadmap</span>
+                  Your profile is ready. Generating personalized roadmap and opportunities in the background.
                 </div>
               </div>
             )}
@@ -444,11 +527,11 @@ export default function ProfilePage() {
                   }
                 }}
                 placeholder="Enter skill tag (e.g. Redis)"
-                className="bg-surface-inset border-border text-white text-sm focus:border-accent"
+                className="bg-surface-inset border-border text-text text-sm focus:border-accent"
               />
               <Button
                 onClick={handleAddSkill}
-                className="bg-surface-raised border border-border text-white hover:bg-surface-overlay"
+                className="bg-surface-raised border border-border text-text hover:bg-surface-overlay"
               >
                 <Plus className="w-4 h-4" />
               </Button>
@@ -499,7 +582,7 @@ export default function ProfilePage() {
                   return (
                     <Badge
                       key={sName}
-                      className="bg-surface-overlay border border-border/85 text-white text-xs px-2.5 py-1 rounded-md flex items-center gap-2 hover:border-accent/40 transition-all group"
+                      className="bg-surface-overlay border border-border/85 text-text text-xs px-2.5 py-1 rounded-md flex items-center gap-2 hover:border-accent/40 transition-all group"
                     >
                       <span className={`h-1.5 w-1.5 rounded-full ${dotColor}`} title={`Source: ${originLabel}`} />
                       <span>{sName}</span>

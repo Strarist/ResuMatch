@@ -26,27 +26,12 @@ JARGON_REPLACEMENTS = {
 }
 
 def compress_copilot_response(text: str) -> str:
-    """Sanitize LLM output to strip sci-fi buzzwords and strictly clamp paragraph sizes."""
+    """Sanitize LLM output to strip sci-fi buzzwords while preserving full response length."""
     if not text or not isinstance(text, str):
         return ""
 
-    # 1. Apply professional terminology replacements
     sanitized = text
     for pattern, replacement in JARGON_REPLACEMENTS.items():
         sanitized = re.sub(pattern, replacement, sanitized, flags=re.IGNORECASE)
 
-    # 2. Enforce conciseness rules (limit to 3 short paragraphs max)
-    paragraphs = [p.strip() for p in sanitized.split("\n\n") if p.strip()]
-
-    if len(paragraphs) > 3:
-        logger.info(f"AI Coach response contained {len(paragraphs)} paragraphs. Clamping to 3.")
-        # Retain top 3 paragraphs
-        clamped_paragraphs = paragraphs[:3]
-
-        # Ensure a graceful closing if clamped
-        if not any(clamped_paragraphs[-1].endswith(x) for x in (".", "?", "!")):
-            clamped_paragraphs[-1] += "."
-
-        sanitized = "\n\n".join(clamped_paragraphs)
-
-    return sanitized
+    return sanitized.strip()

@@ -1,6 +1,6 @@
 'use client';
 
-import React, { createContext, useContext, useEffect, useCallback, useMemo, useReducer } from 'react';
+import React, { createContext, useContext, useEffect, useCallback, useMemo, useReducer, useRef } from 'react';
 import { toast } from 'sonner';
 import { baselinePersonas, PersonaProfile } from '../data/baseline-profiles';
 import { LifecycleStage } from '../state/user-lifecycle';
@@ -45,6 +45,9 @@ export interface OpportunityMatch {
   stackCompatibility?: string;
   alignmentReasoning?: string;
   location?: string;
+  url?: string;
+  source?: string;
+  posted_at?: string;
 }
 
 export interface RecruiterSignalProfile {
@@ -229,7 +232,14 @@ function reducer(state: State, action: Action): State {
         lastUpdated: new Date(),
       };
       break;
-    case 'SYNC_LIFECYCLE_FROM_BACKEND':
+    case 'SYNC_LIFECYCLE_FROM_BACKEND': {
+      const unchanged =
+        state.lifecycleStage === action.payload.lifecycleStage &&
+        state.hasStrategicProfile === action.payload.hasStrategicProfile &&
+        state.resumeParseStatus === action.payload.resumeParseStatus;
+      if (unchanged) {
+        break;
+      }
       nextState = {
         ...state,
         lifecycleStage: action.payload.lifecycleStage,
@@ -239,6 +249,7 @@ function reducer(state: State, action: Action): State {
         lastUpdated: new Date(),
       };
       break;
+    }
     case 'SET_LIFECYCLE_STAGE':
       nextState = {
         ...state,
@@ -296,6 +307,12 @@ function reducer(state: State, action: Action): State {
 
 export function LivingSystemProvider({ children }: { children: React.ReactNode }) {
   const [state, dispatch] = useReducer(reducer, initialState);
+  const lifecycleStageRef = useRef(state.lifecycleStage);
+  const prevParseStatusRef = useRef(state.resumeParseStatus);
+
+  useEffect(() => {
+    lifecycleStageRef.current = state.lifecycleStage;
+  }, [state.lifecycleStage]);
 
   // Load from localStorage on mount
   useEffect(() => {
@@ -337,6 +354,14 @@ export function LivingSystemProvider({ children }: { children: React.ReactNode }
     );
   }, [state.activePersonaId, state.lifecycleStage, state.completedSkills, state.deferredSkills]);
 
+  const mergeLifecycleStage = useCallback(
+    (backendStage: LifecycleStage, hasProfile: boolean) => {
+      const current = lifecycleStageRef.current;
+      return current >= 4 && hasProfile ? 4 : backendStage;
+    },
+    []
+  );
+
   const syncLifecycleFromBackend = useCallback(async () => {
     const token = typeof window !== 'undefined' ? localStorage.getItem('access_token') : null;
     if (!token) return;
@@ -345,14 +370,12 @@ export function LivingSystemProvider({ children }: { children: React.ReactNode }
     dispatch({
       type: 'SYNC_LIFECYCLE_FROM_BACKEND',
       payload: {
-        lifecycleStage: state.lifecycleStage >= 4 && backend.hasStrategicProfile
-          ? 4
-          : backend.lifecycleStage,
+        lifecycleStage: mergeLifecycleStage(backend.lifecycleStage, backend.hasStrategicProfile),
         hasStrategicProfile: backend.hasStrategicProfile,
         resumeParseStatus: backend.resumeParseStatus,
       },
     });
-  }, [state.lifecycleStage]);
+  }, [mergeLifecycleStage]);
 
   // Sync lifecycle from backend when not in simulation mode
   useEffect(() => {
@@ -374,16 +397,25 @@ export function LivingSystemProvider({ children }: { children: React.ReactNode }
       if (cancelled) return;
       const backend = await fetchLifecycleBackendState();
       if (cancelled) return;
+
+      const prevStatus = prevParseStatusRef.current;
+      const wasParsing = prevStatus === 'processing' || prevStatus === 'pending';
+      const isDone = backend.resumeParseStatus === 'completed' || backend.resumeParseStatus === 'failed';
+      prevParseStatusRef.current = backend.resumeParseStatus;
+
       dispatch({
         type: 'SYNC_LIFECYCLE_FROM_BACKEND',
         payload: {
-          lifecycleStage: state.lifecycleStage >= 4 && backend.hasStrategicProfile
-            ? 4
-            : backend.lifecycleStage,
+          lifecycleStage: mergeLifecycleStage(backend.lifecycleStage, backend.hasStrategicProfile),
           hasStrategicProfile: backend.hasStrategicProfile,
           resumeParseStatus: backend.resumeParseStatus,
         },
       });
+
+      if (wasParsing && isDone && typeof window !== 'undefined') {
+        window.dispatchEvent(new CustomEvent('skillyn:resume-parse-complete'));
+      }
+
       scheduleNext(backend);
     };
 
@@ -393,7 +425,7 @@ export function LivingSystemProvider({ children }: { children: React.ReactNode }
       cancelled = true;
       if (timeoutId) clearTimeout(timeoutId);
     };
-  }, [state.simulationActive, state.lifecycleStage]);
+  }, [state.simulationActive, mergeLifecycleStage]);
 
   const triggerSystemScan = useCallback(async () => {
     dispatch({ type: 'SYSTEM_SCAN_START' });
@@ -444,6 +476,9 @@ export function LivingSystemProvider({ children }: { children: React.ReactNode }
 
   const setSimulationActive = useCallback((active: boolean) => {
     dispatch({ type: 'SET_SIMULATION_ACTIVE', payload: active });
+    if (!active && typeof window !== 'undefined') {
+      window.dispatchEvent(new CustomEvent('skillyn:sandbox-exit'));
+    }
   }, []);
 
   const setLifecycleStage = useCallback((stage: LifecycleStage) => {

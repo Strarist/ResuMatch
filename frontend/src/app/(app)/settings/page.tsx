@@ -3,12 +3,15 @@
 
 import React, { useEffect, useState } from 'react';
 import { useAuth } from '@/auth/AuthContext';
+import { useTheme } from '@/auth/ThemeContext';
 import { PageContainer, GlassPanel, SectionLabel, WorkspaceCard, LoadingPulse } from '@/components/workspace';
-import { Bell, Palette, Database, User, LogOut, ShieldCheck, Sun } from 'lucide-react';
+import { Bell, Palette, Database, User, LogOut } from 'lucide-react';
 import { toast } from 'sonner';
 
 export default function SettingsPage() {
   const { user, logout } = useAuth();
+  const { theme, toggleTheme } = useTheme();
+  const isDark = theme === 'dark';
 
   // Local settings states (saved to localStorage)
   const [emailAlerts, setEmailAlerts] = useState(true);
@@ -17,7 +20,6 @@ export default function SettingsPage() {
 
   const [resumeAutoAnalysis, setResumeAutoAnalysis] = useState(true);
   const [profileVisibility, setProfileVisibility] = useState(true);
-  const [darkMode, setDarkMode] = useState(true);
 
   // Hydrate settings states from localStorage on boot
   useEffect(() => {
@@ -76,14 +78,14 @@ export default function SettingsPage() {
       <div className="space-y-6 animate-fade-in">
 
         {/* Account profile info */}
-        <GlassPanel className="p-5 flex items-center justify-between flex-wrap gap-4 border border-white/[0.04] bg-white/[0.01]">
+        <GlassPanel className="p-5 flex items-center justify-between flex-wrap gap-4">
           <div className="flex items-center gap-4">
-            <div className="w-12 h-12 rounded-xl border border-white/[0.08] bg-white/[0.04] flex items-center justify-center text-white/40">
+            <div className="w-12 h-12 rounded-xl border border-border bg-surface-inset flex items-center justify-center text-text-tertiary">
               <User size={22} />
             </div>
             <div>
-              <p className="text-sm font-semibold text-white">{user.email}</p>
-              <p className="text-xs text-slate-500">Account status: <span className="text-emerald-400 font-semibold">Active Profile</span></p>
+              <p className="text-sm font-semibold text-text">{user.email}</p>
+              <p className="text-xs text-text-secondary">Account status: <span className="text-success font-semibold">Active Profile</span></p>
             </div>
           </div>
           <button
@@ -99,23 +101,23 @@ export default function SettingsPage() {
 
         <div className="grid md:grid-cols-2 gap-6">
           {/* Notifications workspace panel */}
-          <WorkspaceCard className="border border-white/[0.04] bg-white/[0.01]">
+          <WorkspaceCard>
             <div className="flex items-center gap-2 mb-4">
-              <Bell size={14} className="text-blue-400/60" />
+              <Bell size={14} className="text-info/60" />
               <SectionLabel>Notification Preferences</SectionLabel>
             </div>
 
             <div className="space-y-4">
               {/* Option 1: Email Alerts */}
-              <div className="flex items-center justify-between py-1 border-b border-white/[0.02] last:border-0 pb-3">
+              <div className="flex items-center justify-between py-1 border-b border-border-subtle last:border-0 pb-3">
                 <div>
-                  <span className="text-xs text-white/80 font-medium block">Email Matching Alerts</span>
-                  <span className="text-[10px] text-slate-500 block mt-0.5">Receive immediate notifications on tailored job match detections</span>
+                  <span className="text-xs text-text font-medium block">Email Matching Alerts</span>
+                  <span className="text-xs text-text-secondary block mt-0.5">Receive immediate notifications on tailored job match detections</span>
                 </div>
                 <button
                   onClick={() => updateSetting('email_alerts', !emailAlerts, setEmailAlerts, 'Email alerts')}
                   className={`w-8 h-4.5 rounded-full transition-colors relative flex items-center p-0.5 ${
-                    emailAlerts ? 'bg-emerald-500' : 'bg-slate-800'
+                    emailAlerts ? 'bg-success' : 'bg-surface-overlay'
                   }`}
                 >
                   <div className={`w-3.5 h-3.5 rounded-full bg-black transition-transform ${emailAlerts ? 'translate-x-3.5' : 'translate-x-0'}`} />
@@ -123,15 +125,15 @@ export default function SettingsPage() {
               </div>
 
               {/* Option 2: Recruiter Activity */}
-              <div className="flex items-center justify-between py-1 border-b border-white/[0.02] last:border-0 pb-3">
+              <div className="flex items-center justify-between py-1 border-b border-border-subtle last:border-0 pb-3">
                 <div>
-                  <span className="text-xs text-white/80 font-medium block">Recruiter Profile Views</span>
-                  <span className="text-[10px] text-slate-500 block mt-0.5">Alert me when headhunters inspect my credentials or skills scorecards</span>
+                  <span className="text-xs text-text font-medium block">Recruiter Profile Views</span>
+                  <span className="text-xs text-text-secondary block mt-0.5">Alert me when headhunters inspect my credentials or skills scorecards</span>
                 </div>
                 <button
                   onClick={() => updateSetting('recruiter_alerts', !recruiterActivity, setRecruiterActivity, 'Recruiter activity')}
                   className={`w-8 h-4.5 rounded-full transition-colors relative flex items-center p-0.5 ${
-                    recruiterActivity ? 'bg-emerald-500' : 'bg-slate-800'
+                    recruiterActivity ? 'bg-success' : 'bg-surface-overlay'
                   }`}
                 >
                   <div className={`w-3.5 h-3.5 rounded-full bg-black transition-transform ${recruiterActivity ? 'translate-x-3.5' : 'translate-x-0'}`} />
@@ -141,13 +143,13 @@ export default function SettingsPage() {
               {/* Option 3: Weekly Digest */}
               <div className="flex items-center justify-between py-1">
                 <div>
-                  <span className="text-xs text-white/80 font-medium block">Weekly Roadmap Summary</span>
-                  <span className="text-[10px] text-slate-500 block mt-0.5">Get a weekly email digest of completed sprint milestones and progress</span>
+                  <span className="text-xs text-text font-medium block">Weekly Roadmap Summary</span>
+                  <span className="text-xs text-text-secondary block mt-0.5">Get a weekly email digest of completed sprint milestones and progress</span>
                 </div>
                 <button
                   onClick={() => updateSetting('digest_alerts', !weeklyDigest, setWeeklyDigest, 'Weekly digest')}
                   className={`w-8 h-4.5 rounded-full transition-colors relative flex items-center p-0.5 ${
-                    weeklyDigest ? 'bg-emerald-500' : 'bg-slate-800'
+                    weeklyDigest ? 'bg-success' : 'bg-surface-overlay'
                   }`}
                 >
                   <div className={`w-3.5 h-3.5 rounded-full bg-black transition-transform ${weeklyDigest ? 'translate-x-3.5' : 'translate-x-0'}`} />
@@ -157,38 +159,40 @@ export default function SettingsPage() {
           </WorkspaceCard>
 
           {/* Preferences panel */}
-          <WorkspaceCard className="border border-white/[0.04] bg-white/[0.01]">
+          <WorkspaceCard>
             <div className="flex items-center gap-2 mb-4">
-              <Palette size={14} className="text-amber-400/60" />
+              <Palette size={14} className="text-warning/60" />
               <SectionLabel>upskilling Preferences</SectionLabel>
             </div>
 
             <div className="space-y-4">
-              {/* Theme Settings: Dark Mode */}
-              <div className="flex items-center justify-between py-1 border-b border-white/[0.02] last:border-0 pb-3">
+              {/* Theme Settings */}
+              <div className="flex items-center justify-between py-1 border-b border-border-subtle last:border-0 pb-3">
                 <div>
-                  <span className="text-xs text-white/80 font-medium block">Premium Dark Mode Theme</span>
-                  <span className="text-[10px] text-slate-500 block mt-0.5">Optimize dashboard visibility for night upskilling. Enforced by default.</span>
+                  <span className="text-xs text-text font-medium block">Dark Mode</span>
+                  <span className="text-xs text-text-secondary block mt-0.5">Switch between light and dark dashboard themes</span>
                 </div>
                 <button
-                  onClick={() => toast.info("Premium Dark Theme is optimized by default.")}
-                  className="w-8 h-4.5 rounded-full bg-emerald-500 relative flex items-center p-0.5 cursor-not-allowed"
-                  disabled
+                  onClick={toggleTheme}
+                  aria-label={isDark ? 'Switch to light mode' : 'Switch to dark mode'}
+                  className={`w-8 h-4.5 rounded-full transition-colors relative flex items-center p-0.5 ${
+                    isDark ? 'bg-success' : 'bg-surface-overlay'
+                  }`}
                 >
-                  <div className="w-3.5 h-3.5 rounded-full bg-black translate-x-3.5" />
+                  <div className={`w-3.5 h-3.5 rounded-full bg-text-inverse transition-transform ${isDark ? 'translate-x-3.5' : 'translate-x-0'}`} />
                 </button>
               </div>
 
               {/* Resume Auto-Analysis */}
-              <div className="flex items-center justify-between py-1 border-b border-white/[0.02] last:border-0 pb-3">
+              <div className="flex items-center justify-between py-1 border-b border-border-subtle last:border-0 pb-3">
                 <div>
-                  <span className="text-xs text-white/80 font-medium block">Resume Auto-Analysis</span>
-                  <span className="text-[10px] text-slate-500 block mt-0.5">Automatically recalibrate career trajectories immediately upon uploading new resumes</span>
+                  <span className="text-xs text-text font-medium block">Resume Auto-Analysis</span>
+                  <span className="text-xs text-text-secondary block mt-0.5">Automatically recalibrate career trajectories immediately upon uploading new resumes</span>
                 </div>
                 <button
                   onClick={() => updateSetting('resume_auto_analysis', !resumeAutoAnalysis, setResumeAutoAnalysis, 'Auto-Analysis')}
                   className={`w-8 h-4.5 rounded-full transition-colors relative flex items-center p-0.5 ${
-                    resumeAutoAnalysis ? 'bg-emerald-500' : 'bg-slate-800'
+                    resumeAutoAnalysis ? 'bg-success' : 'bg-surface-overlay'
                   }`}
                 >
                   <div className={`w-3.5 h-3.5 rounded-full bg-black transition-transform ${resumeAutoAnalysis ? 'translate-x-3.5' : 'translate-x-0'}`} />
@@ -198,13 +202,13 @@ export default function SettingsPage() {
               {/* Profile Visibility */}
               <div className="flex items-center justify-between py-1">
                 <div>
-                  <span className="text-xs text-white/80 font-medium block">Public Profile Visibility</span>
-                  <span className="text-[10px] text-slate-500 block mt-0.5">Enable public URL link sharing of verified upskilling badges and skills credentials</span>
+                  <span className="text-xs text-text font-medium block">Public Profile Visibility</span>
+                  <span className="text-xs text-text-secondary block mt-0.5">Enable public URL link sharing of verified upskilling badges and skills credentials</span>
                 </div>
                 <button
                   onClick={() => updateSetting('profile_visibility', !profileVisibility, setProfileVisibility, 'Public profile')}
                   className={`w-8 h-4.5 rounded-full transition-colors relative flex items-center p-0.5 ${
-                    profileVisibility ? 'bg-emerald-500' : 'bg-slate-800'
+                    profileVisibility ? 'bg-success' : 'bg-surface-overlay'
                   }`}
                 >
                   <div className={`w-3.5 h-3.5 rounded-full bg-black transition-transform ${profileVisibility ? 'translate-x-3.5' : 'translate-x-0'}`} />
@@ -215,20 +219,20 @@ export default function SettingsPage() {
         </div>
 
         {/* Data & Cache Management panel */}
-        <WorkspaceCard className="border border-white/[0.04] bg-white/[0.01]">
+        <WorkspaceCard>
           <div className="flex items-center gap-2 mb-4">
-            <Database size={14} className="text-cyan-400/60" />
+            <Database size={14} className="text-info/60" />
             <SectionLabel>Offline Storage & Data Control</SectionLabel>
           </div>
 
           <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
-            <p className="text-xs text-slate-500 leading-relaxed max-w-xl">
+            <p className="text-xs text-text-secondary leading-relaxed max-w-xl">
               Skillyn caches your customized layout templates and settings preferences in your local browser sandbox to guarantee high-performance loads. Wiping this cache resets local preferences.
             </p>
             <div className="flex flex-wrap gap-3">
               <button
                 onClick={handleClearCache}
-                className="px-4 py-2 text-xs font-semibold text-white/70 border border-white/[0.08] rounded-lg hover:bg-white/[0.03] transition-all"
+                className="px-4 py-2 text-xs font-semibold text-text-secondary border border-border rounded-lg hover:bg-surface-inset transition-all"
               >
                 Reset Local Preferences
               </button>

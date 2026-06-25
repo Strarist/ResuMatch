@@ -11,7 +11,6 @@ are never logged. Only IDs and metadata appear in logs.
 
 import json
 import re
-import sys
 import uuid
 from contextvars import ContextVar
 from typing import Any
@@ -64,8 +63,8 @@ def _redact(data: Any) -> Any:
 # === Log Formatter ===
 
 
-def _json_formatter(record) -> str:
-    """Format log as JSON with correlation context."""
+def _json_log_line(record) -> str:
+    """One JSON object string with correlation context (no trailing newline)."""
     entry = {
         "ts": record["time"].strftime("%Y-%m-%dT%H:%M:%S.%fZ"),
         "level": record["level"].name,
@@ -75,13 +74,17 @@ def _json_formatter(record) -> str:
         "module": record["name"],
         "func": record["function"],
     }
-    # Add extra fields
     if record["extra"]:
         entry["extra"] = _redact(record["extra"])
-    # Add exception info
     if record["exception"]:
         entry["exc"] = record["exception"].type.__name__ if record["exception"].type else None
-    return json.dumps(entry, default=str) + "\n"
+    return json.dumps(entry, default=str)
+
+
+def _json_formatter(record) -> str:
+    """Loguru dynamic format: payload is substituted; line break is in the template only."""
+    record["extra"]["json_payload"] = _json_log_line(record)
+    return "{extra[json_payload]}\n"
 
 
 # === Configure Logger ===
@@ -89,16 +92,9 @@ def _json_formatter(record) -> str:
 
 def setup_logging() -> None:
     """Configure loguru for the application. Call once at startup."""
-    settings = get_settings()
-    logger.remove()
+    from app.logger import configure_logging
 
-    if settings.is_production:
-        # Production: JSON to stdout (captured by platform logging)
-        logger.add(sys.stdout, format=_json_formatter, level="INFO", serialize=False)
-    else:
-        # Development: human-readable with color
-        fmt = "<green>{time:HH:mm:ss}</green> | <level>{level: <7}</level> | <cyan>{name}</cyan>:<cyan>{function}</cyan> | {message}"
-        logger.add(sys.stderr, format=fmt, level="DEBUG", colorize=True)
+    configure_logging(get_settings(), production_formatter=_json_formatter)
 
 
 # === Convenience Loggers ===

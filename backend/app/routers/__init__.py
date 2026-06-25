@@ -14,6 +14,9 @@ from .progress import router as progress_router
 from .strategic import router as strategic_router
 from .portfolio import router as portfolio_router
 from .opportunities import router as opportunities_router
+from .onboarding import router as onboarding_router
+from .explainability import router as explainability_router
+from .stream import router as stream_router
 from .prediction import router as prediction_router
 from .explainability_v2 import router as explainability_v2_router
 from .synthesis import router as synthesis_router
@@ -40,6 +43,9 @@ api_router.include_router(progress_router)
 api_router.include_router(strategic_router)
 api_router.include_router(portfolio_router)
 api_router.include_router(opportunities_router)
+api_router.include_router(onboarding_router)
+api_router.include_router(explainability_router)
+api_router.include_router(stream_router)
 
 # Phase 9 research/sandbox APIs — excluded in production to reduce surface area
 if settings.env != Environment.production:

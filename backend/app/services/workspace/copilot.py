@@ -14,6 +14,41 @@ from app.services.llm.prompts import COPILOT_STRATEGY_SYSTEM
 
 logger = logging.getLogger(__name__)
 
+COPILOT_MARKET_CACHE_PREFIX = "copilot:market_snap:"
+
+
+async def _get_market_snapshot_for_copilot(
+    user_id: str | None,
+    skills_list: list[str],
+    confidences: dict[str, float],
+    target_role: str,
+    seniority: str,
+) -> dict:
+    """Return market intelligence snapshot, cached per user for 5 minutes."""
+    from app.services.market_intelligence import compute_market_intelligence
+    from app.services.cache import cache_get, cache_set
+
+    if user_id:
+        cache_key = f"{COPILOT_MARKET_CACHE_PREFIX}{user_id}"
+        cached = await cache_get(cache_key)
+        if cached:
+            logger.debug("Copilot market snapshot cache hit for user %s", user_id)
+            return cached
+
+    market_snap = compute_market_intelligence(
+        user_skills=skills_list,
+        skill_confidences=confidences,
+        target_role=target_role,
+        seniority=seniority,
+        growth_velocity=0.85,
+    )
+
+    if user_id:
+        await cache_set(f"{COPILOT_MARKET_CACHE_PREFIX}{user_id}", market_snap, "medium")
+
+    return market_snap
+
+
 async def generate_copilot_response(
     db: AsyncSession,
     session_id: str,
@@ -62,8 +97,6 @@ async def generate_copilot_response(
         opportunities = "\n".join(opps_list)
 
     # 2.5 Compute and format real-world Market Snapshot and Demand Graph
-    from app.services.market_intelligence import compute_market_intelligence
-
     # Resolve skill confidences for accuracy
     skills_list = profile.inferred_skills if profile else []
     origins = {}
@@ -71,12 +104,12 @@ async def generate_copilot_response(
         origins = profile.trajectory_state.get("skill_origins", {}) or {}
     confidences = {s: 0.90 if origins.get(s) == "resume" else 0.70 for s in skills_list}
 
-    market_snap = compute_market_intelligence(
-        user_skills=skills_list,
-        skill_confidences=confidences,
+    market_snap = await _get_market_snapshot_for_copilot(
+        user_id=user_id,
+        skills_list=skills_list,
+        confidences=confidences,
         target_role=target_role,
         seniority="senior" if user_id and len(skills_list) > 6 else "mid",
-        growth_velocity=0.85
     )
 
     salary_range = market_snap["salary_trajectory"]["estimated_range"]
@@ -132,15 +165,25 @@ async def generate_copilot_response(
         )
         return compress_copilot_response(response)
     except Exception as e:
-        logger.error(f"OpenRouter copilot chat failed: {e}. Executing legacy pattern backup.")
-        fallback = _fallback_deterministic_response(user_message, summary, recommendations)
-        return compress_copilot_response(fallback)
+        logger.error(f"OpenRouter copilot chat failed for session {session_id}: {e}. Retrying once.")
+        try:
+            response = await llm_service.generate(
+                messages=messages_payload,
+                temperature=0.2
+            )
+            return compress_copilot_response(response)
+        except Exception as retry_err:
+            logger.error(
+                f"OpenRouter copilot retry failed for session {session_id}: {retry_err}. Using deterministic fallback."
+            )
+            fallback = _fallback_deterministic_response(user_message, summary, recommendations)
+            return compress_copilot_response(fallback)
 
 def _fallback_deterministic_response(msg_text: str, s: dict, recs: list[dict]) -> str:
     path = s.get("dominant_path", "Software Engineering")
     top_rec = recs[0]["title"] if recs else "calibrate your profile"
     return (
-        f"I'm your senior career strategist. I am currently running in offline mode with cached profile data.\n\n"
+        f"[Fallback] I'm your senior career strategist. Live AI generation is temporarily unavailable, so this reply uses your saved profile data.\n\n"
         f"Based on your target **{path}** path, here is the most immediate tactical advice I have for you:\n"
         f"• **High-Impact Action**: Focus on completing **{top_rec}** to immediately strengthen your resume.\n"
         f"• **Next Step**: Make sure your latest resume is uploaded to your profile so I can outline specific technical project proofs to write.\n\n"

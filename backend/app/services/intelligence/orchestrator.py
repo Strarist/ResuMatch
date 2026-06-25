@@ -138,11 +138,20 @@ async def run_intelligence_cycle(db: AsyncSession, user_id: str, target_skills: 
     target_role = inputs["target_role"] or (roadmap.target_role if roadmap else trajectory["dominant_path"])
 
     if strategic_profile:
+        existing_ts = strategic_profile.trajectory_state or {}
+        user_calibrated = bool(existing_ts.get("user_calibrated"))
+        merged_trajectory = {**trajectory}
+        if existing_ts.get("years_of_experience") is not None:
+            merged_trajectory["years_of_experience"] = existing_ts["years_of_experience"]
+        if user_calibrated:
+            merged_trajectory["user_calibrated"] = True
+
         strategic_profile.inferred_skills = user_skills
-        strategic_profile.active_specialization = inputs["specialization"] or trajectory["dominant_path"]
-        strategic_profile.target_role = target_role
+        if not user_calibrated:
+            strategic_profile.active_specialization = inputs["specialization"] or trajectory["dominant_path"]
+            strategic_profile.target_role = target_role
         strategic_profile.market_alignment = market_alignment
-        strategic_profile.trajectory_state = trajectory
+        strategic_profile.trajectory_state = merged_trajectory
         strategic_profile.recruiter_signals = recruiter_signals
         strategic_profile.updated_at = datetime.now(timezone.utc)
     else:

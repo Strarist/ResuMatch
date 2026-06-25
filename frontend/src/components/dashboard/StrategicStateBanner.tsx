@@ -51,35 +51,35 @@ export function StrategicStateBanner() {
   const growthRate = lifecycleStage === 1 ? 'Calibrating' : activePersona.marketIntel.growthRate;
 
   return (
-    <div className="w-full bg-[#080d19]/80 border border-white/[0.05] rounded-2xl p-5 shadow-2xl relative overflow-hidden backdrop-blur-md">
-      <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_top_right,_var(--tw-gradient-stops))] from-emerald-500/5 via-transparent to-transparent pointer-events-none" />
+    <div className="w-full bg-surface-raised/80 border border-border rounded-2xl p-5 shadow-md relative overflow-hidden backdrop-blur-md">
+      <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_top_right,_var(--tw-gradient-stops))] from-success/5 via-transparent to-transparent pointer-events-none" />
 
       <div className="relative z-10 flex flex-col md:flex-row md:items-center justify-between gap-6">
         <div>
-          <h2 className="text-base font-bold tracking-tight mb-1 flex items-center gap-2 text-white">
+          <h2 className="text-base font-bold tracking-tight mb-1 flex items-center gap-2 text-text">
             {getStatusIcon()}
             {getTitle()}
           </h2>
-          <p className="text-xs text-slate-400 max-w-lg leading-relaxed font-sans font-medium">
+          <p className="text-xs text-text-secondary max-w-lg leading-relaxed font-sans font-medium">
             {getDescription()}
           </p>
         </div>
 
         <div className="flex gap-4">
-          <div className="bg-black/40 border border-white/[0.05] rounded-xl p-3.5 flex flex-col justify-center min-w-[120px]">
-            <div className="flex items-center gap-1.5 text-slate-500 mb-1">
-              <TrendingUp size={12} className="text-emerald-400" />
+          <div className="bg-surface-inset border border-border rounded-xl p-3.5 flex flex-col justify-center min-w-[120px]">
+            <div className="flex items-center gap-1.5 text-text-tertiary mb-1">
+              <TrendingUp size={12} className="text-success" />
               <span className="text-[9px] font-bold uppercase tracking-wider font-mono">Market Demand</span>
             </div>
-            <span className="text-sm font-bold text-white font-sans">{growthRate}</span>
+            <span className="text-sm font-bold text-text font-sans">{growthRate}</span>
           </div>
 
-          <div className="bg-black/40 border border-white/[0.05] rounded-xl p-3.5 flex flex-col justify-center min-w-[140px] max-w-[200px]">
-            <div className="flex items-center gap-1.5 text-slate-500 mb-1">
-              <Target size={12} className="text-violet-400" />
+          <div className="bg-surface-inset border border-border rounded-xl p-3.5 flex flex-col justify-center min-w-[140px] max-w-[200px]">
+            <div className="flex items-center gap-1.5 text-text-tertiary mb-1">
+              <Target size={12} className="text-accent" />
               <span className="text-[9px] font-bold uppercase tracking-wider font-mono">Strongest Skill</span>
             </div>
-            <span className="text-sm font-bold text-white truncate font-sans" title={topLeverageSkill}>
+            <span className="text-sm font-bold text-text truncate font-sans" title={topLeverageSkill}>
               {topLeverageSkill}
             </span>
           </div>

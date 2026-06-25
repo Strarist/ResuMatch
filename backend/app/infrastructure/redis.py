@@ -13,6 +13,8 @@ _redis_loop: Optional[object] = None
 _redis_unavailable_until: float = 0.0
 _redis_connect_lock: asyncio.Lock | None = None
 _redis_last_warn_at: float = 0.0
+_redis_degraded_logged: bool = False
+_redis_unconfigured_logged: bool = False
 _REDIS_RETRY_COOLDOWN_SEC = 60.0
 
 
@@ -25,11 +27,14 @@ def _connect_lock() -> asyncio.Lock:
 
 async def get_redis():
     """Get or create Redis client. Returns None if Redis unavailable (graceful degradation)."""
-    global _redis_client, _redis_loop, _redis_unavailable_until, _redis_last_warn_at
+    global _redis_client, _redis_loop, _redis_unavailable_until, _redis_last_warn_at, _redis_degraded_logged, _redis_unconfigured_logged
 
     from app.config import get_settings
     settings = get_settings()
     if not settings.redis_url:
+        if not _redis_unconfigured_logged:
+            _redis_unconfigured_logged = True
+            logger.info("Redis not configured; using in-memory cache only.")
         return None
 
     now = time.monotonic()
@@ -66,6 +71,12 @@ async def get_redis():
             _redis_client = None
             _redis_loop = None
 
+        if now < _redis_unavailable_until:
+            return None
+
+        # Reserve cooldown before connect so concurrent callers don't stampede.
+        _redis_unavailable_until = time.monotonic() + _REDIS_RETRY_COOLDOWN_SEC
+
         try:
             import redis.asyncio as aioredis
 
@@ -79,14 +90,16 @@ async def get_redis():
             _redis_client = client
             _redis_loop = current_loop
             _redis_unavailable_until = 0.0
+            _redis_degraded_logged = False
             logger.info("Redis connected")
             return _redis_client
         except Exception as e:
-            _redis_unavailable_until = time.monotonic() + _REDIS_RETRY_COOLDOWN_SEC
             _redis_client = None
             _redis_loop = None
-            if time.monotonic() - _redis_last_warn_at >= _REDIS_RETRY_COOLDOWN_SEC:
-                _redis_last_warn_at = time.monotonic()
+            now = time.monotonic()
+            if not _redis_degraded_logged or now - _redis_last_warn_at >= _REDIS_RETRY_COOLDOWN_SEC:
+                _redis_degraded_logged = True
+                _redis_last_warn_at = now
                 logger.warning(
                     "Redis unavailable: %s. Operating without cache for %.0fs.",
                     e,

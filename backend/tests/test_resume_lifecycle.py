@@ -2,7 +2,7 @@
 
 import io
 import uuid
-from unittest.mock import patch
+from unittest.mock import patch, AsyncMock
 
 import pikepdf
 import pytest
@@ -79,7 +79,15 @@ async def _mock_build_and_persist(db, user_id: str, file_path: str, resume_id: s
     )
     db.add(profile)
     await db.flush()
-    return profile, {"skills": ["Python", "FastAPI", "React"]}
+    enrich_ctx = {
+        "normalized_skills": ["Python", "FastAPI", "React"],
+        "gaps": [],
+        "target_role": "Senior Software Engineer",
+        "specialization": "Full Stack Engineering",
+        "trajectory": {"dominant_path": "Full Stack", "competitiveness_score": 0.8, "readiness_scores": {}},
+        "dominant_readiness": {},
+    }
+    return profile, {"skills": ["Python", "FastAPI", "React"]}, enrich_ctx
 
 
 @pytest.mark.asyncio
@@ -106,10 +114,14 @@ async def test_resume_upload_and_list(test_engine):
 
 @pytest.mark.asyncio
 @patch(
+    "app.services.resume_pipeline.profile_builder.enrich_profile_after_parse",
+    new_callable=AsyncMock,
+)
+@patch(
     "app.services.resume_pipeline.profile_builder.build_and_persist_strategic_profile",
     side_effect=_mock_build_and_persist,
 )
-async def test_upload_parse_creates_strategic_profile(_mock_build, test_engine):
+async def test_upload_parse_creates_strategic_profile(_mock_build, _mock_enrich, test_engine):
     from app.routers.resumes import _run_parse_background
 
     async with AsyncClient(transport=ASGITransport(app=fastapi_app), base_url="http://test") as client:
@@ -169,3 +181,35 @@ async def test_strategic_profile_empty_before_parse(test_engine):
         assert profile_resp.status_code == 200
         profile = profile_resp.json()
         assert profile["skills"] == [] or profile["completeness_score"] == 0
+
+
+@pytest.mark.asyncio
+@pytest.mark.critical
+@patch(
+    "app.services.resume_pipeline.profile_builder.build_and_persist_strategic_profile",
+    side_effect=RuntimeError("simulated parse failure"),
+)
+async def test_parse_failure_sets_failed_status(_mock_build, test_engine):
+    from app.routers.resumes import _run_parse_background
+
+    async with AsyncClient(transport=ASGITransport(app=fastapi_app), base_url="http://test") as client:
+        headers, user_id = await _auth_context(client)
+        pdf_bytes = _minimal_pdf_bytes()
+
+        upload_resp = await client.post(
+            "/v1/resumes",
+            headers=headers,
+            files={"file": ("resume.pdf", io.BytesIO(pdf_bytes), "application/pdf")},
+        )
+        assert upload_resp.status_code == 200, upload_resp.text
+        resume_id = upload_resp.json()["resume_id"]
+
+        await _run_parse_background(resume_id, user_id)
+
+        list_resp = await client.get("/v1/resumes", headers=headers)
+        assert list_resp.status_code == 200
+        resumes = list_resp.json()["resumes"]
+        failed = next((r for r in resumes if r["id"] == resume_id), None)
+        assert failed is not None
+        assert failed["parse_status"] == "failed"
+        assert failed.get("parse_error")

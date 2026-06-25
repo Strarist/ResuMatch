@@ -1,6 +1,7 @@
 """FastAPI application entry point."""
 
 import logging
+import os
 from contextlib import asynccontextmanager
 
 from fastapi import FastAPI, Request
@@ -9,14 +10,9 @@ from fastapi.responses import JSONResponse
 from sqlalchemy import text
 from starlette.middleware.sessions import SessionMiddleware
 
-from app.config import get_settings
+from app.config import Environment, get_settings
 from app.db import async_session_factory
-from app.routers import (
-    api_router,
-    onboarding,
-    explainability,
-    stream,
-)
+from app.routers import api_router
 
 # Optional: Sentry
 try:
@@ -60,10 +56,13 @@ async def lifespan(app: FastAPI):
     import app.services.scheduler  # noqa: F401
     import app.services.jobs  # noqa: F401
 
-    # Create tables on startup (idempotent)
+    # Create tables only in testing or explicit dev override; production uses Alembic
     async with engine.begin() as conn:
-        await conn.run_sync(Base.metadata.create_all)
-    logging.info("Database tables verified")
+        if settings.env == Environment.testing or os.getenv("DEV_CREATE_ALL", "").lower() == "true":
+            await conn.run_sync(Base.metadata.create_all)
+            logging.info("Base.metadata.create_all applied (testing or DEV_CREATE_ALL)")
+        await conn.execute(text("SELECT 1"))
+    logging.info("Database tables verified and connection probe succeeded")
 
     # P2 — Database verification log (sprint requirement)
     import re as _re
@@ -109,9 +108,6 @@ if _instrumentator:
     _instrumentator.instrument(app).expose(app, endpoint="/metrics")
 
 app.include_router(api_router)
-app.include_router(onboarding.router)
-app.include_router(explainability.router)
-app.include_router(stream.router)
 
 
 # === Global exception handlers for typed error responses ===
@@ -158,6 +154,9 @@ async def root():
 
 @app.get("/health")
 async def health_check():
+    from app.db import engine
+
+    db_engine = engine.url.get_backend_name()
     try:
         async with async_session_factory() as session:
             await session.execute(text("SELECT 1"))
@@ -168,7 +167,12 @@ async def health_check():
     healthy = db_status == "connected"
     return JSONResponse(
         status_code=200 if healthy else 503,
-        content={"status": "healthy" if healthy else "unhealthy", "database": db_status, "version": "1.0.0"},
+        content={
+            "status": "healthy" if healthy else "unhealthy",
+            "database": db_status,
+            "database_engine": db_engine,
+            "version": "1.0.0",
+        },
     )
 
 

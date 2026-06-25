@@ -3,7 +3,7 @@ import './globals.css';
 import { Inter, JetBrains_Mono } from 'next/font/google';
 import { AuthProvider } from '@/auth/AuthContext';
 import { ThemeProvider } from '@/auth/ThemeContext';
-import { Toaster } from 'react-hot-toast';
+import { Toaster } from 'sonner';
 import SessionManager from '@/components/SessionManager';
 import { IntelligenceProviders } from '@/components/providers/IntelligenceProviders';
 

@@ -74,14 +74,15 @@ interface MarketData {
 export default function CareerInsightsPage() {
   function renderConfidenceBadge(confidence: 'HIGH' | 'MEDIUM' | 'LOW' = 'LOW') {
   const colorMap: Record<string, string> = {
-    HIGH: 'bg-emerald-500 text-white',
-    MEDIUM: 'bg-amber-500 text-white',
-    LOW: 'bg-gray-500 text-white',
+    HIGH: 'bg-emerald-500 text-text',
+    MEDIUM: 'bg-amber-500 text-text',
+    LOW: 'bg-gray-500 text-text',
   };
   return <Badge className={colorMap[confidence] ?? 'bg-gray-500'}>{confidence}</Badge>;
 }
 const [data, setData] = useState<MarketData | null>(null);
   const [loading, setLoading] = useState(true);
+  const [fetchError, setFetchError] = useState(false);
 
   const {
     simulationActive,
@@ -96,10 +97,14 @@ const [data, setData] = useState<MarketData | null>(null);
       setLoading(false);
       return;
     }
+    setFetchError(false);
     try {
       const snapshot = await marketApi.getSnapshot();
       setData(snapshot as unknown as MarketData);
-    } catch { /* Fail silently */ }
+    } catch (err) {
+      console.error('Failed to load market intelligence:', err);
+      setFetchError(true);
+    }
     setLoading(false);
   }, [simulationActive]);
 
@@ -180,6 +185,30 @@ const [data, setData] = useState<MarketData | null>(null);
   const marketDataToRender = activeData;
   const hasRenderableData = Boolean(marketDataToRender);
 
+  if (fetchError && !simulationActive) {
+    return (
+      <div className="space-y-6 animate-fade-in">
+        <SectionHeader
+          title="Career Insights & Market Trends"
+          subtitle="Analyze target market demand, salary ranges, recruiter feedback, and professional response forecasts"
+        />
+        <div className="p-4 rounded-lg border border-amber-500/30 bg-amber-500/10 text-xs text-amber-200 max-w-2xl">
+          Could not load market insights.{' '}
+          <button
+            type="button"
+            onClick={() => {
+              setLoading(true);
+              fetchData();
+            }}
+            className="underline"
+          >
+            Retry
+          </button>
+        </div>
+      </div>
+    );
+  }
+
   if (!showEmptyState && !hasRenderableData && !simulationActive) {
     return (
       <div className="space-y-6 animate-fade-in">
@@ -189,8 +218,8 @@ const [data, setData] = useState<MarketData | null>(null);
         />
         <div className="p-8 rounded-2xl border border-amber-500/20 bg-amber-500/5 text-center max-w-2xl mx-auto my-12 space-y-4">
           <BarChart3 size={24} className="mx-auto text-amber-400" />
-          <h3 className="text-base font-bold text-white">Market insights are being prepared</h3>
-          <p className="text-xs text-slate-400 leading-relaxed">
+          <h3 className="text-base font-bold text-text">Market insights are being prepared</h3>
+          <p className="text-xs text-text-secondary leading-relaxed">
             Upload a resume or save your profile to generate salary benchmarks and demand trends.
           </p>
         </div>
@@ -215,13 +244,13 @@ const [data, setData] = useState<MarketData | null>(null);
 
       {/* Onboarding Empty State Check */}
       {showEmptyState ? (
-        <div className="p-8 rounded-2xl border border-white/[0.04] bg-white/[0.01] text-center max-w-2xl mx-auto my-12 space-y-6">
+        <div className="p-8 rounded-2xl border border-border bg-surface-raised text-center max-w-2xl mx-auto my-12 space-y-6">
           <div className="w-12 h-12 rounded-full bg-emerald-500/10 flex items-center justify-center mx-auto text-emerald-400">
             <BarChart3 size={24} />
           </div>
           <div className="space-y-2">
-            <h3 className="text-base font-bold text-white">Configure Career Insights & Salary Ranges</h3>
-            <p className="text-xs text-slate-400 leading-relaxed">
+            <h3 className="text-base font-bold text-text">Configure Career Insights & Salary Ranges</h3>
+            <p className="text-xs text-text-secondary leading-relaxed">
               We compile salary benchmarks, recruiter matches, and demand trends based on your verified technical skills. Upload your resume or configure your career parameters to begin analysis.
             </p>
           </div>
@@ -234,7 +263,7 @@ const [data, setData] = useState<MarketData | null>(null);
             </a>
             <a
               href="/profile"
-              className="rounded-lg px-4 py-2 border border-white/10 hover:bg-white/[0.03] text-white text-xs font-bold transition-colors"
+              className="rounded-lg px-4 py-2 border border-border hover:bg-surface-inset text-text text-xs font-bold transition-colors"
             >
               Configure Profile
             </a>
@@ -244,56 +273,56 @@ const [data, setData] = useState<MarketData | null>(null);
         <>
       {/* 1. Core Career Indicators Summary */}
       <div className="grid gap-4 sm:grid-cols-4">
-        <Panel className="border-white/[0.04] bg-white/[0.015] p-4 flex flex-col justify-between relative">
+        <Panel className="border-border bg-surface-raised p-4 flex flex-col justify-between relative">
           <div>
             <div className="flex items-center gap-1.5 mb-1.5">
               <Award size={14} className="text-emerald-400" />
-              <span className="text-[10px] text-slate-500 font-mono uppercase">Profile Strength</span>
+              <span className="text-[10px] text-text-tertiary font-mono uppercase">Profile Strength</span>
             </div>
             <p className="text-2xl font-bold text-emerald-400 font-mono">{Math.round(attr.overall_score * 100)}%</p>
           </div>
-          <span className="text-[9px] text-slate-500 font-sans mt-2">Estimated recruiter match rate</span>
+          <span className="text-[9px] text-text-tertiary font-sans mt-2">Estimated recruiter match rate</span>
         </Panel>
 
-        <Panel className="border-white/[0.04] bg-white/[0.015] p-4 flex flex-col justify-between relative">
+        <Panel className="border-border bg-surface-raised p-4 flex flex-col justify-between relative">
 
           <div>
             <div className="flex items-center gap-1.5 mb-1.5">
-              <DollarSign size={14} className="text-white/40" />
-              <span className="text-[10px] text-slate-500 font-mono uppercase">Base Market Salary</span>
+              <DollarSign size={14} className="text-text-secondary" />
+              <span className="text-[10px] text-text-tertiary font-mono uppercase">Base Market Salary</span>
             </div>
-            <p className="text-sm font-bold text-white font-sans">${(salary.estimated_range.low / 1000).toFixed(0)}k–${(salary.estimated_range.high / 1000).toFixed(0)}k</p>
+            <p className="text-sm font-bold text-text font-sans">${(salary.estimated_range.low / 1000).toFixed(0)}k–${(salary.estimated_range.high / 1000).toFixed(0)}k</p>
           </div>
-          <span className="text-[9px] text-slate-500 font-sans mt-2 capitalize truncate">{salary.seniority} standard</span>
+          <span className="text-[9px] text-text-tertiary font-sans mt-2 capitalize truncate">{salary.seniority} standard</span>
         </Panel>
 
-        <Panel className="border-white/[0.04] bg-white/[0.015] p-4 flex flex-col justify-between relative">
+        <Panel className="border-border bg-surface-raised p-4 flex flex-col justify-between relative">
 
           <div>
             <div className="flex items-center gap-1.5 mb-1.5">
               <TrendingUp size={14} className="text-emerald-400" />
-              <span className="text-[10px] text-slate-500 font-mono uppercase">Growth Track</span>
+              <span className="text-[10px] text-text-tertiary font-mono uppercase">Growth Track</span>
             </div>
             <p className="text-sm font-bold text-emerald-400 capitalize">{salary.growth_potential}</p>
           </div>
-          <span className="text-[9px] text-slate-500 font-sans mt-2">Target domain demand trend</span>
+          <span className="text-[9px] text-text-tertiary font-sans mt-2">Target domain demand trend</span>
         </Panel>
 
-        <Panel className="border-white/[0.04] bg-white/[0.015] p-4 flex flex-col justify-between relative">
+        <Panel className="border-border bg-surface-raised p-4 flex flex-col justify-between relative">
 
           <div>
             <div className="flex items-center gap-1.5 mb-1.5">
               <Mail size={14} className="text-blue-400" />
-              <span className="text-[10px] text-slate-500 font-mono uppercase">Response Rate</span>
+              <span className="text-[10px] text-text-tertiary font-mono uppercase">Response Rate</span>
             </div>
-            <p className="text-2xl font-bold text-white font-mono">{currentOutreach.efficiency_score}%</p>
+            <p className="text-2xl font-bold text-text font-mono">{currentOutreach.efficiency_score}%</p>
           </div>
-          <span className="text-[9px] text-slate-500 font-sans mt-2">Estimated recruiter response rate</span>
+          <span className="text-[9px] text-text-tertiary font-sans mt-2">Estimated recruiter response rate</span>
         </Panel>
       </div>
 
       {/* 2. Recruiter Attractiveness Indices */}
-      <Panel className="border-white/[0.04] bg-white/[0.015] p-5">
+      <Panel className="border-border bg-surface-raised p-5">
         <SectionHeader title="Recruiter Match Scorecard" subtitle="Key candidate qualifications evaluated by matching jobs" />
         <div className="mt-4 grid gap-4 sm:grid-cols-2">
           {[
@@ -302,18 +331,18 @@ const [data, setData] = useState<MarketData | null>(null);
             { label: 'Area Expertise Level', value: attr.specialization_maturity, desc: 'Maturity level of domain-specific qualifications', confidence: attr.confidence, methodology: attr.methodology },
             { label: 'Upskilling & Progress Rate', value: attr.growth_signal, desc: 'Pace of technical upskilling and career progression', confidence: attr.confidence, methodology: attr.methodology },
           ].map(({ label, value, desc, confidence, methodology }) => (
-            <div key={label} className="p-3 bg-white/[0.005] border border-white/[0.03] rounded-lg space-y-2">
+            <div key={label} className="p-3 bg-surface-inset border border-border-subtle rounded-lg space-y-2">
               <div className="flex items-center justify-between">
-                <span className="text-xs font-semibold text-white/90">{label}</span>
+                <span className="text-xs font-semibold text-text">{label}</span>
                 <span className="text-xs font-bold text-emerald-400 font-mono">{Math.round(value * 100)}%</span>
               </div>
               <div className="h-2 bg-slate-950 rounded-full overflow-hidden">
                 <div className="h-full bg-emerald-500 rounded-full" style={{ width: `${Math.round(value * 100)}%` }} />
               </div>
-              <p className="text-[10px] text-slate-500">{desc}</p>
+              <p className="text-[10px] text-text-tertiary">{desc}</p>
               <div className="flex items-center gap-2 mt-1">
                 {renderConfidenceBadge(confidence)}
-                {methodology && (<Info size={14} className="text-slate-400 cursor-pointer" aria-label={methodology} />)}
+                {methodology && (<Info size={14} className="text-text-secondary cursor-pointer" aria-label={methodology} />)}
               </div>
             </div>
           ))}
@@ -325,66 +354,66 @@ const [data, setData] = useState<MarketData | null>(null);
 
         {/* Left Hand: High-Value Missing Skills (7 cols) */}
         <div className="md:col-span-7 space-y-6">
-          <Panel className="border-white/[0.04] bg-white/[0.015] p-5 h-full">
+          <Panel className="border-border bg-surface-raised p-5 h-full">
             <SectionHeader title="High-Value Skills Deficit" subtitle="Bridging these technical gaps raises recruiter response rates" />
             <div className="mt-4 space-y-3">
               {skill_demand.map((s) => (
-                <div key={s.skill} className="flex items-center justify-between p-2 rounded-lg bg-[#080c14] border border-white/[0.03]">
+                <div key={s.skill} className="flex items-center justify-between p-2 rounded-lg bg-surface-inset border border-border-subtle">
                   <div className="flex flex-col">
-                    <span className="text-sm font-medium text-white">{s.skill}</span>
-                    <span className="text-xs text-slate-400">Demand: {Math.round(s.demand * 100)}% ({s.trend})</span>
-                    {s.source && <span className="text-xs text-slate-500 mt-0.5">Source: {s.source}</span>}
+                    <span className="text-sm font-medium text-text">{s.skill}</span>
+                    <span className="text-xs text-text-secondary">Demand: {Math.round(s.demand * 100)}% ({s.trend})</span>
+                    {s.source && <span className="text-xs text-text-tertiary mt-0.5">Source: {s.source}</span>}
                   </div>
                   <div className="flex items-center gap-2">
                     {renderConfidenceBadge(s.confidence)}
                     {s.methodology && (
-                      <Info size={14} className="text-slate-400 cursor-pointer" aria-label={s.methodology} />
+                      <Info size={14} className="text-text-secondary cursor-pointer" aria-label={s.methodology} />
                     )}
                   </div>
                 </div>
               ))}
-              {high_value_missing.length === 0 && <p className="text-xs text-slate-500 italic">No critical skill gaps identified. Your technical stack is fully aligned.</p>}
+              {high_value_missing.length === 0 && <p className="text-xs text-text-tertiary italic">No critical skill gaps identified. Your technical stack is fully aligned.</p>}
             </div>
           </Panel>
         </div>
 
         {/* Right Hand: Outreach Conversion Forecast (5 cols) */}
         <div className="md:col-span-5 space-y-6">
-          <Panel className="border-white/[0.04] bg-white/[0.015] p-5 h-full">
+          <Panel className="border-border bg-surface-raised p-5 h-full">
             <SectionHeader title="Outreach Campaign Forecast" subtitle="Projected outcome conversions per 30 recruiter contacts" />
             <div className="mt-4 space-y-4">
               <div>
-                <div className="flex justify-between text-xs text-white/60 mb-1 font-medium">
+                <div className="flex justify-between text-xs text-text-secondary mb-1 font-medium">
                   <span>Projected Replies</span>
-                  <span className="font-semibold text-white font-mono">{currentOutreach.projected_replies}</span>
+                  <span className="font-semibold text-text font-mono">{currentOutreach.projected_replies}</span>
                 </div>
-                <div className="h-2 bg-slate-950 rounded-full overflow-hidden border border-white/[0.04]">
+                <div className="h-2 bg-slate-950 rounded-full overflow-hidden border border-border">
                   <div className="h-full bg-blue-500 rounded-full" style={{ width: `${(currentOutreach.projected_replies / 30) * 100}%` }} />
                 </div>
               </div>
 
               <div>
-                <div className="flex justify-between text-xs text-white/60 mb-1 font-medium">
+                <div className="flex justify-between text-xs text-text-secondary mb-1 font-medium">
                   <span>Technical Interviews</span>
-                  <span className="font-semibold text-white font-mono">{currentOutreach.projected_interviews}</span>
+                  <span className="font-semibold text-text font-mono">{currentOutreach.projected_interviews}</span>
                 </div>
-                <div className="h-2 bg-slate-950 rounded-full overflow-hidden border border-white/[0.04]">
+                <div className="h-2 bg-slate-950 rounded-full overflow-hidden border border-border">
                   <div className="h-full bg-purple-500 rounded-full" style={{ width: `${(currentOutreach.projected_interviews / 30) * 100}%` }} />
                 </div>
               </div>
 
               <div>
-                <div className="flex justify-between text-xs text-white/60 mb-1 font-medium">
+                <div className="flex justify-between text-xs text-text-secondary mb-1 font-medium">
                   <span>Job Offer Projections</span>
-                  <span className="font-semibold text-white font-mono">{currentOutreach.projected_offers}</span>
+                  <span className="font-semibold text-text font-mono">{currentOutreach.projected_offers}</span>
                 </div>
-                <div className="h-2 bg-slate-950 rounded-full overflow-hidden border border-white/[0.04]">
+                <div className="h-2 bg-slate-950 rounded-full overflow-hidden border border-border">
                   <div className="h-full bg-emerald-500 rounded-full" style={{ width: `${(currentOutreach.projected_offers / 30) * 100}%` }} />
                 </div>
               </div>
 
-              <div className="p-3 bg-white/[0.01] border border-white/[0.03] rounded-lg mt-4 text-[11px] text-slate-400 leading-relaxed">
-                🚀 <span className="font-bold text-white">Outreach Insight</span>: Completing active roadmap sprints will increase projected conversions, boosting replies by ~35% based on hiring manager expectations.
+              <div className="p-3 bg-surface-raised border border-border-subtle rounded-lg mt-4 text-[11px] text-text-secondary leading-relaxed">
+                🚀 <span className="font-bold text-text">Outreach Insight</span>: Completing active roadmap sprints will increase projected conversions, boosting replies by ~35% based on hiring manager expectations.
               </div>
             </div>
           </Panel>
@@ -393,30 +422,30 @@ const [data, setData] = useState<MarketData | null>(null);
       </div>
 
       {/* 4. Strategic Trajectory Growth Pathway */}
-      <Panel className="border-white/[0.04] bg-white/[0.015] p-5">
+      <Panel className="border-border bg-surface-raised p-5">
         <SectionHeader title="Target Trajectory & Seniority Pathways" subtitle="Strategic guidance formulated for technical execution" />
         <div className="mt-4 flex flex-col md:flex-row gap-6">
           <div className="flex-1 space-y-3">
-            <h4 className="text-xs font-bold text-slate-400 uppercase tracking-widest">Active Specialization Track</h4>
-            <p className="text-sm font-semibold text-white">{activePersona.specialization}</p>
-            <p className="text-xs text-slate-400 leading-relaxed">
+            <h4 className="text-xs font-bold text-text-secondary uppercase tracking-widest">Active Specialization Track</h4>
+            <p className="text-sm font-semibold text-text">{activePersona.specialization}</p>
+            <p className="text-xs text-text-secondary leading-relaxed">
               Your validated credentials demonstrate robust competence in core frameworks. Prioritizing backend infrastructure, caching, and infrastructure automation targets allows you to stand out to enterprise recruiters.
             </p>
           </div>
-          <div className="w-full md:w-80 p-4 rounded-xl bg-slate-950 border border-white/[0.03] space-y-3">
-            <h4 className="text-[10px] font-bold text-slate-500 uppercase tracking-wider font-mono">Outcomes Breakdown</h4>
+          <div className="w-full md:w-80 p-4 rounded-xl bg-slate-950 border border-border-subtle space-y-3">
+            <h4 className="text-[10px] font-bold text-text-tertiary uppercase tracking-wider font-mono">Outcomes Breakdown</h4>
             <div className="space-y-2 text-xs">
-              <div className="flex justify-between py-1 border-b border-white/[0.02]">
-                <span className="text-slate-500">Premium Factor</span>
-                <span className="text-white font-bold font-mono">+{Math.round(salary.premium_factor * 100)}%</span>
+              <div className="flex justify-between py-1 border-b border-border-subtle">
+                <span className="text-text-tertiary">Premium Factor</span>
+                <span className="text-text font-bold font-mono">+{Math.round(salary.premium_factor * 100)}%</span>
               </div>
-              <div className="flex justify-between py-1 border-b border-white/[0.02]">
-                <span className="text-slate-500">Recruiter Pressure</span>
+              <div className="flex justify-between py-1 border-b border-border-subtle">
+                <span className="text-text-tertiary">Recruiter Pressure</span>
                 <span className="text-emerald-400 font-bold uppercase">High</span>
               </div>
               <div className="flex justify-between py-1">
-                <span className="text-slate-500">Hiring Intensity</span>
-                <span className="text-white font-bold font-mono">Active</span>
+                <span className="text-text-tertiary">Hiring Intensity</span>
+                <span className="text-text font-bold font-mono">Active</span>
               </div>
             </div>
           </div>

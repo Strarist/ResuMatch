@@ -5,7 +5,7 @@ import Image from 'next/image';
 import { Github, FileText, Mail } from 'lucide-react';
 
 const footerSections = [
-  { title: 'Product', links: [{ label: 'Features', href: '#features' }, { label: 'Pricing', href: '#pricing' }, { label: 'Dashboard', href: '/dashboard' }, { label: 'Upload', href: '/upload' }] },
+  { title: 'Product', links: [{ label: 'Features', href: '#features' }, { label: 'Pricing', href: '#pricing' }, { label: 'Dashboard', href: '/dashboard' }, { label: 'Resume', href: '/resumes' }] },
   { title: 'Intelligence', links: [{ label: 'Market Data', href: '/market-intelligence' }, { label: 'Career Trajectory', href: '/trajectory' }, { label: 'Roadmap', href: '/roadmap-v2' }] },
   { title: 'Recruiters', links: [{ label: 'Recruiter Intel', href: '/recruiter-intelligence' }, { label: 'Opportunity Radar', href: '/opportunities' }] },
   { title: 'Resources', links: [{ label: 'Documentation', href: '#' }, { label: 'API Reference', href: '#' }, { label: 'Blog', href: '#' }, { label: 'Changelog', href: '#' }] },

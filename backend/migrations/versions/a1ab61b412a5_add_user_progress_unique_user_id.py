@@ -13,13 +13,21 @@ import sqlalchemy as sa
 
 # revision identifiers, used by Alembic.
 revision: str = 'a1ab61b412a5'
-down_revision: Union[str, Sequence[str], None] = '001_initial_uuid'
+down_revision: Union[str, Sequence[str], None] = '002_ssot_tables'
 branch_labels: Union[str, Sequence[str], None] = None
 depends_on: Union[str, Sequence[str], None] = None
 
 
 def upgrade() -> None:
-    # 1. Clean up duplicate rows in user_progress table
+    bind = op.get_bind()
+    inspector = sa.inspect(bind)
+    if "user_progress" not in inspector.get_table_names():
+        return
+
+    if bind.dialect.name == "sqlite":
+        return
+
+    # 1. Clean up duplicate rows in user_progress table (PostgreSQL)
     # Keep the newest record per user_id, sorting by updated_at desc, created_at desc, then id desc
     op.execute("""
         DELETE FROM user_progress

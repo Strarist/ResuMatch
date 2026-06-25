@@ -1,0 +1,629 @@
+{
+  "project": "Skillyn",
+  "audit_date": "2026-06-22",
+  "overall_completion_percent": 76,
+  "core_user_journey_completion_percent": 82,
+  "production_readiness_percent": 55,
+  "current_phase": "phase_11",
+  "current_phase_name": "Production Hardening, Realism, Reliability, Performance",
+  "next_milestone": "Release-grade core: pytest in CI, Alembic SSOT parity, unified deploy, visible UI errors",
+  "phases": [
+    {
+      "phase_id": "phase_0",
+      "name": "Product Definition, Scope, Architecture Foundation",
+      "project_weight_percent": 8,
+      "assumed_completion_percent": 100,
+      "actual_completion_percent": 83,
+      "delta_percent": -17,
+      "confidence": "High",
+      "verdict": "overstated",
+      "subphases": [
+        {
+          "id": "0.1",
+          "name": "Product vision and scope definition",
+          "weight_within_phase_percent": 2,
+          "status": "Implemented",
+          "completion_percent": 90,
+          "confidence": "High",
+          "evidence": ["README.md", "docs/platform-architecture.md", "frontend/docs/USER_FLOW_ARCHITECTURE.md"],
+          "gaps": ["LinkedIn OAuth documented but not implemented"]
+        },
+        {
+          "id": "0.2",
+          "name": "Architecture blueprinting",
+          "weight_within_phase_percent": 3,
+          "status": "Implemented",
+          "completion_percent": 88,
+          "confidence": "High",
+          "evidence": ["docs/platform-architecture.md", "docs/database-strategy.md", "backend/app/routers/__init__.py"],
+          "gaps": ["Legacy routes still mounted alongside canonical paths"]
+        },
+        {
+          "id": "0.3",
+          "name": "Domain model definition",
+          "weight_within_phase_percent": 2,
+          "status": "Partially Implemented",
+          "completion_percent": 75,
+          "confidence": "Medium",
+          "evidence": ["backend/app/models/strategic_profile.py", "backend/app/services/roadmap_intel/roadmap_models.py", "backend/app/services/workspace/models.py"],
+          "gaps": ["Models split across app/models and services; Job/Match ORM unused by live opportunity engine"]
+        },
+        {
+          "id": "0.4",
+          "name": "Stack selection and execution rules",
+          "weight_within_phase_percent": 1,
+          "status": "Partially Implemented",
+          "completion_percent": 70,
+          "confidence": "High",
+          "evidence": [".agents/rules/architectureprotection.md", "backend/.env.example", "docker-compose.yml"],
+          "gaps": ["Skillyn vs ResuMatch naming drift in compose and render.yaml"]
+        }
+      ]
+    },
+    {
+      "phase_id": "phase_1",
+      "name": "Core Platform Foundation",
+      "project_weight_percent": 14,
+      "assumed_completion_percent": 95,
+      "actual_completion_percent": 82,
+      "delta_percent": -13,
+      "confidence": "High",
+      "verdict": "overstated",
+      "subphases": [
+        {
+          "id": "1.1",
+          "name": "Backend service skeleton",
+          "weight_within_phase_percent": 3,
+          "status": "Implemented",
+          "completion_percent": 92,
+          "confidence": "High",
+          "evidence": ["backend/app/main.py", "backend/app/config.py", "backend/app/middleware.py", "backend/app/observability.py"],
+          "gaps": ["create_all on startup instead of migration-first in production"]
+        },
+        {
+          "id": "1.2",
+          "name": "Database foundation",
+          "weight_within_phase_percent": 3,
+          "status": "Partially Implemented",
+          "completion_percent": 58,
+          "confidence": "High",
+          "evidence": ["backend/app/db.py", "backend/migrations/versions/001_initial_uuid.py", "backend/migrations/versions/a1ab61b412a5_add_user_progress_unique_user_id.py"],
+          "gaps": ["Alembic covers only legacy tables; strategic/roadmap/workspace/memory tables missing from migrations"]
+        },
+        {
+          "id": "1.3",
+          "name": "Authentication system",
+          "weight_within_phase_percent": 4,
+          "status": "Implemented",
+          "completion_percent": 85,
+          "confidence": "High",
+          "evidence": ["backend/app/services/auth_service.py", "backend/app/routers/auth.py", "backend/tests/test_auth_endpoints.py", "frontend/src/auth/AuthContext.tsx"],
+          "gaps": ["No OAuth E2E test", "Frontend token refresh not wired"]
+        },
+        {
+          "id": "1.4",
+          "name": "Frontend app shell",
+          "weight_within_phase_percent": 2,
+          "status": "Implemented",
+          "completion_percent": 92,
+          "confidence": "High",
+          "evidence": ["frontend/src/app/(app)/layout.tsx", "frontend/src/components/shell/AppShell.tsx"],
+          "gaps": ["Legacy/dev routes remain", "Persona selector documented but missing from shell"]
+        },
+        {
+          "id": "1.5",
+          "name": "Core security / request plumbing",
+          "weight_within_phase_percent": 2,
+          "status": "Implemented",
+          "completion_percent": 82,
+          "confidence": "High",
+          "evidence": ["backend/app/security.py", "backend/tests/test_rate_limiting.py"],
+          "gaps": ["Redis optional with per-process in-memory rate limit fallback"]
+        }
+      ]
+    },
+    {
+      "phase_id": "phase_2",
+      "name": "Resume Intelligence MVP",
+      "project_weight_percent": 14,
+      "assumed_completion_percent": 87,
+      "actual_completion_percent": 83,
+      "delta_percent": -4,
+      "confidence": "High",
+      "verdict": "mostly_correct",
+      "subphases": [
+        {
+          "id": "2.1",
+          "name": "Resume upload & storage flow",
+          "weight_within_phase_percent": 3,
+          "status": "Implemented",
+          "completion_percent": 88,
+          "confidence": "High",
+          "evidence": ["backend/app/routers/resumes.py", "backend/app/services/resume_service.py", "backend/tests/test_resume_lifecycle.py"],
+          "gaps": ["Replace flow exists; delete supported"]
+        },
+        {
+          "id": "2.2",
+          "name": "Resume text extraction pipeline",
+          "weight_within_phase_percent": 3,
+          "status": "Implemented",
+          "completion_percent": 85,
+          "confidence": "High",
+          "evidence": ["backend/app/services/resume_pipeline/parser.py", "backend/app/utils/pdf_sanitizer.py", "backend/tests/test_pdf_sanitizer.py"],
+          "gaps": ["Background parse status polling on frontend"]
+        },
+        {
+          "id": "2.3",
+          "name": "Resume analysis / profile building",
+          "weight_within_phase_percent": 5,
+          "status": "Implemented",
+          "completion_percent": 82,
+          "confidence": "High",
+          "evidence": ["backend/app/services/resume_pipeline/extractor.py", "backend/app/services/resume_pipeline/profile_builder.py", "backend/app/services/resume_pipeline/intelligence/experience_ranker.py"],
+          "gaps": ["OPENROUTER_API_KEY required for full LLM path", "Heuristic fallbacks when LLM fails"]
+        },
+        {
+          "id": "2.4",
+          "name": "Resume UX and pipeline status handling",
+          "weight_within_phase_percent": 3,
+          "status": "Partially Implemented",
+          "completion_percent": 78,
+          "confidence": "Medium",
+          "evidence": ["frontend/src/app/(app)/resumes/page.tsx", "frontend/src/app/(app)/profile/page.tsx", "frontend/src/app/(app)/onboarding/page.tsx"],
+          "gaps": ["Error handling uneven across pages"]
+        }
+      ]
+    },
+    {
+      "phase_id": "phase_3",
+      "name": "Opportunities Engine & Matching",
+      "project_weight_percent": 14,
+      "assumed_completion_percent": 82,
+      "actual_completion_percent": 80,
+      "delta_percent": -2,
+      "confidence": "High",
+      "verdict": "mostly_correct",
+      "subphases": [
+        {
+          "id": "3.1",
+          "name": "Opportunity data ingestion layer",
+          "weight_within_phase_percent": 3,
+          "status": "Implemented",
+          "completion_percent": 80,
+          "confidence": "High",
+          "evidence": ["backend/app/services/opportunity_engine/ingestion.py", "backend/app/services/opportunity_engine/providers/remoteok.py", "backend/app/services/opportunity_engine/quality/__init__.py", "backend/tests/intelligence/test_opportunity_encoding.py"],
+          "gaps": ["FALLBACK_JOBS when crawlers fail", "No scheduled ingestion job"]
+        },
+        {
+          "id": "3.2",
+          "name": "Matching engine",
+          "weight_within_phase_percent": 4,
+          "status": "Implemented",
+          "completion_percent": 78,
+          "confidence": "High",
+          "evidence": ["backend/app/services/opportunity_engine/ingestion.py", "backend/tests/intelligence/test_market_ranking.py", "backend/app/services/opportunities/normalize.py"],
+          "gaps": ["Demo compensation bands on some listings", "Skill metadata gaps on some feeds"]
+        },
+        {
+          "id": "3.3",
+          "name": "Gaps / radar / derived intelligence endpoints",
+          "weight_within_phase_percent": 3,
+          "status": "Implemented",
+          "completion_percent": 85,
+          "confidence": "High",
+          "evidence": ["backend/app/routers/opportunities.py", "backend/tests/test_opportunities_endpoints.py"],
+          "gaps": ["Cache invalidation ad hoc after profile sync"]
+        },
+        {
+          "id": "3.4",
+          "name": "Performance, caching, and resilience for opportunities",
+          "weight_within_phase_percent": 2,
+          "status": "Partially Implemented",
+          "completion_percent": 72,
+          "confidence": "Medium",
+          "evidence": ["backend/app/services/cache/__init__.py", "backend/tests/intelligence/test_opportunity_cache.py", "backend/tests/test_perf_baseline.py"],
+          "gaps": ["Perf tests not in CI", "4s provider timeout only"]
+        },
+        {
+          "id": "3.5",
+          "name": "Opportunities UI",
+          "weight_within_phase_percent": 2,
+          "status": "Implemented",
+          "completion_percent": 82,
+          "confidence": "Medium",
+          "evidence": ["frontend/src/app/(app)/opportunities/page.tsx", "frontend/src/lib/intelligence-client.ts"],
+          "gaps": ["Silent catch on fetch failure"]
+        }
+      ]
+    },
+    {
+      "phase_id": "phase_4",
+      "name": "Roadmap Intelligence",
+      "project_weight_percent": 10,
+      "assumed_completion_percent": 77,
+      "actual_completion_percent": 79,
+      "delta_percent": 2,
+      "confidence": "Medium",
+      "verdict": "slightly_understated",
+      "subphases": [
+        {
+          "id": "4.1",
+          "name": "Roadmap generation logic",
+          "weight_within_phase_percent": 4,
+          "status": "Implemented",
+          "completion_percent": 78,
+          "confidence": "Medium",
+          "evidence": ["backend/app/services/llm/generators/__init__.py", "backend/app/services/roadmap_intel/roadmap_orchestrator.py"],
+          "gaps": ["Hardcoded fallback gaps when trajectory missing_core empty"]
+        },
+        {
+          "id": "4.2",
+          "name": "Roadmap state/event persistence",
+          "weight_within_phase_percent": 2,
+          "status": "Implemented",
+          "completion_percent": 82,
+          "confidence": "High",
+          "evidence": ["backend/app/services/roadmap_intel/roadmap_models.py", "backend/app/routers/roadmap_intel.py"],
+          "gaps": ["Not covered by Alembic migrations"]
+        },
+        {
+          "id": "4.3",
+          "name": "Roadmap UI / interaction",
+          "weight_within_phase_percent": 3,
+          "status": "Implemented",
+          "completion_percent": 85,
+          "confidence": "High",
+          "evidence": ["frontend/src/app/(app)/roadmap-v2/page.tsx", "frontend/src/components/roadmap/"],
+          "gaps": ["Recalibrate error UX basic"]
+        },
+        {
+          "id": "4.4",
+          "name": "Roadmap realism and explainability",
+          "weight_within_phase_percent": 1,
+          "status": "Partially Implemented",
+          "completion_percent": 58,
+          "confidence": "Medium",
+          "evidence": ["backend/app/services/llm/generators/__init__.py fallback reason strings"],
+          "gaps": ["Generic milestone filler not grounded in resume gaps"]
+        }
+      ]
+    },
+    {
+      "phase_id": "phase_5",
+      "name": "Market / Strategic Intelligence",
+      "project_weight_percent": 10,
+      "assumed_completion_percent": 72,
+      "actual_completion_percent": 71,
+      "delta_percent": -1,
+      "confidence": "Medium",
+      "verdict": "mostly_correct",
+      "subphases": [
+        {
+          "id": "5.1",
+          "name": "Market intelligence backend models & ranking logic",
+          "weight_within_phase_percent": 3,
+          "status": "Partially Implemented",
+          "completion_percent": 72,
+          "confidence": "Medium",
+          "evidence": ["backend/app/services/market_intelligence/engine.py", "backend/app/services/market_intelligence/recruiter_demand.py", "backend/tests/intelligence/test_market_ranking.py"],
+          "gaps": ["Static heuristics not live labor-market feeds"]
+        },
+        {
+          "id": "5.2",
+          "name": "Strategic profile layer",
+          "weight_within_phase_percent": 2,
+          "status": "Implemented",
+          "completion_percent": 85,
+          "confidence": "High",
+          "evidence": ["backend/app/routers/strategic.py", "backend/app/services/strategic_profile_service.py", "backend/tests/test_strategic_profile_consistency.py", "backend/tests/test_strategic_profile_years.py"],
+          "gaps": ["Legacy intelligence mirrors still present"]
+        },
+        {
+          "id": "5.3",
+          "name": "Market intelligence UI",
+          "weight_within_phase_percent": 3,
+          "status": "Partially Implemented",
+          "completion_percent": 72,
+          "confidence": "Medium",
+          "evidence": ["frontend/src/app/(app)/market-intelligence/page.tsx"],
+          "gaps": ["Silent API errors", "Spinner-only loading"]
+        },
+        {
+          "id": "5.4",
+          "name": "Strategic realism / evidence surfacing",
+          "weight_within_phase_percent": 2,
+          "status": "Partially Implemented",
+          "completion_percent": 55,
+          "confidence": "Medium",
+          "evidence": ["backend/tests/test_trust_metadata.py"],
+          "gaps": ["Limited methodology transparency in UI"]
+        }
+      ]
+    },
+    {
+      "phase_id": "phase_6",
+      "name": "Workspace / Copilot / Interaction Layer",
+      "project_weight_percent": 6,
+      "assumed_completion_percent": 50,
+      "actual_completion_percent": 74,
+      "delta_percent": 24,
+      "confidence": "Medium",
+      "verdict": "understated",
+      "subphases": [
+        {
+          "id": "6.1",
+          "name": "Workspace backend entities",
+          "weight_within_phase_percent": 2,
+          "status": "Implemented",
+          "completion_percent": 80,
+          "confidence": "High",
+          "evidence": ["backend/app/services/workspace/models.py", "backend/app/routers/workspace.py"],
+          "gaps": ["User context resolution via session lookup"]
+        },
+        {
+          "id": "6.2",
+          "name": "Copilot / assistant routing",
+          "weight_within_phase_percent": 2,
+          "status": "Partially Implemented",
+          "completion_percent": 72,
+          "confidence": "Medium",
+          "evidence": ["backend/app/services/workspace/copilot.py", "backend/tests/test_read_semantics.py"],
+          "gaps": ["Minimal copilot integration tests", "Simulation fallback on frontend"]
+        },
+        {
+          "id": "6.3",
+          "name": "Workspace UI",
+          "weight_within_phase_percent": 2,
+          "status": "Partially Implemented",
+          "completion_percent": 70,
+          "confidence": "Medium",
+          "evidence": ["frontend/src/app/(app)/workspace/page.tsx"],
+          "gaps": ["No page-level loading skeleton", "Light-mode contrast recently improved but not fully QA'd"]
+        }
+      ]
+    },
+    {
+      "phase_id": "phase_7",
+      "name": "Intelligence Memory + Orchestration Runtime",
+      "project_weight_percent": 8,
+      "assumed_completion_percent": 45,
+      "actual_completion_percent": 52,
+      "delta_percent": 7,
+      "confidence": "Medium",
+      "verdict": "directionally_correct_schema_rich_runtime_light",
+      "subphases": [
+        {
+          "id": "7.1",
+          "name": "Memory systems",
+          "weight_within_phase_percent": 3,
+          "status": "Partially Implemented",
+          "completion_percent": 55,
+          "confidence": "Medium",
+          "evidence": ["backend/app/services/memory_engine/", "backend/app/models/strategic_memory.py", "backend/tests/phase9/test_memory_engine.py"],
+          "gaps": ["Sparse production router integration"]
+        },
+        {
+          "id": "7.2",
+          "name": "Orchestration runtime",
+          "weight_within_phase_percent": 3,
+          "status": "Partially Implemented",
+          "completion_percent": 50,
+          "confidence": "Medium",
+          "evidence": ["backend/app/services/intelligence/orchestrator.py", "backend/app/services/agents/shared/event_bus.py"],
+          "gaps": ["Dual event buses", "Agent coordinator scaffolded"]
+        },
+        {
+          "id": "7.3",
+          "name": "Evaluation / replay / control surfaces",
+          "weight_within_phase_percent": 2,
+          "status": "Scaffolded",
+          "completion_percent": 45,
+          "confidence": "Medium",
+          "evidence": ["backend/app/models/orchestration.py", "backend/app/routers/convergence.py", "backend/tests/test_convergence.py"],
+          "gaps": ["Sandbox APIs excluded in production", "Simulated convergence state"]
+        }
+      ]
+    },
+    {
+      "phase_id": "phase_8",
+      "name": "Frontend Productization & UX Cohesion",
+      "project_weight_percent": 6,
+      "assumed_completion_percent": 70,
+      "actual_completion_percent": 76,
+      "delta_percent": 6,
+      "confidence": "Medium",
+      "verdict": "slightly_understated",
+      "subphases": [
+        {
+          "id": "8.1",
+          "name": "Design system / shared component consolidation",
+          "weight_within_phase_percent": 2,
+          "status": "Partially Implemented",
+          "completion_percent": 72,
+          "confidence": "Medium",
+          "evidence": ["frontend/src/components/ds/primitives.tsx", "frontend/src/components/workspace/index.tsx", "frontend/src/app/globals.css"],
+          "gaps": ["Hardcoded colors on auth, loading, error, legacy dev pages"]
+        },
+        {
+          "id": "8.2",
+          "name": "Auth / onboarding / first-use UX polish",
+          "weight_within_phase_percent": 1.5,
+          "status": "Implemented",
+          "completion_percent": 80,
+          "confidence": "High",
+          "evidence": ["frontend/src/app/(auth)/login/page.tsx", "frontend/src/app/(app)/onboarding/page.tsx", "frontend/src/components/auth/"],
+          "gaps": ["Auth pages dark-hardcoded", "No token refresh"]
+        },
+        {
+          "id": "8.3",
+          "name": "Dashboard / roadmap / opportunities UX refinement",
+          "weight_within_phase_percent": 1.5,
+          "status": "Implemented",
+          "completion_percent": 82,
+          "confidence": "High",
+          "evidence": ["frontend/src/app/(app)/dashboard/page.tsx", "frontend/src/app/(app)/roadmap-v2/page.tsx", "frontend/src/app/(app)/opportunities/page.tsx"],
+          "gaps": ["Workspace and settings weaker"]
+        },
+        {
+          "id": "8.4",
+          "name": "Market intelligence / roadmap clarity pass",
+          "weight_within_phase_percent": 1,
+          "status": "Partially Implemented",
+          "completion_percent": 68,
+          "confidence": "Medium",
+          "evidence": ["frontend/src/app/(app)/market-intelligence/page.tsx", "frontend/src/components/roadmap/RoadmapInsightsSidebar.tsx"],
+          "gaps": ["Market page still dense", "Hierarchy could improve"]
+        }
+      ]
+    },
+    {
+      "phase_id": "phase_9",
+      "name": "Observability, Evaluation, and Testing Infrastructure",
+      "project_weight_percent": 4,
+      "assumed_completion_percent": 65,
+      "actual_completion_percent": 59,
+      "delta_percent": -6,
+      "confidence": "High",
+      "verdict": "slightly_overstated",
+      "subphases": [
+        {
+          "id": "9.1",
+          "name": "Test coverage for critical flows",
+          "weight_within_phase_percent": 2,
+          "status": "Partially Implemented",
+          "completion_percent": 58,
+          "confidence": "High",
+          "evidence": ["backend/tests/ (29 modules)", "backend/tests/test_auth_endpoints.py", "backend/tests/test_resume_lifecycle.py", "backend/tests/test_opportunities_endpoints.py"],
+          "gaps": ["pytest not run in CI", "zero frontend tests", "no OAuth E2E"]
+        },
+        {
+          "id": "9.2",
+          "name": "Logging / diagnostics / timing instrumentation",
+          "weight_within_phase_percent": 1,
+          "status": "Implemented",
+          "completion_percent": 75,
+          "confidence": "High",
+          "evidence": ["backend/app/observability.py", "backend/app/middleware.py", "backend/tests/test_perf_baseline.py", "docs/perf-baseline.md"],
+          "gaps": ["Sentry and Prometheus optional imports not pinned in requirements.txt"]
+        },
+        {
+          "id": "9.3",
+          "name": "Quality gates",
+          "weight_within_phase_percent": 1,
+          "status": "Partially Implemented",
+          "completion_percent": 45,
+          "confidence": "High",
+          "evidence": [".github/workflows/ci.yml"],
+          "gaps": ["AST lint only", "tsc || true", "no pytest/ruff/mypy in pipeline"]
+        }
+      ]
+    },
+    {
+      "phase_id": "phase_10",
+      "name": "Deployment, Infra, Security, CI/CD, Runtime Readiness",
+      "project_weight_percent": 3,
+      "assumed_completion_percent": 60,
+      "actual_completion_percent": 53,
+      "delta_percent": -7,
+      "confidence": "High",
+      "verdict": "overstated",
+      "subphases": [
+        {
+          "id": "10.1",
+          "name": "Deployment packaging",
+          "weight_within_phase_percent": 1,
+          "status": "Partially Implemented",
+          "completion_percent": 52,
+          "confidence": "High",
+          "evidence": ["Dockerfile", "backend/Dockerfile.prod", "frontend/Dockerfile.prod", "render.yaml"],
+          "gaps": ["Three divergent Docker paths", "gunicorn in root Dockerfile but not requirements.txt"]
+        },
+        {
+          "id": "10.2",
+          "name": "Infra/runtime dependencies",
+          "weight_within_phase_percent": 1,
+          "status": "Partially Implemented",
+          "completion_percent": 65,
+          "confidence": "High",
+          "evidence": ["docker-compose.yml", "backend/app/infrastructure/redis.py", "backend/app/config.py"],
+          "gaps": ["Compose is infra-only", "create_all vs Alembic authority split"]
+        },
+        {
+          "id": "10.3",
+          "name": "CI/CD and deployment safety",
+          "weight_within_phase_percent": 1,
+          "status": "Partially Implemented",
+          "completion_percent": 42,
+          "confidence": "High",
+          "evidence": [".github/workflows/ci.yml"],
+          "gaps": ["No deploy workflow", "Render env misaligned with config.py production requirements"]
+        }
+      ]
+    },
+    {
+      "phase_id": "phase_11",
+      "name": "Production Hardening, Realism, Reliability, Performance",
+      "project_weight_percent": 3,
+      "assumed_completion_percent": 40,
+      "actual_completion_percent": 65,
+      "delta_percent": 25,
+      "confidence": "Medium",
+      "verdict": "understated_active_work",
+      "subphases": [
+        {
+          "id": "11.1",
+          "name": "Reliability hardening",
+          "weight_within_phase_percent": 0.8,
+          "status": "Partially Implemented",
+          "completion_percent": 68,
+          "confidence": "Medium",
+          "evidence": ["backend/app/security.py", "backend/app/exceptions.py", "backend/app/services/opportunity_engine/quality/text_encoding.py", "frontend/src/components/shell/AppShell.tsx"],
+          "gaps": ["Silent frontend catches", "OAuth edge cases"]
+        },
+        {
+          "id": "11.2",
+          "name": "Runtime correctness & infra authority",
+          "weight_within_phase_percent": 0.8,
+          "status": "Partially Implemented",
+          "completion_percent": 62,
+          "confidence": "High",
+          "evidence": ["backend/app/config.py SQLite guard", ".agents/rules/databasesafety.md"],
+          "gaps": ["create_all production drift", "Render missing REDIS_URL and OPENROUTER_API_KEY"]
+        },
+        {
+          "id": "11.3",
+          "name": "Performance hardening",
+          "weight_within_phase_percent": 0.7,
+          "status": "Partially Implemented",
+          "completion_percent": 58,
+          "confidence": "Medium",
+          "evidence": ["docs/perf-baseline.md", "backend/tests/test_perf_baseline.py", ".agents/rules/performancetargets.md"],
+          "gaps": ["Perf not enforced in CI", "No production latency measurements"]
+        },
+        {
+          "id": "11.4",
+          "name": "UX realism / production polish",
+          "weight_within_phase_percent": 0.7,
+          "status": "Partially Implemented",
+          "completion_percent": 72,
+          "confidence": "Medium",
+          "evidence": ["frontend/docs/MOCK_DATA_AUDIT.md", "frontend/src/app/(app)/workspace/page.tsx light-mode tokens", "backend/app/services/opportunities/normalize.py"],
+          "gaps": ["Demo jobs and generic roadmap copy remain", "Light mode QA incomplete"]
+        }
+      ]
+    }
+  ],
+  "cross_cutting_risks": [
+    "CI does not run pytest despite 29 test modules",
+    "Schema authority split between create_all and minimal Alembic",
+    "Phase 7 tables suggest orchestration completion but production path is lighter",
+    "Demo/fallback data masks realism gaps in opportunities and roadmap",
+    "Dual API clients and silent frontend error handling"
+  ],
+  "not_verified": [
+    "Live browser QA all pages light/dark",
+    "Production Render deployment",
+    "Redis-down soak testing",
+    "Google OAuth E2E in real environment"
+  ]
+}

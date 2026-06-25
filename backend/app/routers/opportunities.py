@@ -8,6 +8,7 @@ from app.core.dependencies import get_db
 from app.core.dependencies import get_current_user
 from app.logger import logger
 from app.models.user import User
+from app.services.opportunities.normalize import normalize_opportunity_match
 from app.services.opportunities import compute_opportunity_gaps, compute_opportunity_radar
 import time
 import traceback
@@ -27,11 +28,12 @@ _DEMO_SOURCES = frozenset({
 
 def _ensure_match_trust_fields(match: dict) -> dict:
     """Normalize persisted or cached matches with explicit trust metadata."""
-    normalized = dict(match)
+    normalized = normalize_opportunity_match(match)
+
     source = normalized.get("source") or "StrategicProfile"
     reasons = normalized.get("match_reason")
     if not reasons:
-        alt = normalized.get("alignmentReasoning") or normalized.get("matching_signals")
+        alt = normalized.get("alignmentReasoning") or normalized.get("alignment_reasoning") or normalized.get("matching_signals")
         reasons = alt if isinstance(alt, list) else ([str(alt)] if alt else [])
     normalized["match_reason"] = reasons
     normalized["source"] = source
@@ -44,10 +46,19 @@ def _ensure_match_trust_fields(match: dict) -> dict:
     return normalized
 
 
-def _matches_response(matches: list, status: str, message: str | None = None) -> dict:
+def _matches_response(
+    matches: list,
+    status: str,
+    message: str | None = None,
+    *,
+    degraded: bool | None = None,
+    match_status: str | None = None,
+) -> dict:
     res = {
         "matches": [_ensure_match_trust_fields(m) for m in matches],
         "status": status,
+        "match_status": match_status or ("degraded" if degraded or status == "degraded" else "ready"),
+        "degraded": bool(degraded) if degraded is not None else status == "degraded",
     }
     if message:
         res["message"] = message
@@ -112,7 +123,16 @@ async def get_opportunity_matches(current_user: User = Depends(get_current_user)
 
         if profile:
             if profile.opportunity_alignment:
-                res = _matches_response(profile.opportunity_alignment, "ready")
+                feed_meta = (profile.trajectory_state or {}).get("opportunity_feed", {})
+                degraded = bool(feed_meta.get("degraded"))
+                status = "degraded" if degraded else "ready"
+                message = feed_meta.get("message")
+                res = _matches_response(
+                    profile.opportunity_alignment,
+                    status,
+                    message,
+                    degraded=degraded,
+                )
                 await cache_set(cache_key, res, "medium")
                 t_total = (time.perf_counter() - t_start) * 1000
                 logger.info(f"[MATCHES] Total={t_total:.2f}ms (Profile cache)")

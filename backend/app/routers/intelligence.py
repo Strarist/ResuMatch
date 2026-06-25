@@ -97,7 +97,6 @@ async def recompute_intelligence(
         market_readiness=result["summary"].get("competitiveness", 0.75) * 100,
         specialization=result["summary"].get("dominant_path", "General Software Engineering"),
     )
-    await db.commit()
     return {
         "message": "Intelligence recomputed",
         "summary": result["summary"],

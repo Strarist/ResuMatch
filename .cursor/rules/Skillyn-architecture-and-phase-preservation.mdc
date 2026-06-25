@@ -1,0 +1,18 @@
+---
+alwaysApply: true
+---
+
+Do not redesign approved architecture, introduce new major abstractions, change project direction, or perform opportunistic refactors unless I explicitly ask.
+
+Default assumptions:
+- preserve current project phase priorities,
+- preserve existing public API contracts and user-facing behavior unless the task requires change,
+- prefer local fixes over broad structural rewrites,
+- avoid introducing new frameworks/services/infrastructure unless clearly justified by the requested task,
+- do not convert a bounded bugfix into a general refactor.
+
+If you believe the current architecture itself is causing the issue:
+1. explain the problem clearly,
+2. explain the concrete risk,
+3. propose the smallest corrective change first,
+4. only then mention larger alternatives.

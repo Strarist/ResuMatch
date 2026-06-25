@@ -40,6 +40,13 @@ export function isTokenExpired(): boolean {
   return user.exp * 1000 < Date.now();
 }
 
+/** True when access token expires within the next 5 minutes. */
+export function isTokenExpiringSoon(thresholdMs = 5 * 60 * 1000): boolean {
+  const user = getUser();
+  if (!user) return true;
+  return user.exp * 1000 - Date.now() < thresholdMs;
+}
+
 export function isAuthenticated(): boolean {
   return !isTokenExpired();
 }

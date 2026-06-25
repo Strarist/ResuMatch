@@ -1,6 +1,7 @@
 'use client';
 
 import React, { createContext, useContext, useEffect, ReactNode, useState, useCallback, useRef } from 'react';
+import { usePathname } from 'next/navigation';
 import { useIntelligenceMetrics } from './IntelligenceMetricsContext';
 import { useMutationFeed } from './MutationFeedContext';
 import { useCausalGraph } from './CausalGraphContext';
@@ -32,6 +33,12 @@ export function AdaptiveRuntimeProvider({ children }: { children: ReactNode }) {
 
   const { isSimulationActive } = useSimulationBoundary();
   const { isAuthenticated } = useAuth();
+  const pathname = usePathname();
+  const streamRoutes = ['/dashboard', '/workspace', '/opportunities', '/market-intelligence', '/roadmap-v2'];
+  const shouldConnectStream =
+    isAuthenticated &&
+    !isSimulationActive &&
+    streamRoutes.some((route) => pathname?.startsWith(route));
   const isSimulationActiveRef = useRef(isSimulationActive);
   useEffect(() => { isSimulationActiveRef.current = isSimulationActive; }, [isSimulationActive]);
 
@@ -138,7 +145,7 @@ export function AdaptiveRuntimeProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     const manager = RuntimeStreamManager.getInstance();
 
-    if (!isAuthenticated) {
+    if (!shouldConnectStream) {
       manager.safeDestroy();
       setStatus('OFFLINE');
       return;
@@ -163,7 +170,7 @@ export function AdaptiveRuntimeProvider({ children }: { children: ReactNode }) {
     return () => {
       manager.unregisterListener(handleStreamEvent);
     };
-  }, [isAuthenticated, handlePayload]);
+  }, [shouldConnectStream, handlePayload]);
 
   const value = React.useMemo(() => ({ status }), [status]);
 

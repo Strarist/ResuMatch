@@ -9,9 +9,31 @@ from app.services.resume_pipeline.parser import extract_text_from_pdf
 from app.services.resume_pipeline.extractor import extract_resume_entities
 from app.services.resume_pipeline.skill_mapper import map_and_normalize_skills
 from app.services.resume_pipeline.role_inference import infer_strategic_role
+from app.services.resume_pipeline.intelligence.experience_ranker import rank_experience_seniority
+from app.services.resume_pipeline.intelligence.project_extractor import derive_projects_from_entities
 from app.services.llm.generators import generate_adaptive_roadmap, generate_opportunity_matches
+from app.services.opportunities.normalize import normalize_opportunity_alignment
 
 from app.logger import logger
+
+
+def _default_roadmap_nodes(gaps: list[str], target_role: str) -> list[dict]:
+    """Minimal roadmap stub from real gap list only — no synthetic filler skills."""
+    return [
+        {
+            "skill": gap,
+            "priority": "high" if idx == 0 else "medium",
+            "effort_weeks": 4,
+            "impact_estimate": 85,
+            "reason": f"Acquire competence in {gap} to bridge career gaps.",
+            "dependencies": [],
+            "completionConfidence": 80,
+            "projectedImpact": "High compatibility matching adjustment.",
+            "strategicRationale": f"Deficit gap detected for {target_role} specialization.",
+        }
+        for idx, gap in enumerate(gaps[:3])
+    ]
+
 
 async def build_and_persist_strategic_profile(db: AsyncSession, user_id: str, file_path: str, resume_id: str = None) -> tuple:
     """Execute the full end-to-end strategic career intelligence pipeline from PDF to persistent DB."""
@@ -29,6 +51,7 @@ async def build_and_persist_strategic_profile(db: AsyncSession, user_id: str, fi
                 if res:
                     res.parse_status = status_str
                     await db.flush()
+                    await db.commit()
             except Exception as update_err:
                 logger.warning(f"Failed to update parse status to {status_str}: {update_err}")
 
@@ -94,8 +117,13 @@ async def build_and_persist_strategic_profile(db: AsyncSession, user_id: str, fi
         dominant_path = trajectory.get("dominant_path", "Software Engineer")
         target_role = raw_entities.get("inferred_target_role", f"Senior {dominant_path}")
         specialization = raw_entities.get("inferred_specialization", f"{dominant_path} Specialist")
+        rank_data = rank_experience_seniority(raw_entities.get("experience", []) or [])
+        years_of_experience = round(
+            float(rank_data.get("aggregated_years_experience", raw_entities.get("years_of_experience", 5.0))),
+            1,
+        )
         _traj_s = time.perf_counter() - _t4
-        logger.bind(user_id=user_id, dominant_path=dominant_path, target_role=target_role, specialization=specialization).info(f"[PIPELINE] Trajectory Inference: {_traj_s * 1000:.2f}ms")
+        logger.bind(user_id=user_id, dominant_path=dominant_path, target_role=target_role, specialization=specialization, years_of_experience=years_of_experience).info(f"[PIPELINE] Trajectory Inference: {_traj_s * 1000:.2f}ms")
     except Exception as e:
         logger.bind(user_id=user_id).error(f"Step 4 Failed: Trajectory inference error: {e}")
         raise e
@@ -104,73 +132,18 @@ async def build_and_persist_strategic_profile(db: AsyncSession, user_id: str, fi
     readiness = trajectory.get("readiness_scores", {})
     dominant_readiness = readiness.get(dominant_path, {})
     gaps = dominant_readiness.get("missing_core", [])
-    if not gaps and normalized_skills:
-        # Fallback to general gaps if trajectory core matches are 100% full
-        gaps = ["System Architecture Modeling", "Production Observability Protocols"]
     logger.bind(user_id=user_id, gaps=gaps).info("Step 5 Complete: Skill gaps identified.")
 
-    # 6. Generate real roadmap milestones via OpenRouter LLM
-    try:
-        await update_status("building_profile")
-        logger.bind(user_id=user_id).info("Step 6: Generating adaptive roadmap milestones via OpenRouter...")
-        _t6 = time.perf_counter()
-        roadmap_nodes = await generate_adaptive_roadmap(
-            target_role=target_role,
-            validated_skills=normalized_skills,
-            gaps=gaps
+    derived_projects = derive_projects_from_entities(raw_entities)
+    if derived_projects:
+        raw_entities["projects"] = derived_projects
+        logger.bind(user_id=user_id, project_count=len(derived_projects)).info(
+            "Derived %s portfolio project(s) from resume entities.", len(derived_projects)
         )
-        _roadmap_s = time.perf_counter() - _t6
-        logger.bind(user_id=user_id, event="roadmap_created").info(f"[PIPELINE] Roadmap Generation: {_roadmap_s * 1000:.2f}ms")
-        logger.bind(user_id=user_id, nodes_count=len(roadmap_nodes)).info("Step 6 Complete: Roadmap generated successfully.")
-    except Exception as e:
-        logger.bind(user_id=user_id).warning(f"Step 6 Failed: Roadmap generation error: {e}. Generating default roadmap milestones locally.")
-        # Fallback to local default milestones representing gaps to avoid rolling back the transaction
-        roadmap_nodes = [
-            {
-                "skill": gap,
-                "priority": "high" if idx == 0 else "medium",
-                "effort_weeks": 4,
-                "impact_estimate": 85,
-                "reason": f"Acquire competence in {gap} to bridge career gaps.",
-                "dependencies": [],
-                "completionConfidence": 80,
-                "projectedImpact": "High compatibility matching adjustment.",
-                "strategicRationale": f"Deficit gap detected for {target_role} specialization."
-            }
-            for idx, gap in enumerate(gaps[:3])
-        ]
-        if not roadmap_nodes:
-            roadmap_nodes = [
-                {
-                    "skill": "System Architecture Modeling",
-                    "priority": "high",
-                    "effort_weeks": 4,
-                    "impact_estimate": 90,
-                    "reason": "Establish baseline system architecture modeling skills.",
-                    "dependencies": [],
-                    "completionConfidence": 85,
-                    "projectedImpact": "High baseline compatibility.",
-                    "strategicRationale": "Core career foundations alignment."
-                }
-            ]
 
-    # 7. Generate real opportunity matches via OpenRouter LLM
-    try:
-        logger.bind(user_id=user_id).info("Step 7: Generating opportunity matches via OpenRouter...")
-        _t7 = time.perf_counter()
-        opportunity_matches = await generate_opportunity_matches(
-            validated_skills=normalized_skills,
-            gaps=gaps,
-            specialization=specialization
-        )
-        _opp_s = time.perf_counter() - _t7
-        logger.bind(user_id=user_id, matches_count=len(opportunity_matches)).info(f"[PIPELINE] Opportunity Generation: {_opp_s * 1000:.2f}ms")
-    except Exception as e:
-        logger.bind(user_id=user_id).warning(f"Step 7 Failed: Opportunity matching generation error: {e}. Falling back to empty opportunity matches.")
-        # Fallback gracefully to empty matches rather than rolling back the entire core profile sync
-        opportunity_matches = []
-
-    # 8. Legacy sync deferred until after StrategicProfile is persisted (step 9)
+    # Fast path: default roadmap (no LLM) so profile + resume can complete quickly
+    roadmap_nodes = _default_roadmap_nodes(gaps, target_role)
+    opportunity_matches: list = []
 
     # 9. Build and persist core StrategicProfile to DB
     try:
@@ -219,7 +192,7 @@ async def build_and_persist_strategic_profile(db: AsyncSession, user_id: str, fi
                 active_specialization=specialization,
                 target_role=target_role,
                 roadmap_progress=roadmap_progress,
-                opportunity_alignment=opportunity_matches,
+                opportunity_alignment=normalize_opportunity_alignment(opportunity_matches),
                 market_alignment=float(trajectory.get("competitiveness_score", 0.80) * 100),
                 ai_recommendations=[
                     {
@@ -235,6 +208,7 @@ async def build_and_persist_strategic_profile(db: AsyncSession, user_id: str, fi
                     "readiness_scores": readiness,
                     "adjacent_roles": trajectory.get("adjacent_roles", []),
                     "competitiveness_score": trajectory.get("competitiveness_score", 0.80),
+                    "years_of_experience": years_of_experience,
                     "skill_origins": {s: "resume" for s in normalized_skills}
                 },
                 calibration_history=[
@@ -248,19 +222,36 @@ async def build_and_persist_strategic_profile(db: AsyncSession, user_id: str, fi
             db.add(profile)
         else:
             profile.inferred_skills = normalized_skills
-            profile.active_specialization = specialization
-            profile.target_role = target_role
             profile.roadmap_progress = roadmap_progress
-            profile.opportunity_alignment = opportunity_matches
+            profile.opportunity_alignment = normalize_opportunity_alignment(opportunity_matches)
             profile.market_alignment = float(trajectory.get("competitiveness_score", 0.80) * 100)
-            profile.trajectory_state = {
-                "dominant_path": dominant_path,
-                "secondary_paths": trajectory.get("secondary_paths", []),
-                "readiness_scores": readiness,
-                "adjacent_roles": trajectory.get("adjacent_roles", []),
-                "competitiveness_score": trajectory.get("competitiveness_score", 0.80),
-                "skill_origins": {s: "resume" for s in normalized_skills}
-            }
+            existing_ts = profile.trajectory_state or {}
+            user_calibrated = bool(existing_ts.get("user_calibrated"))
+            if not user_calibrated:
+                profile.active_specialization = specialization
+                profile.target_role = target_role
+                profile.trajectory_state = {
+                    "dominant_path": dominant_path,
+                    "secondary_paths": trajectory.get("secondary_paths", []),
+                    "readiness_scores": readiness,
+                    "adjacent_roles": trajectory.get("adjacent_roles", []),
+                    "competitiveness_score": trajectory.get("competitiveness_score", 0.80),
+                    "years_of_experience": years_of_experience,
+                    "skill_origins": {s: "resume" for s in normalized_skills},
+                }
+            else:
+                profile.trajectory_state = {
+                    **existing_ts,
+                    "dominant_path": dominant_path,
+                    "secondary_paths": trajectory.get("secondary_paths", []),
+                    "readiness_scores": readiness,
+                    "adjacent_roles": trajectory.get("adjacent_roles", []),
+                    "competitiveness_score": trajectory.get("competitiveness_score", 0.80),
+                    "skill_origins": {
+                        **(existing_ts.get("skill_origins") or {}),
+                        **{s: "resume" for s in normalized_skills},
+                    },
+                }
             profile.calibration_history.append({
                 "timestamp": datetime.now(timezone.utc).isoformat(),
                 "event": "Recalibrated profile metrics via resume updates."
@@ -297,6 +288,102 @@ async def build_and_persist_strategic_profile(db: AsyncSession, user_id: str, fi
         raise e
 
     _pipeline_total_s = time.perf_counter() - _pipeline_start
-    logger.bind(user_id=user_id).info(f"[PIPELINE] Total: {_pipeline_total_s * 1000:.2f}ms")
-    logger.bind(user_id=user_id).info("Pipeline Execution Complete: Strategic career profile generated successfully.")
-    return profile, raw_entities
+    logger.bind(user_id=user_id).info(f"[PIPELINE] Fast path total: {_pipeline_total_s * 1000:.2f}ms")
+    logger.bind(user_id=user_id).info("Pipeline fast path complete: core profile persisted.")
+    enrich_ctx = {
+        "normalized_skills": normalized_skills,
+        "gaps": gaps,
+        "target_role": target_role,
+        "specialization": specialization,
+        "trajectory": trajectory,
+        "dominant_readiness": dominant_readiness,
+    }
+    return profile, raw_entities, enrich_ctx
+
+
+async def enrich_profile_after_parse(
+    db: AsyncSession,
+    user_id: str,
+    resume_id: str | None,
+    *,
+    normalized_skills: list[str],
+    gaps: list[str],
+    target_role: str,
+    specialization: str,
+    trajectory: dict,
+    dominant_readiness: dict,
+) -> None:
+    """Deferred LLM enrichment: roadmap + opportunities (runs after resume marked completed)."""
+    async def update_status(status_str: str):
+        if resume_id:
+            try:
+                from app.models.resume import Resume
+                stmt = select(Resume).where(Resume.id == resume_id)
+                res = (await db.execute(stmt)).scalar_one_or_none()
+                if res:
+                    res.parse_status = status_str
+                    await db.flush()
+                    await db.commit()
+            except Exception as update_err:
+                logger.warning(f"Failed to update enrich status to {status_str}: {update_err}")
+
+    await update_status("enriching_profile")
+    logger.bind(user_id=user_id).info("Deferred enrichment: generating roadmap via OpenRouter...")
+    try:
+        roadmap_nodes = await generate_adaptive_roadmap(
+            target_role=target_role,
+            validated_skills=normalized_skills,
+            gaps=gaps,
+        )
+    except Exception as e:
+        logger.bind(user_id=user_id).warning(f"Deferred roadmap generation failed: {e}")
+        roadmap_nodes = _default_roadmap_nodes(gaps, target_role)
+
+    try:
+        opportunity_matches = await generate_opportunity_matches(
+            validated_skills=normalized_skills,
+            gaps=gaps,
+            specialization=specialization,
+        )
+    except Exception as e:
+        logger.bind(user_id=user_id).warning(f"Deferred opportunity generation failed: {e}")
+        opportunity_matches = []
+
+    result = await db.execute(select(StrategicProfile).where(StrategicProfile.user_id == user_id))
+    profile = result.scalar_one_or_none()
+    if not profile:
+        return
+
+    profile.roadmap_progress = {
+        "completedPercent": 0,
+        "completedCount": 0,
+        "totalCount": len(roadmap_nodes),
+    }
+    profile.opportunity_alignment = normalize_opportunity_alignment(opportunity_matches)
+    profile.updated_at = datetime.now(timezone.utc)
+    await db.flush()
+
+    try:
+        from app.services.strategic_profile_service import (
+            sync_legacy_intelligence_from_profile,
+            sync_legacy_roadmap_from_profile,
+        )
+        await sync_legacy_intelligence_from_profile(db, user_id, profile)
+        await sync_legacy_roadmap_from_profile(
+            db,
+            user_id,
+            profile,
+            milestones=roadmap_nodes,
+            focus_areas=gaps[:3],
+            coverage=dominant_readiness.get("score", 0.85),
+            learning_velocity=trajectory.get("competitiveness_score", 0.80),
+        )
+        logger.bind(user_id=user_id).info("Deferred enrichment: legacy tables synced.")
+    except Exception as e:
+        logger.bind(user_id=user_id).warning(f"Deferred legacy sync degraded (non-fatal): {e}")
+
+    from app.services.cache import cache_invalidate
+    await cache_invalidate(f"opportunities:matches:{user_id}")
+    await cache_invalidate(f"strategic:focus:{user_id}")
+    await update_status("completed")
+    logger.bind(user_id=user_id).info("Deferred enrichment complete.")

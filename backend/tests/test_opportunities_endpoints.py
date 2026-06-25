@@ -5,6 +5,7 @@ from httpx import AsyncClient, ASGITransport
 from app.main import app as fastapi_app
 
 @pytest.mark.asyncio
+@pytest.mark.critical
 async def test_opportunities_endpoints_flow(test_engine):
     # Use direct AsyncClient with ASGI transport to avoid transaction context manager issues
     # when endpoints call db.commit()

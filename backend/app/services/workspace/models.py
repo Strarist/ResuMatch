@@ -2,7 +2,7 @@
 
 import uuid
 
-from sqlalchemy import Column, DateTime, ForeignKey, Index, JSON, String, Text, func
+from sqlalchemy import Boolean, Column, DateTime, ForeignKey, Index, JSON, String, Text, func
 
 from app.models.base import Base
 
@@ -15,6 +15,7 @@ class WorkspaceSession(Base):
     user_id = Column(String(36), ForeignKey("users.id", ondelete="CASCADE"), nullable=False)
     title = Column(String, default="New Session")
     session_type = Column(String, default="copilot")  # copilot, project, strategy
+    pinned = Column(Boolean, default=False, server_default="false")
     created_at = Column(DateTime(timezone=True), server_default=func.now())
     updated_at = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
 

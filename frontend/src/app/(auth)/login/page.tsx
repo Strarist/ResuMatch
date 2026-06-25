@@ -23,7 +23,12 @@ function LoginQueryParams({ onError }: { onError: (err: string) => void }) {
     const errorParam = searchParams.get("error");
     const detailParam = searchParams.get("detail");
     if (errorParam) {
-      onError(detailParam || errorParam);
+      const oauthMessages: Record<string, string> = {
+        oauth_failed: "Google sign-in failed. Please try again.",
+        oauth_not_configured: "Google OAuth is not configured on this server.",
+        no_token: "No sign-in token was received. Please try again.",
+      };
+      onError(detailParam || oauthMessages[errorParam] || errorParam);
     }
   }, [searchParams, onError]);
   return null;

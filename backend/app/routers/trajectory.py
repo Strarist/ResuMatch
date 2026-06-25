@@ -140,7 +140,6 @@ async def recompute_trajectory(
             structured_payload={"from": previous_dominant, "to": result["dominant_path"]},
         ))
 
-    await db.commit()
     return {"message": "Trajectory recomputed", "trajectory": result}
 
 

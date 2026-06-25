@@ -1,6 +1,7 @@
 """Resume service — handles resume upload, validation, and lifecycle."""
 
 import os
+import time
 from io import BytesIO
 from PyPDF2 import PdfReader
 
@@ -192,6 +193,7 @@ class ResumeService:
 
         resume = await self.resume_repo.get_by_id(resume_id, user_id)
         if not resume:
+            logger.error(f"Resume {resume_id} not found for user {user_id}")
             return
 
         file_path = os.path.join(self._settings.upload_dir, f"{resume.id}_{resume.filename}")
@@ -202,18 +204,52 @@ class ResumeService:
                 event="parsing_failure",
                 severity="error"
             ).error(f"Resume file not found at {file_path}")
+            resume.parse_status = "failed"
+            await self.resume_repo.db.flush()
             return
 
         try:
-            from app.services.resume_pipeline.profile_builder import build_and_persist_strategic_profile
-            # Build and persist the robust strategic profile
-            profile, raw_entities = await build_and_persist_strategic_profile(self.resume_repo.db, user_id, file_path, resume.id)
+            from app.services.resume_pipeline.profile_builder import (
+                build_and_persist_strategic_profile,
+                enrich_profile_after_parse,
+            )
+            fast_start = time.perf_counter()
+            profile, raw_entities, enrich_ctx = await build_and_persist_strategic_profile(
+                self.resume_repo.db, user_id, file_path, resume.id
+            )
+            fast_path_ms = (time.perf_counter() - fast_start) * 1000
+            logger.bind(user_id=user_id, resume_id=resume_id, fast_path_ms=round(fast_path_ms, 2)).info(
+                "parse_fast_path_complete: %.2fms", fast_path_ms
+            )
 
             resume.raw_text = "\n".join(profile.inferred_skills)
             resume.skills = profile.inferred_skills
             resume.parsed_data = raw_entities
             resume.parse_status = "completed"
             await self.resume_repo.db.flush()
+
+            from app.services.portfolio.resume_sync import sync_resume_projects_to_portfolio
+            synced = await sync_resume_projects_to_portfolio(
+                self.resume_repo.db, user_id, raw_entities or {}
+            )
+            logger.bind(user_id=user_id, synced_projects=synced).info(
+                "Portfolio sync after parse: %s project(s)", synced
+            )
+
+            await self.resume_repo.db.commit()
+
+            enrich_start = time.perf_counter()
+            await enrich_profile_after_parse(
+                self.resume_repo.db,
+                user_id,
+                resume.id,
+                **enrich_ctx,
+            )
+            enrichment_ms = (time.perf_counter() - enrich_start) * 1000
+            logger.bind(user_id=user_id, resume_id=resume_id, enrichment_ms=round(enrichment_ms, 2)).info(
+                "parse_enrichment_complete: %.2fms", enrichment_ms
+            )
+            await self.resume_repo.db.commit()
 
             # Warm response caches from persisted profile (skip heavy recompute)
             from app.services.cache import cache_set, cache_invalidate
@@ -227,6 +263,8 @@ class ResumeService:
             await cache_invalidate(f"opportunities:radar:{user_id}")
             await cache_invalidate(f"market_intelligence:snapshot:{user_id}")
             await cache_invalidate(f"strategic:focus:{user_id}")
+            await cache_invalidate(f"portfolio:recruiter:{user_id}")
+            await cache_invalidate(f"copilot:market_snap:{user_id}")
 
             logger.bind(
                 user_id=user_id,

@@ -5,9 +5,14 @@
  */
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
+const REQUEST_TIMEOUT_MS = 8000;
 
-function getAuthHeaders(): Record<string, string> {
-  const headers: Record<string, string> = { 'Content-Type': 'application/json' };
+function getAuthHeaders(method: string = 'GET', hasBody = false): Record<string, string> {
+  const headers: Record<string, string> = {};
+  // Avoid Content-Type on GET — triggers CORS OPTIONS preflight on every request
+  if (hasBody || (method !== 'GET' && method !== 'HEAD')) {
+    headers['Content-Type'] = 'application/json';
+  }
   const token = typeof window !== 'undefined' ? localStorage.getItem('access_token') : null;
   if (token) {
     headers['Authorization'] = `Bearer ${token}`;
@@ -15,34 +20,91 @@ function getAuthHeaders(): Record<string, string> {
   return headers;
 }
 
+const responseCache = new Map<string, { data: unknown; expiresAt: number }>();
+const CACHE_TTL_MS = 45_000;
+
+function getCached<T>(key: string): T | null {
+  const entry = responseCache.get(key);
+  if (!entry) return null;
+  if (Date.now() > entry.expiresAt) {
+    responseCache.delete(key);
+    return null;
+  }
+  return entry.data as T;
+}
+
+function setCached(key: string, data: unknown, ttlMs = CACHE_TTL_MS): void {
+  responseCache.set(key, { data, expiresAt: Date.now() + ttlMs });
+}
+
+export function clearResponseCache(): void {
+  responseCache.clear();
+}
+
 // Request deduplication cache
 const inflight = new Map<string, Promise<unknown>>();
 
-async function request<T>(endpoint: string, options: RequestInit = {}): Promise<T> {
-  const url = `${API_URL}${endpoint}`;
-  const key = `${options.method || 'GET'}:${url}:${options.body || ''}`;
+export function clearInflightCache(): void {
+  inflight.clear();
+}
 
-  if (!options.method || options.method === 'GET') {
+async function request<T>(endpoint: string, options: RequestInit = {}, cacheKey?: string): Promise<T> {
+  const url = `${API_URL}${endpoint}`;
+  const method = options.method || 'GET';
+  const key = `${method}:${url}:${options.body || ''}`;
+
+  if (method === 'GET' && cacheKey) {
+    const cached = getCached<T>(cacheKey);
+    if (cached) return cached;
+  }
+
+  if (method === 'GET') {
     const existing = inflight.get(key);
     if (existing) return existing as Promise<T>;
   }
 
+  const hasBody = Boolean(options.body);
   const promise = (async () => {
-    const res = await fetch(url, {
-      headers: { ...getAuthHeaders(), ...(options.headers as Record<string, string> | undefined) },
-      credentials: 'include',
-      ...options,
-    });
-    if (!res.ok) {
-      const body = await res.json().catch(() => ({ detail: res.statusText }));
-      throw new ApiError(res.status, body.detail || body.error || 'Request failed');
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), REQUEST_TIMEOUT_MS);
+    try {
+      const res = await fetch(url, {
+        headers: { ...getAuthHeaders(method, hasBody), ...(options.headers as Record<string, string> | undefined) },
+        credentials: 'include',
+        cache: 'no-store',
+        ...options,
+        signal: options.signal ?? controller.signal,
+      });
+      if (!res.ok) {
+        const body = await res.json().catch(() => ({ detail: res.statusText }));
+        throw new ApiError(res.status, body.detail || body.error || 'Request failed');
+      }
+      const data = (await res.json()) as T;
+      if (method === 'GET' && cacheKey) {
+        setCached(cacheKey, data);
+      }
+      return data;
+    } catch (err) {
+      if (err instanceof DOMException && err.name === 'AbortError') {
+        throw new ApiError(408, 'Request timed out. Please try again.');
+      }
+      if (err instanceof ApiError) {
+        throw err;
+      }
+      throw new ApiError(0, err instanceof Error ? err.message : 'Network request failed');
+    } finally {
+      clearTimeout(timeoutId);
     }
-    return res.json() as Promise<T>;
   })();
 
-  if (!options.method || options.method === 'GET') {
+  if (method === 'GET') {
     inflight.set(key, promise);
     promise.finally(() => setTimeout(() => inflight.delete(key), 100));
+  } else {
+    promise.finally(() => {
+      clearInflightCache();
+      clearResponseCache();
+    });
   }
 
   return promise;
@@ -64,9 +126,9 @@ export const intelligence = {
 };
 
 export const strategic = {
-  getFocus: () => request<StrategicFocusResponse>('/v1/strategic/focus'),
-  getProfile: () => request<StrategicProfileResponse>('/v1/strategic/profile'),
-  getLifecycle: () => request<LifecycleResponse>('/v1/strategic/lifecycle'),
+  getFocus: () => request<StrategicFocusResponse>('/v1/strategic/focus', {}, 'strategic:focus'),
+  getProfile: () => request<StrategicProfileResponse>('/v1/strategic/profile', {}, 'strategic:profile'),
+  getLifecycle: () => request<LifecycleResponse>('/v1/strategic/lifecycle', {}, 'strategic:lifecycle'),
   updateProfile: (body: StrategicProfileUpdate) =>
     request<{ message: string; target_role: string }>('/v1/strategic/profile/update', {
       method: 'POST',
@@ -77,6 +139,8 @@ export const strategic = {
 export const portfolio = {
   listProjects: () =>
     request<{ projects: PortfolioProject[] }>('/v1/portfolio/projects'),
+  syncFromResume: () =>
+    request<{ synced: number; message: string }>('/v1/portfolio/sync-from-resume', { method: 'POST' }),
   getRecruiterProfile: () => request<RecruiterProfileResponse>('/v1/portfolio/recruiter-profile'),
 };
 
@@ -130,8 +194,11 @@ export const roadmap = {
 
 export const workspace = {
   getSessions: () => request<{ sessions: WorkspaceSession[] }>('/v1/workspace/sessions'),
-  createSession: (title = 'New Session') => request<WorkspaceSession>('/v1/workspace/session', { method: 'POST', body: JSON.stringify({ title }) }),
+  createSession: (title = 'New chat') => request<WorkspaceSession>('/v1/workspace/session', { method: 'POST', body: JSON.stringify({ title }) }),
   getSession: (id: string) => request<{ session: WorkspaceSession; messages: WorkspaceMessage[] }>(`/v1/workspace/session/${id}`),
+  updateSession: (id: string, body: { title?: string; pinned?: boolean }) =>
+    request<WorkspaceSession>(`/v1/workspace/session/${id}`, { method: 'PATCH', body: JSON.stringify(body) }),
+  deleteSession: (id: string) => request<{ message: string }>(`/v1/workspace/session/${id}`, { method: 'DELETE' }),
   sendMessage: (sessionId: string, content: string) => request<{ message: WorkspaceMessage }>(`/v1/workspace/session/${sessionId}/message`, { method: 'POST', body: JSON.stringify({ content }) }),
   recordAction: (rec_type: string, rec_title: string, action: string) => request('/v1/workspace/recommendations/action', { method: 'POST', body: JSON.stringify({ recommendation_type: rec_type, recommendation_title: rec_title, action }) }),
 };
@@ -152,6 +219,7 @@ async function uploadFormData<T = unknown>(endpoint: string, file: File, method 
   const res = await fetch(`${API_URL}${endpoint}`, {
     method,
     credentials: 'include',
+    cache: 'no-store',
     headers: token ? { Authorization: `Bearer ${token}` } : {},
     body: formData,
   });
@@ -159,6 +227,7 @@ async function uploadFormData<T = unknown>(endpoint: string, file: File, method 
     const body = await res.json().catch(() => ({ detail: res.statusText }));
     throw new ApiError(res.status, body.detail || 'Upload failed');
   }
+  clearInflightCache();
   return res.json() as Promise<T>;
 }
 
@@ -222,6 +291,7 @@ export interface StrategicProfileResponse {
 export interface LifecycleResponse {
   has_strategic_profile: boolean;
   resume_parse_status: string;
+  parse_stage?: string;
   lifecycle_stage: number;
 }
 
@@ -262,6 +332,64 @@ export interface OpportunityMatch {
   url?: string;
   compensation?: string;
   missing_requirements?: string[];
+  alignment_reasoning?: string;
+  alignmentReasoning?: string;
+  location?: string;
+  estimated_career_impact?: string;
+  type?: string;
+  urgency?: string;
+  matching_signals?: string[];
+  proof_gaps?: string[];
+}
+
+/** Coerce alignment score to 0.0–1.0 from mixed camelCase/snake_case API payloads. */
+export function normalizeAlignmentScore(raw: unknown): number | null {
+  if (raw == null) return null;
+  const value = typeof raw === 'number' ? raw : parseFloat(String(raw));
+  if (Number.isNaN(value)) return null;
+  return value > 1 ? value / 100 : value;
+}
+
+/** Format match score for display; never renders NaN. */
+export function formatMatchPercent(score: number | null | undefined): string {
+  if (score == null || Number.isNaN(score)) return '—';
+  const pct = Math.round(score * 100);
+  return Number.isNaN(pct) ? '—' : `${pct}%`;
+}
+
+/** Normalize a raw opportunity match object to a consistent shape. */
+export function normalizeOpportunityMatch(raw: Record<string, unknown>): OpportunityMatch {
+  const alignment = normalizeAlignmentScore(
+    raw.alignment_score ?? raw.alignmentScore ?? raw.match_score
+  );
+  const reasoning =
+    (raw.alignment_reasoning as string | undefined) ??
+    (raw.alignmentReasoning as string | undefined) ??
+    (Array.isArray(raw.match_reason) ? (raw.match_reason as string[]).join(' ') : undefined);
+
+  return {
+    title: String(raw.title ?? 'Role'),
+    company: String(raw.company ?? raw.organization ?? 'Unknown'),
+    alignment_score: alignment ?? 0,
+    match_score: raw.match_score as number | undefined,
+    confidence: typeof raw.confidence === 'number' ? raw.confidence : 0,
+    match_reason: raw.match_reason as string[] | undefined,
+    source: raw.source as string | undefined,
+    posted_at: raw.posted_at as string | undefined,
+    published_at: raw.published_at as string | undefined,
+    status: raw.status as string | undefined,
+    url: raw.url as string | undefined,
+    compensation: raw.compensation as string | undefined,
+    missing_requirements: (raw.missing_requirements ?? raw.missingRequirements) as string[] | undefined,
+    alignment_reasoning: reasoning,
+    alignmentReasoning: reasoning,
+    location: raw.location as string | undefined,
+    estimated_career_impact: raw.estimated_career_impact as string | undefined,
+    type: raw.type as string | undefined,
+    urgency: raw.urgency as string | undefined,
+    matching_signals: raw.matching_signals as string[] | undefined,
+    proof_gaps: (raw.proof_gaps ?? raw.proofGaps) as string[] | undefined,
+  };
 }
 
 export interface OpportunityGap {
@@ -325,6 +453,7 @@ export interface WorkspaceSession {
   id: string;
   title: string;
   type: string;
+  pinned?: boolean;
   updated_at?: string;
 }
 
@@ -341,6 +470,7 @@ export interface ResumeItem {
   skills: string[] | null;
   uploaded_at: string | null;
   parse_status?: string | null;
+  parse_error?: string | null;
   file_size_bytes?: number;
   parsed_data?: Record<string, unknown> | null;
 }

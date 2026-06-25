@@ -5,6 +5,7 @@ export interface LifecycleBackendState {
   lifecycleStage: LifecycleStage;
   hasStrategicProfile: boolean;
   resumeParseStatus: 'none' | 'pending' | 'processing' | 'completed' | 'failed';
+  parseStage?: string;
 }
 
 /** Derive lifecycle stage from backend resume + strategic profile state. */
@@ -33,6 +34,7 @@ export async function fetchLifecycleBackendState(): Promise<LifecycleBackendStat
       lifecycleStage: (data.lifecycle_stage ?? deriveLifecycleStage(hasProfile, parseStatus, 1)) as LifecycleStage,
       hasStrategicProfile: hasProfile,
       resumeParseStatus: parseStatus,
+      parseStage: data.parse_stage,
     };
   } catch (err) {
     console.error('[lifecycle-sync] Failed to fetch backend state:', err);
@@ -46,10 +48,12 @@ export async function fetchLifecycleBackendState(): Promise<LifecycleBackendStat
 
 /** Poll interval based on current lifecycle state. */
 export function getLifecyclePollIntervalMs(state: LifecycleBackendState): number | null {
-  if (state.hasStrategicProfile && state.resumeParseStatus !== 'processing') {
+  const parsing =
+    state.resumeParseStatus === 'processing' || state.resumeParseStatus === 'pending';
+  if (state.hasStrategicProfile && !parsing) {
     return null;
   }
-  if (state.resumeParseStatus === 'processing' || state.resumeParseStatus === 'pending') {
+  if (parsing) {
     return 5000;
   }
   return 30000;

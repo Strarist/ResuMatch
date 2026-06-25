@@ -1,0 +1,20 @@
+---
+alwaysApply: true
+---
+
+When planning, implementing, or reviewing, explicitly evaluate:
+- correctness
+- hidden edge cases
+- error handling and failure paths
+- partial failure behavior across frontend/backend/storage/AI flows
+- performance and query cost
+- maintainability and debugging ease
+- API and schema compatibility
+- security and auth/session correctness
+- scalability under future growth
+
+Always distinguish between:
+1. functionally working
+2. production-ready, maintainable, scalable, and debuggable
+
+If something is only functionally complete but still risky architecturally or operationally, say so explicitly.

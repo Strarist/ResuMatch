@@ -10,7 +10,6 @@ from starlette.config import Config
 from authlib.integrations.starlette_client import OAuth, OAuthError
 
 from app.config import get_settings
-from app.core.dependencies import get_db
 from app.core.dependencies import get_auth_service, get_current_user, get_user_repo
 from app.exceptions import AuthenticationError, ConflictError
 from app.models.user import User
@@ -52,12 +51,11 @@ def _auth_response(message: str, access_token: str, refresh_token: str, user: Us
 
 
 @router.post("/register")
-async def register(body: RegisterRequest, auth_service: AuthService = Depends(get_auth_service), db=Depends(get_db)):
+async def register(body: RegisterRequest, auth_service: AuthService = Depends(get_auth_service)):
     try:
         user, access, refresh = await auth_service.register(
             name=body.name, email=body.email, password=body.password
         )
-        await db.commit()
     except ConflictError as e:
         raise HTTPException(status_code=400, detail=e.message)
     return _auth_response("Registration successful", access, refresh, user)
@@ -81,7 +79,7 @@ async def refresh(request: Request, auth_service: AuthService = Depends(get_auth
         access, refresh_tok = await auth_service.refresh(token)
     except AuthenticationError as e:
         raise HTTPException(status_code=401, detail=e.message)
-    response = JSONResponse({"message": "Token refreshed"})
+    response = JSONResponse({"message": "Token refreshed", "access_token": access})
     response.set_cookie(key="access_token", value=access, httponly=True, secure=_COOKIE_SECURE, samesite="lax")
     response.set_cookie(key="refresh_token", value=refresh_tok, httponly=True, secure=_COOKIE_SECURE, samesite="lax")
     return response
@@ -102,35 +100,19 @@ async def get_me(current_user: User = Depends(get_current_user)):
 
 @router.get("/profile")
 async def get_profile(request: Request, current_user: User = Depends(get_current_user)):
-    t_start = time.perf_counter()
-
-    # User is loaded by get_current_user dependency, which fetches from DB.
-    # Measure DB timing by simulating/retrieving DB reference timing from dependency
-    dt_db = 0.05  # DB fetching is handled inside get_current_user dependency injection
-    logger.info(f"[PROFILE] DB={dt_db:.2f}ms")
-
-    t0 = time.perf_counter()
     token = None
     auth_header = request.headers.get("Authorization")
     if auth_header and auth_header.startswith("Bearer "):
         token = auth_header.split(" ", 1)[1]
     else:
         token = request.cookies.get("access_token")
-    dt_build = (time.perf_counter() - t0) * 1000
-    logger.info(f"[PROFILE] User Build={dt_build:.2f}ms")
-
-    t0 = time.perf_counter()
-    res_data = {
-        "user": UserResponse.model_validate(current_user).model_dump(),
-        "access_token": token
-    }
-    res = JSONResponse(content=res_data, headers={"Cache-Control": "public, max-age=30"})
-    dt_serialization = (time.perf_counter() - t0) * 1000
-    logger.info(f"[PROFILE] Serialization={dt_serialization:.2f}ms")
-
-    dt_total = (time.perf_counter() - t_start) * 1000
-    logger.info(f"[PROFILE] Total={dt_total:.2f}ms")
-    return res
+    return JSONResponse(
+        content={
+            "user": UserResponse.model_validate(current_user).model_dump(),
+            "access_token": token,
+        },
+        headers={"Cache-Control": "public, max-age=30"},
+    )
 
 
 @router.put("/profile")
@@ -138,10 +120,8 @@ async def update_profile(
     body: ProfileUpdateRequest,
     current_user: User = Depends(get_current_user),
     user_repo: UserRepository = Depends(get_user_repo),
-    db=Depends(get_db)
 ):
     user = await user_repo.update(current_user, name=body.name, profile_img=body.profile_img)
-    await db.commit()
     return {"message": "Profile updated successfully", "user": UserResponse.model_validate(user).model_dump()}
 
 
@@ -173,7 +153,7 @@ async def google_login(request: Request):
 
 
 @router.get("/google/callback")
-async def google_callback(request: Request, auth_service: AuthService = Depends(get_auth_service), db=Depends(get_db)):
+async def google_callback(request: Request, auth_service: AuthService = Depends(get_auth_service)):
     if not settings.google_client_id or not settings.google_client_secret:
         return JSONResponse(
             status_code=503,
@@ -228,9 +208,6 @@ async def google_callback(request: Request, auth_service: AuthService = Depends(
         )
         _jwt_ms = int((time.time() - _t_jwt_start) * 1000)
         logger.info(f"[OAUTH] JWT Created duration={_jwt_ms}ms")
-        _t_persist_start = time.time()
-        await db.commit()
-        logger.info(f"[OAUTH] Token Persisted duration={int((time.time() - _t_persist_start) * 1000)}ms")
     except Exception as e:
         logger.error(f"[OAUTH] JWT Created FAILED error={e} duration={int((time.time() - _t0) * 1000)}ms")
         return RedirectResponse(

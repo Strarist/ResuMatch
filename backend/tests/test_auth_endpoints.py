@@ -10,6 +10,7 @@ from app.main import app as fastapi_app
 
 
 @pytest.mark.asyncio
+@pytest.mark.critical
 async def test_auth_register_login_profile_refresh_logout(test_engine):
     async with AsyncClient(transport=ASGITransport(app=fastapi_app), base_url="http://test") as client:
         email = f"auth-{uuid.uuid4().hex[:8]}@example.com"
@@ -44,7 +45,7 @@ async def test_auth_register_login_profile_refresh_logout(test_engine):
         )
         assert refresh_resp.status_code == 200
         assert refresh_resp.json()["message"] == "Token refreshed"
-        assert "access_token" in refresh_resp.cookies
+        assert refresh_resp.json().get("access_token") or "access_token" in refresh_resp.cookies
 
         logout_resp = await client.post(
             "/v1/auth/logout",

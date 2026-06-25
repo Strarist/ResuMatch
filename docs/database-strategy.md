@@ -4,8 +4,9 @@
 
 | Environment | Database | Connection String |
 |---|---|---|
-| Development | SQLite | `sqlite+aiosqlite:///./dev.db` |
-| Production | PostgreSQL | `postgresql+asyncpg://user:pass@host/db` |
+| Local development | PostgreSQL (Docker) | `postgresql+asyncpg://resumatch:resumatch_dev@localhost:5432/resumatch` | <!-- pragma: allowlist secret -->
+| Production | PostgreSQL | `postgresql+asyncpg://user:pass@host/db` | <!-- pragma: allowlist secret -->
+| pytest only | SQLite | `sqlite+aiosqlite:///./test.db` (set in `tests/conftest.py`) |
 
 ## Portable Column Types
 
@@ -65,9 +66,32 @@ alembic revision --autogenerate -m "description"
 alembic upgrade head
 ```
 
+## Local Development
+
+Start PostgreSQL and Redis from the repo root:
+
+```bash
+docker compose up -d postgres redis
+```
+
+`backend/.env.example` defaults to the Docker Postgres and Redis URLs. The backend **does not** silently fall back to SQLite if Postgres is unreachable — startup fails with a connection error.
+
+Redis is expected locally. If Redis is temporarily unavailable, the app degrades to in-memory cache and rate limits (no startup failure).
+
+## Emergency SQLite (manual override only)
+
+Only use when explicitly approved and Postgres is unavailable:
+
+```bash
+# backend/.env — manual change only
+DATABASE_URL=sqlite+aiosqlite:///./dev.db
+```
+
+This is not the canonical local target and is not auto-triggered by the application.
+
 ## When to Use PostgreSQL Locally
 
-Use PostgreSQL (via `docker compose up -d`) when:
+PostgreSQL is the **default** local database. Use Docker Compose when:
 - Testing JSONB-specific queries
 - Testing concurrent connections
 - Testing production-like behavior

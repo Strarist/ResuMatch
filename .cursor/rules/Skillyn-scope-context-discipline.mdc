@@ -1,0 +1,18 @@
+---
+alwaysApply: true
+---
+
+Before doing any non-trivial task, first restate:
+1. the goal,
+2. the exact files/directories that need inspection,
+3. the smallest plausible scope of change.
+
+Default behavior:
+- inspect only the files I mention,
+- inspect files directly imported by those files only if needed,
+- inspect the smallest supporting schema/config/service files required to reason correctly.
+
+Do not scan the whole repository unless I explicitly ask for a repo-wide audit or architecture review.
+
+If the task can likely be solved by reading 1–6 files, do not expand scope without explaining why.
+Prefer a narrow, high-confidence answer over a broad exploratory one.

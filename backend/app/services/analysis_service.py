@@ -85,7 +85,7 @@ class AnalysisService:
         resume.parsed_data = parsed.model_dump()
         resume.skills = parsed.skills
         resume.parse_status = "completed"
-        await self.resume_repo.db.commit()
+        await self.resume_repo.db.flush()
         return parsed
 
     def _resume_path(self, resume: Resume) -> str:

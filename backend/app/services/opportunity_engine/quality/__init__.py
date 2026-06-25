@@ -8,6 +8,10 @@ from app.services.opportunity_engine.quality.duplicate_detector import filter_du
 from app.services.opportunity_engine.quality.title_normalizer import clean_and_normalize_title
 from app.services.opportunity_engine.quality.compensation_parser import parse_compensation
 from app.services.opportunity_engine.quality.relevance_ranker import evaluate_listing_credibility
+from app.services.opportunity_engine.quality.text_encoding import (
+    is_garbled_text,
+    sanitize_job_text_fields,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -29,13 +33,18 @@ def sanitize_and_rank_opportunities(jobs: List[Dict[str, Any]]) -> List[Dict[str
         if is_job_stale(job):
             continue
 
-        # 2. Title Normalizer & Gimmick Filter
+        # 2. Encoding repair + garbled text filter
+        job = sanitize_job_text_fields(job)
         title = job.get("title", "")
+        if is_garbled_text(title):
+            continue
+
+        # 3. Title Normalizer & Gimmick Filter
         norm_title, is_valid = clean_and_normalize_title(title)
         if not is_valid:
             continue
 
-        # 3. Compensation Parser
+        # 4. Compensation Parser
         comp_data = parse_compensation(job.get("compensation", ""))
 
         # Build cleaned copy
@@ -49,10 +58,10 @@ def sanitize_and_rank_opportunities(jobs: List[Dict[str, Any]]) -> List[Dict[str
 
         first_pass.append(cleaned_job)
 
-    # 4. Duplicate Filter
+    # 5. Duplicate Filter
     deduped = filter_duplicates(first_pass)
 
-    # 5. Relevance and Credibility Decoration
+    # 6. Relevance and Credibility Decoration
     final_jobs = []
     for job in deduped:
         decorations = evaluate_listing_credibility(job)

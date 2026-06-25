@@ -58,7 +58,6 @@ async def create_roadmap(
     db: AsyncSession = Depends(get_db),
 ):
     state = await get_or_create_roadmap(db, current_user.id, body.target_role, body.target_skills)
-    await db.commit()
     return {
         "state": {
             "id": state.id,
@@ -79,7 +78,6 @@ async def mutate_roadmap_endpoint(
     result = await mutate_existing_roadmap(db, current_user.id, body.target_skills)
     if not result:
         return {"mutations": [], "message": "No active roadmap found"}
-    await db.commit()
     return {
         "mutations": result["mutations"],
         "new_focus_areas": result["new_focus_areas"],
@@ -111,7 +109,6 @@ async def mark_node_complete(
     from app.services.user_progress_service import track_milestone_completion
     await complete_node(db, current_user.id, body.skill)
     await track_milestone_completion(db, current_user.id, body.skill)
-    await db.commit()
     return {"message": f"Node '{body.skill}' marked complete"}
 
 
@@ -122,7 +119,6 @@ async def mark_node_deferred(
     db: AsyncSession = Depends(get_db),
 ):
     await defer_node(db, current_user.id, body.skill)
-    await db.commit()
     return {"message": f"Node '{body.skill}' deferred"}
 
 
@@ -135,7 +131,6 @@ async def undo_node_action_endpoint(
     from app.services.user_progress_service import track_milestone_reversal
     await undo_node_action(db, current_user.id, body.skill)
     await track_milestone_reversal(db, current_user.id, body.skill)
-    await db.commit()
     return {"message": f"Node '{body.skill}' status reverted to active"}
 
 
@@ -174,8 +169,6 @@ async def recalibrate_roadmap_endpoint(
     dominant_path = trajectory_state.get("dominant_path", "Software Engineer")
     dominant_readiness = readiness.get(dominant_path, {})
     gaps = dominant_readiness.get("missing_core", [])
-    if not gaps and profile.inferred_skills:
-        gaps = ["System Architecture Modeling", "Production Observability Protocols"]
 
     # 3. Re-trigger adaptive roadmap generation
     logger.bind(user_id=current_user.id).info("Regenerating roadmap milestones via OpenRouter...")
@@ -187,10 +180,19 @@ async def recalibrate_roadmap_endpoint(
 
     # 4. Re-trigger opportunities matching
     logger.bind(user_id=current_user.id).info("Regenerating opportunity matches...")
-    real_matches = await match_jobs_for_candidate(profile)
+    match_result = await match_jobs_for_candidate(profile)
 
     # 5. Save changes to profile
-    profile.opportunity_alignment = real_matches
+    profile.opportunity_alignment = match_result["matches"]
+    trajectory_state = profile.trajectory_state or {}
+    if match_result.get("degraded"):
+        trajectory_state["opportunity_feed"] = {
+            "degraded": True,
+            "message": match_result.get("message"),
+        }
+    else:
+        trajectory_state.pop("opportunity_feed", None)
+    profile.trajectory_state = trajectory_state
     profile.roadmap_progress = {
         "completedPercent": 0,
         "completedCount": 0,
@@ -238,8 +240,6 @@ async def recalibrate_roadmap_endpoint(
     await cache_invalidate(f"opportunities:gaps:{current_user.id}")
     await cache_invalidate(f"opportunities:radar:{current_user.id}")
     await cache_invalidate(f"market_intelligence:snapshot:{current_user.id}")
-
-    await db.commit()
 
     logger.bind(user_id=current_user.id, event="recalibration_success").info(
         f"recalibration_success: Roadmap and opportunities successfully recalibrated and saved for user {current_user.id}"

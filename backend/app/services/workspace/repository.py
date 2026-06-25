@@ -14,7 +14,7 @@ class WorkspaceRepository:
         result = await self.db.execute(
             select(WorkspaceSession)
             .where(WorkspaceSession.user_id == user_id)
-            .order_by(WorkspaceSession.updated_at.desc())
+            .order_by(WorkspaceSession.pinned.desc(), WorkspaceSession.updated_at.desc())
             .limit(20)
         )
         return list(result.scalars().all())
@@ -30,6 +30,32 @@ class WorkspaceRepository:
             select(WorkspaceSession).where(WorkspaceSession.id == session_id, WorkspaceSession.user_id == user_id)
         )
         return result.scalar_one_or_none()
+
+    async def update_session(
+        self,
+        session_id: str,
+        user_id: str,
+        *,
+        title: str | None = None,
+        pinned: bool | None = None,
+    ) -> WorkspaceSession | None:
+        session = await self.get_session(session_id, user_id)
+        if not session:
+            return None
+        if title is not None:
+            session.title = title.strip() or session.title
+        if pinned is not None:
+            session.pinned = pinned
+        await self.db.flush()
+        return session
+
+    async def delete_session(self, session_id: str, user_id: str) -> bool:
+        session = await self.get_session(session_id, user_id)
+        if not session:
+            return False
+        await self.db.delete(session)
+        await self.db.flush()
+        return True
 
     async def get_messages(self, session_id: str, limit: int = 50) -> list[WorkspaceMessage]:
         result = await self.db.execute(

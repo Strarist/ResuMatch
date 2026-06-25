@@ -17,9 +17,35 @@
     --text-tertiary: 220 6% 45%;
     --text-inverse: 220 14% 8%;
 
-    --accent: 220 90% 56%;
-    --accent-hover: 220 90% 64%;
-    --accent-subtle: 220 90% 56%;
+    --accent: 160 84% 45%;
+    --accent-hover: 160 84% 52%;
+    --accent-subtle: 160 84% 45%;
+
+    --success: 142 70% 49%;
+    --warning: 38 92% 50%;
+    --error: 0 72% 51%;
+    --info: 199 89% 48%;
+
+    --shadow: 220 40% 2%;
+  }
+
+  .dark {
+    --surface: 220 14% 8%;
+    --surface-raised: 220 14% 11%;
+    --surface-overlay: 220 14% 14%;
+    --surface-inset: 220 14% 6%;
+
+    --border: 220 10% 18%;
+    --border-subtle: 220 10% 14%;
+
+    --text: 220 10% 93%;
+    --text-secondary: 220 8% 65%;
+    --text-tertiary: 220 6% 45%;
+    --text-inverse: 220 14% 8%;
+
+    --accent: 160 84% 45%;
+    --accent-hover: 160 84% 52%;
+    --accent-subtle: 160 84% 45%;
 
     --success: 142 70% 49%;
     --warning: 38 92% 50%;

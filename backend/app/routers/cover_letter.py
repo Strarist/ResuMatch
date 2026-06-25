@@ -60,7 +60,7 @@ async def stream_cover_letter_endpoint(
             resume.parsed_data = parsed.model_dump()
             resume.skills = parsed.skills
             resume.parse_status = "completed"
-            await resume_repo.db.commit()
+            await resume_repo.db.flush()
 
         yield sse_event("stream.token", {"content": "", "done": False})
 

@@ -18,7 +18,7 @@ export interface AuthLayoutProps {
 
 export function AuthLayout({ left, right }: AuthLayoutProps) {
   return (
-    <div className="flex min-h-screen bg-[#0a0a0a] text-white overflow-hidden">
+    <div className="dark flex min-h-screen bg-[#0a0a0a] text-white overflow-hidden">
       {/* Left panel – hidden on small screens */}
       <div className="hidden lg:flex w-1/2 flex-col justify-between p-12 border-r border-white/[0.08] relative bg-black">
         {/* Subtle radial gradient */}
